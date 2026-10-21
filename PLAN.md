@@ -46,13 +46,13 @@ Priority: **P0** = MVP, **P1** = next, **P2** = later or nice-to-have.
 - **P0** "This month" spend vs last month and vs budget
 - **P1** Goal progress rings for your top 3 goals
 - **P1** Next dividend expected (amount and date)
-- **P2** Weekly "money moment" summary (push notification)
+- **P1** Weekly/monthly "money moment" summary card + push notification (template-based, see K2)
 
 ### B. Accounts and transactions (CommBank/Amex-style)
 - **P0** All accounts list grouped by institution, with balances and last-synced time
 - **P0** Unified transaction feed: search, filter (account, category, date, amount), and pending vs posted
 - **P0** Merchant cleanup (e.g. "WOOLWORTHS 1234 SYDNEY" → "Woolworths") with logos
-- **P0** Categorisation, plus **rules** ("always categorise X as Y")
+- **P0** Layered categorisation: your rules → learned corrections → past matches → built-in AU merchant list → source category → "Uncategorised" inbox (see K1)
 - **P0** Transfer detection (e.g. CommBank → Amex payment, offset → loan) so transfers don't count as spending
 - **P1** Split transactions, notes, tags, receipt photo
 - **P1** Amex-specific: statement cycle view, due date, statement balance vs current balance, refund/credit matching
@@ -118,7 +118,7 @@ Delivered as short, Pearler-style "learn" cards and linked from the screens they
   - **"DIY two-fund" — VAS + VGS** (e.g. 30/70, 40/60, 50/50). Lower fees, you choose the home-bias, but you rebalance yourself.
   - **"Core + satellite".** A VDHG or VAS/VGS core plus small tilts (e.g. emerging markets, small caps, a hedged version).
 - **P1** Comparison tool: VDHG vs a VAS/VGS mix covering fee difference in $ over 10/20/30 years, the Australian-share weighting, and complexity
-- **P1** Tips library (contextual):
+- **P1** Tips library, **triggered by your portfolio and filled with your numbers** (see K3):
   - Brokerage drag: invest less often in larger amounts (e.g. a $5 fee on $500 is 1%, on $2,000 it's 0.25%)
   - Rebalance with new contributions instead of selling (avoids CGT)
   - Hold more than 12 months for the 50% CGT discount
@@ -136,6 +136,45 @@ Delivered as short, Pearler-style "learn" cards and linked from the screens they
 - **P1** Notifications: large transaction, over budget, dividend paid, goal milestone, sync failure
 - **P1** Light and dark mode
 - **P2** Super fund tracking (manual or CSV), multi-user/partner view, data export/backup
+
+### K. Smart features without AI
+Categorisation, summaries and tips are all **deterministic code on the backend**: free, instant, testable, and no data leaves the backend. No Claude/LLM connection is needed.
+
+**K1. Layered categorisation.** Each transaction goes through these steps in order, stopping at the first match:
+1. Your explicit rules (e.g. description contains `BUNNINGS` → Home & Garden; also amount/account conditions)
+2. Learned corrections: when you recategorise, the app offers "Always do this for this merchant?" and saves a rule
+3. Past-transaction match: same cleaned merchant → same category as last time
+4. Built-in Australian merchant list (Woolworths, Coles, Aldi, Bunnings, Kmart, Chemist Warehouse, Opal/Myki, energy, telco, streaming…) with aliases and logos
+5. Source category (Up's category, PocketSmith's suggestion)
+6. Otherwise → **"Uncategorised" inbox** with swipe-to-categorise
+
+Track the share of transactions reaching step 6. It should fall toward a few percent after 1–2 months of corrections.
+
+**K2. Template-based money summaries.**
+1. The backend calculates facts for the period: category changes vs the previous period and vs average, total invested, dividends + franking received, budget status, goal progress, and new recurring charges.
+2. Each fact gets a significance score (e.g. change > 20% **and** > $50; dividends are always included), and the top 3–5 are kept.
+3. The facts fill sentence templates, e.g. *"Dining is up {pct}% ({amount}) on last month"*, *"You invested {amount} — {pct}% of income"*, *"VAS paid you {amount}, including {franking} in franking credits"*.
+4. Delivered as a Home card and an optional push notification (weekly on Sunday evening, monthly on the 1st).
+
+**K3. Triggered ETF tips.** Each tip has a **condition** checked against your data and a **template** filled with your numbers. Examples:
+
+| Trigger | Tip (with your numbers) |
+|---|---|
+| Allocation drift > 5 pts | "VGS is 66% vs your 60% target. Put your next $1,000 into VAS to rebalance without selling." |
+| Average buy size makes brokerage > 0.5% | "Your last buy was $500, so the $5 brokerage cost 1.0%. Buying $2,000 monthly cuts that to 0.25%." |
+| Parcel within 60 days of 12 months held | "Your March 2026 VGS parcel qualifies for the 50% CGT discount on 14 March 2027." |
+| VAS distribution received | "Your $212 included $58 of franking credits. These reduce your tax, so keep the statement for tax time." |
+| Portfolio down > 5% in a month | "Down 8% this month. Your history shows a recovery after the dip in {month}." |
+| Cash sitting idle > target | "You have $4,000 above your buffer in the offset. Compare the offset with investing it." |
+
+About 20–30 tips are written as content during the build. Each tip has a cooldown so it doesn't repeat, plus dismiss/snooze. Tips are general information only, with the disclaimer.
+
+### L. Optional later: Claude AI assistant (P2)
+Not needed for anything above. It can be added later for things templates can't do:
+- **Free-form questions** ("can I afford an extra $500 into VGS this month?"). Claude answers by calling the backend's own tested functions (spending, portfolio, Next buy), never by doing the maths itself.
+- More natural, varied wording for summaries.
+
+If added: Claude API called from the backend only (the API key never goes in the APK). Send summaries and totals only, never account numbers or raw descriptions. Set a monthly spend cap in the Anthropic Console. Expected cost for personal use is under ~US$2–3/month.
 
 ---
 
@@ -172,7 +211,7 @@ Use Pearler's *feel*, not its brand assets or wording:
  │ Android app   │◄────►│  Backend API (TypeScript) │◄────►│  Postgres         │
  │ Expo / React  │ HTTPS│  - sync jobs (cron)       │      │  (Supabase)       │
  │  Native       │      │  - Up webhook receiver    │      └──────────────────┘
- └───────────────┘      │  - rules / categoriser    │
+ └───────────────┘      │  - categoriser / insights │
                         │  - portfolio engine       │──► PocketSmith API v2
                         │  - projections            │──► Up API (+ webhooks)
                         └──────────────────────────┘──► Market data (EOD prices)
@@ -181,6 +220,7 @@ Use Pearler's *feel*, not its brand assets or wording:
 - **App:** Android only. Expo (React Native + TypeScript) native build, with fingerprint/face unlock via `expo-local-authentication` and push notifications via Expo Notifications (FCM). Charts via `victory-native` or `react-native-skia`.
 - **Android extras:** home-screen widget (net worth / this month's spend), notification-driven quick categorise.
 - **Install:** build a signed APK with EAS Build (free tier) or locally with Gradle, then sideload it (allow "Install unknown apps"). No Play Store listing is needed.
+- **Smart features:** categorisation, summaries and tips are rule and template engines in the backend (section K), with no AI dependency.
 - **Backend:** Supabase (Postgres + Auth + Edge Functions + scheduled jobs), or a small Node/Hono service. API keys never live on the device.
 - **Jobs:** PocketSmith sync (every 2–4h), price refresh (daily after ASX close, ~4:30pm AEST/AEDT), distribution refresh (weekly), recurring-detection (nightly).
 - **Money maths:** store amounts as integer cents and units as decimals with fixed precision. Do all money calculations on the backend so they're consistent.
@@ -190,7 +230,9 @@ Use Pearler's *feel*, not its brand assets or wording:
 - `institution` (CommBank, Amex, Up, CommSec, Manual)
 - `account` (type: transaction | savings | offset | credit_card | mortgage | brokerage | manual_asset; source; external_id; currency)
 - `transaction` (account, date, amount_cents, description_raw, merchant_id, category_id, is_transfer, transfer_pair_id, status, external_id, source)
-- `merchant`, `category`, `rule` (match conditions → category/merchant/tags)
+- `merchant` (name, aliases, logo, default category; seeded with an AU merchant list), `category`, `rule` (match conditions → category/merchant/tags; source: manual | learned)
+- `insight` (period, type, score, template_id, values JSON) for money summaries
+- `tip` (id, trigger, template, cooldown) + `tip_event` (tip, shown_at, dismissed/snoozed)
 - `budget` (category, period, amount)
 - `security` (ticker, name, MER, distribution_frequency, issuer, metadata JSON for allocation/regions)
 - `price` (security, date, close)
@@ -208,11 +250,11 @@ Use Pearler's *feel*, not its brand assets or wording:
 | Phase | Scope | Outcome |
 |---|---|---|
 | **0. Foundations** (wk 1–2) | Repo setup, Expo app shell + design system (colours, type, cards, tabs), Supabase schema, auth + biometric lock, first APK installed on your phone | Clickable shell in the Pearler-inspired style |
-| **1. Banking MVP** (wk 3–5) | PocketSmith sync (CommBank, Amex, mortgage), Up API + webhooks, unified feed, categories and rules, transfer detection, Home net worth | Replaces day-to-day checking across 3 apps |
-| **2. Spending** (wk 6–7) | Budgets, category insights, cash flow and savings rate, recurring detection | Know where the money goes |
+| **1. Banking MVP** (wk 3–5) | PocketSmith sync (CommBank, Amex, mortgage), Up API + webhooks, unified feed, layered categorisation (K1) with learned corrections + AU merchant list, transfer detection, Home net worth | Replaces day-to-day checking across 3 apps |
+| **2. Spending** (wk 6–7) | Budgets, category insights, cash flow and savings rate, recurring detection, template-based money summaries (K2) | Know where the money goes |
 | **3. Portfolio** (wk 8–10) | CommSec CSV import, trades, prices, holdings, performance, target allocation + Next buy | Your CommSec ETFs tracked properly |
 | **4. Dividends & goals** (wk 11–12) | Distributions + franking, upcoming dividends, goals with on-track tracking, FI number | Goal-based investing view |
-| **5. Projections & learn** (wk 13–14) | Compounding calculator, ETF profiles, strategy templates, VDHG-vs-DIY comparison, tips library | Pearler-style guidance |
+| **5. Projections & learn** (wk 13–14) | Compounding calculator, ETF profiles, strategy templates, VDHG-vs-DIY comparison, triggered tips engine + 20–30 tips (K3) | Pearler-style guidance |
 | **6. Mortgage & polish** (wk 15–16) | Offset savings, payoff projection, offset-vs-invest, notifications, dark mode, FY reports | Complete personal finance hub |
 
 ---
@@ -229,6 +271,7 @@ This is a single-user personal app, so it only needs personal costs: no business
 | Supabase (Sydney region) | Free | Free tier is ample for one user. Free projects pause after inactivity, which the daily sync jobs prevent. |
 | App distribution | Free | Android only: sideload a signed APK built with EAS Build (free tier) or Gradle. No Apple Developer account, and a Play Store account (US$25 one-off) is optional. |
 | Domain | Optional (~A$15–25/yr) | The free hosting URL works fine. |
+| Claude API (optional, P2) | ~US$0–3/mo | Only if the optional AI assistant (section L) is added. Categorisation, summaries and tips don't need it. |
 
 **Minimum total: ~A$120/yr** (just PocketSmith).
 
