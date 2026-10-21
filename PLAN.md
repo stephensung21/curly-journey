@@ -213,7 +213,24 @@ Use Pearler's *feel*, not its brand assets or wording:
 
 ---
 
-## 6. Risks and open questions
+## 6. Personal running costs
+
+This is a single-user personal app, so it only needs personal costs: no business accreditation, no commercial Open Banking agreements and no paid tiers built for scale.
+
+| Item | Cost | Notes |
+|---|---|---|
+| PocketSmith Foundation | ~A$120/yr (annual) | Required: the only route to CommBank and Amex feeds. Confirm pricing at my.pocketsmith.com/plans. |
+| Up API | Free | Personal access token. |
+| ETF prices | Free | End-of-day prices for 3 ETFs once a day fits within free API limits. |
+| Supabase (Sydney region) | Free | Free tier is ample for one user. Free projects pause after inactivity, which the daily sync jobs prevent. |
+| App distribution | Free | Install as a **PWA** (Expo web, "Add to Home Screen"). Avoids the Apple Developer fee (~US$99/yr), which is only needed for a native iOS build via TestFlight. |
+| Domain | Optional (~A$15–25/yr) | The free hosting URL works fine. |
+
+**Minimum total: ~A$120/yr** (just PocketSmith).
+
+---
+
+## 7. Risks and open questions
 
 - **PocketSmith feed coverage and reliability:** confirm CommBank home loan/offset and Amex AU appear with transactions (not just balances) on your plan. Build a sync-health screen.
 - **CommSec has no API:** holdings depend on CSV import. Keep the parser tolerant of format changes and support contract-note-style manual entry.
@@ -221,7 +238,7 @@ Use Pearler's *feel*, not its brand assets or wording:
 - **Advice boundary:** keep strategy content general, not "you should buy X". Show the disclaimer.
 - **Security:** this app holds your full financial picture. Use encrypted secrets, row-level security in Postgres, no tokens on the device, and 2FA on the backend account.
 - **Open questions for you:**
-  1. Mobile-first (iOS/Android) or is a web app OK to start?
+  1. Is a PWA (installed from the browser, free) OK, or do you want a native iOS app (needs the ~US$99/yr Apple Developer account)?
   2. Use PocketSmith's categories, or our own rules from day one?
   3. Do you use DRP on any of VDHG/VAS/VGS?
   4. Is the app just for you, or also for a partner (shared household view)?
