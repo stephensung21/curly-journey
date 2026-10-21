@@ -1,0 +1,126 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;800&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<svg width="0" height="0" style="position:absolute"><defs>
+  <filter id="crayon" x="-10%" y="-10%" width="120%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.2" xChannelSelector="R" yChannelSelector="G" result="d"/>
+    <feTurbulence type="fractalNoise" baseFrequency="1.6" numOctaves="1" result="g"/>
+    <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.4 1.1" result="holes"/>
+    <feComposite in="d" in2="holes" operator="in"/>
+  </filter>
+</defs></svg>
+<style>
+  .flow{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .ph{width:290px;border-radius:30px;padding:16px 14px;box-shadow:0 2px 12px rgba(0,0,0,.2);background:#241f31;color:#f4efe6;font-family:'Bricolage Grotesque',sans-serif;position:relative;overflow:hidden;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.10 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+  .row{display:flex;justify-content:space-between;align-items:center}
+  .hero{background:#ff7a45;color:#16131f;border-radius:26px 26px 26px 6px;padding:14px;position:relative}
+  .hs{font-size:13px;font-weight:500}
+  .mut{color:#c4bdd4}
+  .hb{font-size:36px;font-weight:800;letter-spacing:-.02em;line-height:1;position:relative;display:inline-block}
+  .chip{display:inline-block;background:#16131f;color:#c6f36b;font-size:12px;padding:3px 10px;border-radius:999px}
+  .lb{font-size:13px;color:#c4bdd4;margin:14px 0 6px;font-weight:500}
+  .ac{background:#342c47;border-radius:18px;padding:10px 12px;margin-bottom:6px;font-size:14px}
+  .ic{width:28px;height:28px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;margin-right:8px;flex:none}
+  .note{font-family:'Caveat',cursive;font-weight:700;font-size:19px;color:#c6f36b;line-height:1}
+  .abs{position:absolute;pointer-events:none}
+  .title{font-size:22px;font-weight:800;margin:4px 0 10px}
+  .back{font-size:14px;color:#c4bdd4;margin-bottom:4px}
+  .month{display:flex;justify-content:space-between;background:#342c47;border-radius:999px;padding:7px 14px;font-size:13px;margin-bottom:12px}
+  .cat{display:flex;align-items:center;gap:8px;font-size:13px;margin:9px 0}
+  .bar{flex:1;height:10px;background:#342c47;border-radius:6px;position:relative}
+  .bar i{display:block;height:100%;border-radius:6px}
+  .seg{display:flex;background:#342c47;border-radius:999px;padding:3px;margin-bottom:12px}
+  .seg span{flex:1;text-align:center;font-size:12px;padding:6px 0;border-radius:999px;color:#c4bdd4}
+  .seg span.on{background:#ff7a45;color:#16131f;font-weight:800}
+  .tx{display:flex;align-items:center;font-size:14px;padding:8px 0;border-bottom:1px solid #342c47}
+  .tx .m{flex:1}
+  .tx small{display:block;font-size:12px;color:#c4bdd4}
+  .day{font-size:12px;color:#c4bdd4;margin:12px 0 2px;font-weight:500}
+  .btn{display:block;text-align:center;background:#c6f36b;color:#16131f;font-weight:800;border-radius:999px;padding:11px;font-size:14px}
+  .btn2{display:block;text-align:center;background:#342c47;color:#f4efe6;border-radius:999px;padding:11px;font-size:14px}
+  .ul{position:absolute;left:-4px;bottom:-9px}
+  .cap{max-width:290px}
+</style>
+<h2>Screen 8 of 8 · More, settings and spending limits</h2>
+<p class="subtitle">Left: the More tab, which holds settings. Right: setting spending limits. The numbers are made up.</p>
+
+<style>
+  .grp{background:#342c47;border-radius:18px;padding:2px 12px;margin-bottom:10px}
+  .it{display:flex;align-items:center;font-size:14px;padding:10px 0;border-bottom:1px solid #241f31}
+  .it:last-child{border-bottom:none}
+  .it .m{flex:1}
+  .it small{display:block;font-size:12px;color:#c4bdd4}
+  .it .ic{width:26px;height:26px;font-size:13px}
+  .ok{font-size:11px;background:#c6f36b;color:#16131f;border-radius:999px;padding:2px 7px;font-weight:800}
+  .warn{font-size:11px;background:#ffd23f;color:#16131f;border-radius:999px;padding:2px 7px;font-weight:800}
+  .sw{width:38px;height:22px;border-radius:11px;background:#c6f36b;position:relative;flex:none}
+  .sw::after{content:"";position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#16131f}
+  .lim{background:#342c47;border-radius:18px;padding:11px 12px;margin-bottom:8px;font-size:14px}
+  .lim small{font-size:12px;color:#c4bdd4}
+  .lbar{height:10px;background:#241f31;border-radius:6px;margin:8px 0 4px;position:relative}
+  .lbar i{display:block;height:100%;border-radius:6px}
+  .lbar .t80{position:absolute;left:80%;top:-3px;height:16px;border-left:2px dashed #c4bdd4}
+  .add{border:2px dashed #4a4163;border-radius:18px;padding:11px;text-align:center;font-size:14px;color:#c4bdd4}
+</style>
+
+<div class="flow">
+
+  <div class="ph">
+    <div class="title">More</div>
+    <div class="grp">
+      <div class="it"><span class="ic" style="background:#ffd23f">📅</span><span class="m">Bills & dates<small>2 coming up this week</small></span>›</div>
+      <div class="it"><span class="ic" style="background:#c6f36b">💎</span><span class="m">Net worth</span>›</div>
+      <div class="it"><span class="ic" style="background:#7aa2ff">⬆</span><span class="m">Import<small>CommSec, CommBank or Amex CSV</small></span>›</div>
+    </div>
+    <div class="lb">Money settings</div>
+    <div class="grp">
+      <div class="it"><span class="ic" style="background:#ff7a45">🚦</span><span class="m">Spending limits<small>Monthly + 3 categories</small></span>›</div>
+      <div class="it"><span class="ic" style="background:#b69cff">🪄</span><span class="m">Rules<small>27 rules · 96% auto-sorted</small></span>›</div>
+      <div class="it"><span class="ic" style="background:#ff8fb1">🏷️</span><span class="m">Categories</span>›</div>
+      <div class="it"><span class="ic" style="background:#7aa2ff">🛟</span><span class="m">Home loan & offsets<small>3 offsets linked</small></span>›</div>
+      <div class="it"><span class="ic" style="background:#ffd23f">🧑</span><span class="m">About you<small>Birth date · tax bracket 37%</small></span>›</div>
+    </div>
+    <div class="lb">Connections</div>
+    <div class="grp">
+      <div class="it"><span class="ic" style="background:#c6f36b">🔗</span><span class="m">PocketSmith<small>CommBank · Amex · Up · 7:40am</small></span><span class="ok">OK</span></div>
+      <div class="it"><span class="ic" style="background:#ffd23f">📈</span><span class="m">ETF prices<small>Last close Wed 21 Oct</small></span><span class="ok">OK</span></div>
+    </div>
+    <div class="lb">App</div>
+    <div class="grp">
+      <div class="it"><span class="ic" style="background:#4a4163">🔒</span><span class="m">Fingerprint lock<small>Locks after 5 min away</small></span><span class="sw"></span></div>
+      <div class="it"><span class="ic" style="background:#4a4163">🙈</span><span class="m">Hide balances</span><span class="sw" style="background:#4a4163"></span></div>
+      <div class="it"><span class="ic" style="background:#4a4163">📊</span><span class="m">Home chart<small>Last 6 months</small></span>›</div>
+      <div class="it"><span class="ic" style="background:#4a4163">🔔</span><span class="m">Notifications</span>›</div>
+    </div>
+  </div>
+
+  <div class="ph">
+    <div class="back">‹ More</div>
+    <div class="title" style="margin:0 0 4px">Spending limits</div>
+    <div class="mut" style="font-size:13px;margin-bottom:12px">We'll ping you at 80% and 100%.</div>
+    <div class="lim" style="background:#ff7a45;color:#16131f">
+      <div class="row"><b>Whole month</b><b>$4,960 / $6,000</b></div>
+      <div class="lbar" style="background:#e0602f"><i style="width:83%;background:#16131f"></i><span class="t80" style="border-color:#16131f"></span></div>
+      <small style="color:#16131f">83% · 9 days left</small>
+    </div>
+    <div class="lim">
+      <div class="row"><span><span class="ic" style="background:#ff7a45;width:22px;height:22px;font-size:12px">🍜</span>Dining out</span><b>$880 / $950</b></div>
+      <div class="lbar"><i style="width:92%;background:#ff7a45"></i><span class="t80"></span></div>
+      <div class="row"><small>92% · alerted 19 Oct</small><span class="warn">CLOSE</span></div>
+    </div>
+    <div class="lim">
+      <div class="row"><span><span class="ic" style="background:#c6f36b;width:22px;height:22px;font-size:12px">🛒</span>Groceries</span><b>$1,240 / $1,600</b></div>
+      <div class="lbar"><i style="width:77%;background:#c6f36b"></i><span class="t80"></span></div>
+      <small>77%</small>
+    </div>
+    <div class="lim">
+      <div class="row"><span><span class="ic" style="background:#ff8fb1;width:22px;height:22px;font-size:12px">🛍️</span>Shopping</span><b>$430 / $800</b></div>
+      <div class="lbar"><i style="width:54%;background:#ff8fb1"></i><span class="t80"></span></div>
+      <small>54%</small>
+    </div>
+    <div class="add">+ Add a limit</div>
+    <div class="note" style="text-align:center;margin-top:12px">dashed line = 80% warning</div>
+  </div>
+
+</div>

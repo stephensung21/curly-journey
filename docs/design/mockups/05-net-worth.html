@@ -1,0 +1,111 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;800&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<svg width="0" height="0" style="position:absolute"><defs>
+  <filter id="crayon" x="-10%" y="-10%" width="120%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.2" xChannelSelector="R" yChannelSelector="G" result="d"/>
+    <feTurbulence type="fractalNoise" baseFrequency="1.6" numOctaves="1" result="g"/>
+    <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.4 1.1" result="holes"/>
+    <feComposite in="d" in2="holes" operator="in"/>
+  </filter>
+</defs></svg>
+<style>
+  .flow{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .ph{width:290px;border-radius:30px;padding:16px 14px;box-shadow:0 2px 12px rgba(0,0,0,.2);background:#241f31;color:#f4efe6;font-family:'Bricolage Grotesque',sans-serif;position:relative;overflow:hidden;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.10 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+  .row{display:flex;justify-content:space-between;align-items:center}
+  .hero{background:#ff7a45;color:#16131f;border-radius:26px 26px 26px 6px;padding:14px;position:relative}
+  .hs{font-size:13px;font-weight:500}
+  .mut{color:#c4bdd4}
+  .hb{font-size:36px;font-weight:800;letter-spacing:-.02em;line-height:1;position:relative;display:inline-block}
+  .chip{display:inline-block;background:#16131f;color:#c6f36b;font-size:12px;padding:3px 10px;border-radius:999px}
+  .lb{font-size:13px;color:#c4bdd4;margin:14px 0 6px;font-weight:500}
+  .ac{background:#342c47;border-radius:18px;padding:10px 12px;margin-bottom:6px;font-size:14px}
+  .ic{width:28px;height:28px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;margin-right:8px;flex:none}
+  .note{font-family:'Caveat',cursive;font-weight:700;font-size:19px;color:#c6f36b;line-height:1}
+  .abs{position:absolute;pointer-events:none}
+  .title{font-size:22px;font-weight:800;margin:4px 0 10px}
+  .back{font-size:14px;color:#c4bdd4;margin-bottom:4px}
+  .month{display:flex;justify-content:space-between;background:#342c47;border-radius:999px;padding:7px 14px;font-size:13px;margin-bottom:12px}
+  .cat{display:flex;align-items:center;gap:8px;font-size:13px;margin:9px 0}
+  .bar{flex:1;height:10px;background:#342c47;border-radius:6px;position:relative}
+  .bar i{display:block;height:100%;border-radius:6px}
+  .seg{display:flex;background:#342c47;border-radius:999px;padding:3px;margin-bottom:12px}
+  .seg span{flex:1;text-align:center;font-size:12px;padding:6px 0;border-radius:999px;color:#c4bdd4}
+  .seg span.on{background:#ff7a45;color:#16131f;font-weight:800}
+  .tx{display:flex;align-items:center;font-size:14px;padding:8px 0;border-bottom:1px solid #342c47}
+  .tx .m{flex:1}
+  .tx small{display:block;font-size:12px;color:#c4bdd4}
+  .day{font-size:12px;color:#c4bdd4;margin:12px 0 2px;font-weight:500}
+  .btn{display:block;text-align:center;background:#c6f36b;color:#16131f;font-weight:800;border-radius:999px;padding:11px;font-size:14px}
+  .btn2{display:block;text-align:center;background:#342c47;color:#f4efe6;border-radius:999px;padding:11px;font-size:14px}
+  .ul{position:absolute;left:-4px;bottom:-9px}
+  .cap{max-width:290px}
+</style>
+<h2>Screen 5 of 8 · Net worth</h2>
+<p class="subtitle">Left: the net worth overview. Right: editing a manual entry (AMP super), including its "counts towards" switches. The numbers are made up.</p>
+
+<style>
+  .rng{display:flex;gap:6px;margin:8px 0}
+  .rng span{font-size:12px;padding:5px 10px;border-radius:999px;background:#342c47;color:#c4bdd4}
+  .rng span.on{background:#c6f36b;color:#16131f;font-weight:800}
+  .li{display:flex;align-items:center;font-size:14px;padding:8px 0;border-bottom:1px solid #342c47}
+  .li .m{flex:1}
+  .li small{display:block;font-size:12px;color:#c4bdd4}
+  .stale{font-size:11px;background:#ffd23f;color:#16131f;border-radius:999px;padding:2px 7px;font-weight:800;margin-left:6px}
+  .fld{background:#241f31;border-radius:14px;padding:9px 12px;margin-bottom:8px;font-size:14px}
+  .fld small{display:block;font-size:11px;color:#c4bdd4}
+  .tg{display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:10px 0;border-bottom:1px solid #342c47}
+  .sw{width:38px;height:22px;border-radius:11px;background:#c6f36b;position:relative;flex:none}
+  .sw::after{content:"";position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#16131f}
+  .sw.off{background:#4a4163}
+  .sw.off::after{right:auto;left:3px;background:#c4bdd4}
+</style>
+
+<div class="flow">
+
+  <div class="ph">
+    <div class="back">‹ Accounts</div>
+    <div class="title" style="margin:0">Net worth</div>
+    <div class="hb" style="margin-top:8px">$318,400
+      <svg class="ul" width="170" height="14" viewBox="0 0 170 14"><path d="M3,8 C50,3 110,12 167,5" stroke="#c6f36b" stroke-width="4" fill="none" stroke-linecap="round" filter="url(#crayon)"/></svg>
+    </div>
+    <div class="note" style="margin-top:10px">up $6.2k since Sept</div>
+    <div class="rng"><span>1M</span><span>6M</span><span class="on">1Y</span><span>All</span></div>
+    <svg viewBox="0 0 260 90" width="100%">
+      <path d="M0,80 C30,76 50,70 80,66 C110,62 120,68 150,52 C180,40 210,34 260,18 L260,90 L0,90Z" fill="#c6f36b" opacity=".18"/>
+      <path d="M0,80 C30,76 50,70 80,66 C110,62 120,68 150,52 C180,40 210,34 260,18" stroke="#c6f36b" stroke-width="2.5" fill="none"/>
+      <circle cx="260" cy="18" r="4" fill="#c6f36b"/>
+      <text x="0" y="12" font-family="Caveat" font-weight="700" font-size="14" fill="#c4bdd4">Nov '25</text>
+    </svg>
+    <div class="row" style="gap:8px;margin-top:8px">
+      <div class="ac" style="flex:1"><div class="mut" style="font-size:12px">You own</div><b>$1,177,000</b></div>
+      <div class="ac" style="flex:1"><div class="mut" style="font-size:12px">You owe</div><b>$858,600</b></div>
+    </div>
+    <div class="lb">Own</div>
+    <div class="li"><span class="ic" style="background:#ffd23f">🏡</span><span class="m">Home<small>Manual · updated Aug</small></span><b>$950,000</b></div>
+    <div class="li"><span class="ic" style="background:#c6f36b">📈</span><span class="m">CommSec ETFs<small>VDHG · VAS · VGS</small></span><b>$84,900</b></div>
+    <div class="li"><span class="ic" style="background:#7aa2ff">🛟</span><span class="m">Offsets (3)<small>Main, Offset, Savings</small></span><b>$76,740</b></div>
+    <div class="li"><span class="ic" style="background:#b69cff">🧓</span><span class="m">AMP super <span class="stale">update?</span><small>Manual · updated June</small></span><b>$62,000</b></div>
+    <div class="li"><span class="ic" style="background:#ff8fb1">🐣</span><span class="m">Up + other cash</span><b>$3,360</b></div>
+    <div class="lb">Owe</div>
+    <div class="li"><span class="ic" style="background:#7aa2ff">🏦</span><span class="m">Home loan</span><b>$856,290</b></div>
+    <div class="li"><span class="ic" style="background:#ff8fb1">💳</span><span class="m">Amex</span><b>$2,310</b></div>
+  </div>
+
+  <div class="ph">
+    <div class="row"><span class="back" style="margin:0">Cancel</span><span style="color:#c6f36b;font-weight:800">Save</span></div>
+    <div class="title" style="margin:10px 0"><span class="ic" style="background:#b69cff">🧓</span>AMP super</div>
+    <div class="fld"><small>Current value</small>$64,850</div>
+    <div class="fld"><small>As of</small>Thu 22 Oct 2026</div>
+    <div class="fld"><small>Grows by (optional, per year)</small>—</div>
+    <div class="fld"><small>Remind me to update</small>Every 3 months</div>
+    <div class="lb">Counts towards</div>
+    <div class="tg"><span>Spending</span><span class="sw off"></span></div>
+    <div class="tg"><span>Net worth</span><span class="sw"></span></div>
+    <div class="tg"><span>Projections</span><span class="sw off"></span></div>
+    <div class="note" style="margin-top:12px">super stays out of your spending, promise</div>
+    <div class="mut" style="font-size:12px;margin-top:8px">Every account has these three switches. Find them in each account's settings.</div>
+  </div>
+
+</div>

@@ -269,6 +269,8 @@ Each type can be turned on or off in Settings.
 
 ## 10. Visual design direction
 
+> **Superseded** by `2026-10-22-curly-journey-v1-visual-design.md`. The owner chose a dark, playful look with hand-drawn crayon touches instead of the calm cream/teal direction below. The text below is kept for history only.
+
 Calm, Pearler-inspired feel, used for its feel only and not copied:
 
 - **Colour**: deep navy/teal (`#13343b`, `#1f6f6a`) on a cream background (`#f6f3ec`) with white cards.
@@ -276,7 +278,7 @@ Calm, Pearler-inspired feel, used for its feel only and not copied:
 - **Shapes**: large rounded cards (16–20px radius), pill buttons and segmented toggles.
 - **Type**: a geometric sans (Inter or DM Sans); big bold numbers and small muted labels. Body text at least 14px in the real app.
 - **Patterns**: CommBank-style account tiles and day-grouped transaction lists; swipe to categorise.
-- **Modes**: light mode first; dark mode later.
+- **Modes**: light mode first; dark mode later. (Superseded: both modes in v1; see the visual design doc.)
 
 Approved mockups from the brainstorm are kept in `.superpowers/brainstorm/1730-1792591203/content/`:
 - `projections-layout.html` (option A chosen)

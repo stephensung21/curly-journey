@@ -1,0 +1,105 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;800&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<svg width="0" height="0" style="position:absolute"><defs>
+  <filter id="crayon" x="-10%" y="-10%" width="120%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.2" xChannelSelector="R" yChannelSelector="G" result="d"/>
+    <feTurbulence type="fractalNoise" baseFrequency="1.6" numOctaves="1" result="g"/>
+    <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.4 1.1" result="holes"/>
+    <feComposite in="d" in2="holes" operator="in"/>
+  </filter>
+</defs></svg>
+<style>
+  .flow{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .ph{width:290px;border-radius:30px;padding:16px 14px;box-shadow:0 2px 12px rgba(0,0,0,.2);background:#241f31;color:#f4efe6;font-family:'Bricolage Grotesque',sans-serif;position:relative;overflow:hidden;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.10 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+  .row{display:flex;justify-content:space-between;align-items:center}
+  .hero{background:#ff7a45;color:#16131f;border-radius:26px 26px 26px 6px;padding:14px;position:relative}
+  .hs{font-size:13px;font-weight:500}
+  .mut{color:#c4bdd4}
+  .hb{font-size:36px;font-weight:800;letter-spacing:-.02em;line-height:1;position:relative;display:inline-block}
+  .chip{display:inline-block;background:#16131f;color:#c6f36b;font-size:12px;padding:3px 10px;border-radius:999px}
+  .lb{font-size:13px;color:#c4bdd4;margin:14px 0 6px;font-weight:500}
+  .ac{background:#342c47;border-radius:18px;padding:10px 12px;margin-bottom:6px;font-size:14px}
+  .ic{width:28px;height:28px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;margin-right:8px;flex:none}
+  .note{font-family:'Caveat',cursive;font-weight:700;font-size:19px;color:#c6f36b;line-height:1}
+  .abs{position:absolute;pointer-events:none}
+  .title{font-size:22px;font-weight:800;margin:4px 0 10px}
+  .back{font-size:14px;color:#c4bdd4;margin-bottom:4px}
+  .month{display:flex;justify-content:space-between;background:#342c47;border-radius:999px;padding:7px 14px;font-size:13px;margin-bottom:12px}
+  .cat{display:flex;align-items:center;gap:8px;font-size:13px;margin:9px 0}
+  .bar{flex:1;height:10px;background:#342c47;border-radius:6px;position:relative}
+  .bar i{display:block;height:100%;border-radius:6px}
+  .seg{display:flex;background:#342c47;border-radius:999px;padding:3px;margin-bottom:12px}
+  .seg span{flex:1;text-align:center;font-size:12px;padding:6px 0;border-radius:999px;color:#c4bdd4}
+  .seg span.on{background:#ff7a45;color:#16131f;font-weight:800}
+  .tx{display:flex;align-items:center;font-size:14px;padding:8px 0;border-bottom:1px solid #342c47}
+  .tx .m{flex:1}
+  .tx small{display:block;font-size:12px;color:#c4bdd4}
+  .day{font-size:12px;color:#c4bdd4;margin:12px 0 2px;font-weight:500}
+  .btn{display:block;text-align:center;background:#c6f36b;color:#16131f;font-weight:800;border-radius:999px;padding:11px;font-size:14px}
+  .btn2{display:block;text-align:center;background:#342c47;color:#f4efe6;border-radius:999px;padding:11px;font-size:14px}
+  .ul{position:absolute;left:-4px;bottom:-9px}
+  .cap{max-width:290px}
+</style>
+<h2>Screen 3 of 8 · Uncategorised inbox</h2>
+<p class="subtitle">One card at a time. Tap a suggested category, or swipe right to accept the top suggestion. The numbers are made up.</p>
+
+<style>
+  .stack{position:relative;height:300px;margin-top:8px}
+  .tcard{position:absolute;left:0;right:0;background:#342c47;border-radius:24px;padding:16px}
+  .sug{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+  .sug span{background:#241f31;border-radius:999px;padding:7px 11px;font-size:13px}
+  .sug span.top{background:#c6f36b;color:#16131f;font-weight:800}
+  .prog{height:8px;background:#342c47;border-radius:4px;margin:6px 0 4px}
+  .prog i{display:block;height:100%;width:40%;background:#c6f36b;border-radius:4px}
+  .hint{display:flex;justify-content:space-between;font-family:'Caveat',cursive;font-size:18px;margin-top:14px}
+</style>
+
+<div class="flow">
+
+  <div class="ph" style="min-height:560px">
+    <div class="back">‹ Spending</div>
+    <div class="title" style="margin:0">To sort</div>
+    <div class="row mut" style="font-size:13px;margin-top:4px"><span>2 of 5 done</span><span>3 left</span></div>
+    <div class="prog"><i></i></div>
+
+    <div class="stack">
+      <div class="tcard" style="top:18px;transform:rotate(3deg) scale(.94);opacity:.5;height:240px"></div>
+      <div class="tcard" style="top:9px;transform:rotate(-2deg) scale(.97);opacity:.7;height:250px"></div>
+      <div class="tcard" style="top:0">
+        <div class="row"><span class="mut" style="font-size:12px">Amex · Tue 20 Oct</span><span class="mut" style="font-size:12px">1 of 3</span></div>
+        <div style="font-size:22px;font-weight:800;margin-top:10px">Kiosk 22</div>
+        <div class="mut" style="font-size:12px">SQ *KIOSK 22 SYD</div>
+        <div class="hb" style="margin-top:10px">$12.00</div>
+        <div class="mut" style="font-size:12px;margin-top:12px">Best guesses</div>
+        <div class="sug">
+          <span class="top">☕ Coffee</span><span>🍜 Dining out</span><span>🛒 Groceries</span><span>➕ Other…</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hint"><span style="color:#ff8fb1">← skip for now</span><span style="color:#c6f36b">Coffee →</span></div>
+    <div class="mut" style="font-size:12px;text-align:center;margin-top:8px">Each pick asks "always do this?" just like screen 2.</div>
+  </div>
+
+  <div class="ph" style="min-height:560px;text-align:center">
+    <div class="back" style="text-align:left">‹ Spending</div>
+    <svg width="180" height="150" viewBox="0 0 180 150" style="margin-top:40px">
+      <g stroke="#ffd23f" stroke-width="3" stroke-linecap="round" filter="url(#crayon)" fill="none">
+        <path d="M90,10 L90,26"/><path d="M48,28 L58,40"/><path d="M132,28 L122,40"/><path d="M30,66 L45,66"/><path d="M150,66 L135,66"/>
+      </g>
+      <circle cx="90" cy="82" r="34" fill="#c6f36b"/>
+      <path d="M74,82 L86,94 L108,70" stroke="#16131f" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M40,132 C70,124 110,140 140,128" stroke="#ff7a45" stroke-width="4" fill="none" stroke-linecap="round" filter="url(#crayon)"/>
+    </svg>
+    <div style="font-size:24px;font-weight:800;margin-top:6px">All sorted!</div>
+    <div class="note" style="margin:8px 0 18px">every dollar has a home</div>
+    <div class="ac" style="text-align:left">
+      <div class="row"><span>Auto-categorised this month</span><b style="color:#c6f36b">96%</b></div>
+      <div class="mut" style="font-size:12px;margin-top:4px">Up from 81% in September, thanks to your rules.</div>
+    </div>
+    <div class="btn2" style="margin-top:10px">Back to spending</div>
+  </div>
+
+</div>

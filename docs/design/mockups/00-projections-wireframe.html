@@ -1,0 +1,90 @@
+<h2>Projections: adding the mortgage</h2>
+<p class="subtitle">Layout A with a toggle at the top: <b>ETFs · Mortgage · Both</b>. The numbers are made up.</p>
+
+<style>
+  .phone{width:300px;margin:0 auto;background:#f6f3ec;border-radius:28px;padding:18px 16px;font-family:system-ui,sans-serif;color:#13343b;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+  .phone .lbl{font-size:11px;color:#566a6b;text-transform:uppercase;letter-spacing:.04em}
+  .phone .big{font-size:26px;font-weight:700;margin:2px 0 4px}
+  .phone .sub{font-size:13px;color:#566a6b;margin-bottom:8px}
+  .phone .card{background:#fff;border-radius:16px;padding:12px;margin-bottom:10px}
+  .phone .row{display:flex;justify-content:space-between;font-size:13px;margin:5px 0}
+  .phone .seg{display:flex;background:#e3efe9;border-radius:999px;padding:3px;margin-bottom:12px}
+  .phone .seg span{flex:1;text-align:center;font-size:12px;padding:6px 0;border-radius:999px}
+  .phone .seg span.on{background:#13343b;color:#fff}
+  .phone .good{color:#1f6f6a;font-weight:600}
+  .phone .sec{font-size:11px;color:#566a6b;text-transform:uppercase;margin:8px 0 2px}
+  .phone .key{font-size:11px;color:#566a6b;display:flex;gap:10px;flex-wrap:wrap}
+</style>
+
+<div class="cards">
+
+  <div class="card" data-choice="mortgage" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="phone">
+        <div class="seg"><span>ETFs</span><span class="on">Mortgage</span><span>Both</span></div>
+        <div class="lbl">Mortgage-free</div>
+        <div class="big">Aug 2049</div>
+        <div class="sub"><span class="good">5 yrs 2 mo sooner</span> than your loan term, thanks to the offset</div>
+        <svg viewBox="0 0 270 110" width="100%">
+          <path d="M0,10 C80,20 170,55 270,108" fill="none" stroke="#9aa9a8" stroke-width="1.5" stroke-dasharray="4 3"/>
+          <path d="M0,10 C70,22 150,60 225,108" fill="none" stroke="#13343b" stroke-width="2.5"/>
+          <path d="M0,100 C60,92 150,80 225,70 L225,108 L0,108Z" fill="#cfe3dc"/>
+          <text x="150" y="96" font-size="9" fill="#1f6f6a">offset balance</text>
+        </svg>
+        <div class="key"><span>━ loan with offset</span><span>┅ no offset</span></div>
+        <div class="card" style="margin-top:8px">
+          <div class="row"><span>Interest saved by offset</span><strong class="good">$148,300</strong></div>
+          <div class="row"><span>Total interest remaining</span><strong>$291,600</strong></div>
+        </div>
+        <div class="card">
+          <div class="sec">Loan (from CommBank, editable)</div>
+          <div class="row"><span>Balance</span><strong>$612,000</strong></div>
+          <div class="row"><span>Rate</span><strong>6.04% variable</strong></div>
+          <div class="row"><span>Repayment</span><strong>$1,850 / fortnight</strong></div>
+          <div class="row"><span>Term left</span><strong>27 yrs</strong></div>
+          <div class="sec">Offset</div>
+          <div class="row"><span>Balance now</span><strong>$48,000</strong></div>
+          <div class="row"><span>Grows by</span><strong>$800 / mo</strong></div>
+          <div class="sec">What if</div>
+          <div class="row"><span>Extra repayment</span><strong>$0 / mo</strong></div>
+          <div class="row"><span>Rate change</span><strong>+0.00%</strong></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Mortgage view</h3>
+      <p>Shows your payoff date and how much the offset saves. The solid line is the loan with the offset and the dashed line is the loan without it. Inputs start from your CommBank data, and you can override them.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="both" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="phone">
+        <div class="seg"><span>ETFs</span><span>Mortgage</span><span class="on">Both</span></div>
+        <div class="lbl">ETFs overtake the mortgage</div>
+        <div class="big">2038</div>
+        <div class="sub">At 50: ETFs <b>$612k</b> · loan <b>$214k</b> · net <span class="good">+$398k</span></div>
+        <svg viewBox="0 0 270 120" width="100%">
+          <path d="M0,115 C90,100 180,60 270,8" fill="none" stroke="#1f6f6a" stroke-width="2.5"/>
+          <path d="M0,20 C80,30 170,70 250,118" fill="none" stroke="#13343b" stroke-width="2.5"/>
+          <circle cx="150" cy="62" r="5" fill="#e07a5f"/>
+          <text x="158" y="58" font-size="9" fill="#a8432a">crossover 2038</text>
+          <line x1="200" y1="0" x2="200" y2="120" stroke="#13343b" stroke-width=".6"/>
+          <text x="204" y="118" font-size="9" fill="#13343b">age 50</text>
+        </svg>
+        <div class="key"><span style="color:#1f6f6a">━ ETFs</span><span>━ mortgage owing</span></div>
+        <div class="card" style="margin-top:8px">
+          <div class="sec">Spare $500 / mo goes to…</div>
+          <div class="row"><span>Offset</span><span>Pays off 3 yrs sooner</span></div>
+          <div class="row"><span>ETFs</span><span>+$118k at 50</span></div>
+          <div class="row" style="font-size:11px;color:#566a6b"><span>Uses your rate, a 7% return and your tax bracket</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Both view</h3>
+      <p>Puts the ETF and mortgage lines together and shows when your ETFs overtake the loan. It also compares putting spare cash into the offset with investing it.</p>
+    </div>
+  </div>
+
+</div>

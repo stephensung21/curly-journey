@@ -1,0 +1,124 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;800&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<svg width="0" height="0" style="position:absolute"><defs>
+  <filter id="crayon" x="-10%" y="-10%" width="120%" height="120%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.2" xChannelSelector="R" yChannelSelector="G" result="d"/>
+    <feTurbulence type="fractalNoise" baseFrequency="1.6" numOctaves="1" result="g"/>
+    <feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.4 1.1" result="holes"/>
+    <feComposite in="d" in2="holes" operator="in"/>
+  </filter>
+</defs></svg>
+<style>
+  .flow{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .ph{width:290px;border-radius:30px;padding:16px 14px;box-shadow:0 2px 12px rgba(0,0,0,.2);background:#241f31;color:#f4efe6;font-family:'Bricolage Grotesque',sans-serif;position:relative;overflow:hidden;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.10 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+  .row{display:flex;justify-content:space-between;align-items:center}
+  .hero{background:#ff7a45;color:#16131f;border-radius:26px 26px 26px 6px;padding:14px;position:relative}
+  .hs{font-size:13px;font-weight:500}
+  .mut{color:#c4bdd4}
+  .hb{font-size:36px;font-weight:800;letter-spacing:-.02em;line-height:1;position:relative;display:inline-block}
+  .chip{display:inline-block;background:#16131f;color:#c6f36b;font-size:12px;padding:3px 10px;border-radius:999px}
+  .lb{font-size:13px;color:#c4bdd4;margin:14px 0 6px;font-weight:500}
+  .ac{background:#342c47;border-radius:18px;padding:10px 12px;margin-bottom:6px;font-size:14px}
+  .ic{width:28px;height:28px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;margin-right:8px;flex:none}
+  .note{font-family:'Caveat',cursive;font-weight:700;font-size:19px;color:#c6f36b;line-height:1}
+  .abs{position:absolute;pointer-events:none}
+  .title{font-size:22px;font-weight:800;margin:4px 0 10px}
+  .back{font-size:14px;color:#c4bdd4;margin-bottom:4px}
+  .month{display:flex;justify-content:space-between;background:#342c47;border-radius:999px;padding:7px 14px;font-size:13px;margin-bottom:12px}
+  .cat{display:flex;align-items:center;gap:8px;font-size:13px;margin:9px 0}
+  .bar{flex:1;height:10px;background:#342c47;border-radius:6px;position:relative}
+  .bar i{display:block;height:100%;border-radius:6px}
+  .seg{display:flex;background:#342c47;border-radius:999px;padding:3px;margin-bottom:12px}
+  .seg span{flex:1;text-align:center;font-size:12px;padding:6px 0;border-radius:999px;color:#c4bdd4}
+  .seg span.on{background:#ff7a45;color:#16131f;font-weight:800}
+  .tx{display:flex;align-items:center;font-size:14px;padding:8px 0;border-bottom:1px solid #342c47}
+  .tx .m{flex:1}
+  .tx small{display:block;font-size:12px;color:#c4bdd4}
+  .day{font-size:12px;color:#c4bdd4;margin:12px 0 2px;font-weight:500}
+  .btn{display:block;text-align:center;background:#c6f36b;color:#16131f;font-weight:800;border-radius:999px;padding:11px;font-size:14px}
+  .btn2{display:block;text-align:center;background:#342c47;color:#f4efe6;border-radius:999px;padding:11px;font-size:14px}
+  .ul{position:absolute;left:-4px;bottom:-9px}
+  .cap{max-width:290px}
+</style>
+<h2>Screen 7 of 8 · CommSec holdings and import</h2>
+<p class="subtitle">Left: the CommSec account (your ETFs). Middle: importing a CSV. Right: the "did you buy something?" hint. The numbers are made up.</p>
+
+<style>
+  .hold{background:#342c47;border-radius:18px;padding:11px 12px;margin-bottom:7px;font-size:14px}
+  .hold small{font-size:12px;color:#c4bdd4}
+  .up{color:#c6f36b;font-weight:800}
+  .alloc{display:flex;height:12px;border-radius:6px;overflow:hidden;margin:8px 0 4px}
+  .step{display:flex;gap:6px;margin-bottom:12px}
+  .step i{flex:1;height:5px;border-radius:3px;background:#c6f36b}
+  .step i.off{background:#4a4163}
+  .prow{display:flex;justify-content:space-between;font-size:13px;padding:7px 0;border-bottom:1px solid #342c47}
+  .prow small{display:block;font-size:11px;color:#c4bdd4}
+  .new{font-size:10px;background:#c6f36b;color:#16131f;border-radius:999px;padding:2px 6px;font-weight:800;margin-left:4px}
+  .dup{font-size:10px;background:#4a4163;color:#c4bdd4;border-radius:999px;padding:2px 6px;margin-left:4px}
+  .lock{background:#16131f;border-radius:30px;padding:16px 14px;width:290px;font-family:'Bricolage Grotesque',sans-serif;color:#f4efe6;min-height:420px}
+  .notif{background:#342c47;border-radius:20px;padding:12px;font-size:13px;margin-top:14px}
+  .notif .app{display:flex;align-items:center;gap:6px;font-size:11px;color:#c4bdd4;margin-bottom:6px}
+  .notif .acts{display:flex;gap:8px;margin-top:10px}
+  .notif .acts span{flex:1;text-align:center;background:#241f31;border-radius:999px;padding:7px;font-size:12px}
+</style>
+
+<div class="flow">
+
+  <!-- HOLDINGS -->
+  <div class="ph">
+    <div class="back">‹ Accounts</div>
+    <div class="title" style="margin:0"><span class="ic" style="background:#c6f36b">📈</span>CommSec ETFs</div>
+    <div class="mut" style="font-size:13px;margin:4px 0 10px">Prices at ASX close · Wed 21 Oct</div>
+    <div class="hb">$84,900
+      <svg class="ul" width="150" height="14" viewBox="0 0 150 14"><path d="M3,8 C40,3 90,12 147,5" stroke="#c6f36b" stroke-width="4" fill="none" stroke-linecap="round" filter="url(#crayon)"/></svg>
+    </div>
+    <div class="note" style="margin-top:10px">+$11,240 on what you put in</div>
+    <div class="alloc"><i style="width:52%;background:#c6f36b"></i><i style="width:28%;background:#7aa2ff"></i><i style="width:20%;background:#ffd23f"></i></div>
+    <div style="font-size:11px;display:flex;gap:10px;color:#c4bdd4"><span style="color:#c6f36b">■ VDHG 52%</span><span style="color:#7aa2ff">■ VGS 28%</span><span style="color:#ffd23f">■ VAS 20%</span></div>
+    <div class="lb">Holdings</div>
+    <div class="hold"><div class="row"><b>VDHG</b><b>$44,150</b></div><div class="row"><small>620 units · avg $62.10</small><small class="up">+$5,650 (14.7%)</small></div></div>
+    <div class="hold"><div class="row"><b>VGS</b><b>$23,770</b></div><div class="row"><small>176 units · avg $118.40</small><small class="up">+$2,930 (14.1%)</small></div></div>
+    <div class="hold"><div class="row"><b>VAS</b><b>$16,980</b></div><div class="row"><small>163 units · avg $86.95</small><small class="up">+$2,660 (18.6%)</small></div></div>
+    <div class="row" style="gap:8px;margin-top:10px">
+      <div class="btn" style="flex:1">⬆ Import CSV</div>
+      <div class="btn2" style="flex:1">+ Add trade</div>
+    </div>
+    <div class="mut" style="font-size:12px;margin-top:8px">Last import: 3 Oct · 2 trades since then added by hand</div>
+  </div>
+
+  <!-- IMPORT PREVIEW -->
+  <div class="ph">
+    <div class="row"><span class="back" style="margin:0">Cancel</span><span class="mut" style="font-size:12px">Step 2 of 3</span></div>
+    <div class="step" style="margin-top:10px"><i></i><i></i><i class="off"></i></div>
+    <div class="title" style="margin:0 0 4px">Check before importing</div>
+    <div class="mut" style="font-size:13px;margin-bottom:10px">CommSec_Transactions_Oct2026.csv</div>
+    <div class="row" style="gap:6px;margin-bottom:10px">
+      <div class="ac" style="flex:1;margin:0;padding:8px"><div class="mut" style="font-size:11px">New trades</div><b style="color:#c6f36b">3</b></div>
+      <div class="ac" style="flex:1;margin:0;padding:8px"><div class="mut" style="font-size:11px">Already have</div><b>41</b></div>
+      <div class="ac" style="flex:1;margin:0;padding:8px"><div class="mut" style="font-size:11px">Skipped</div><b>0</b></div>
+    </div>
+    <div class="prow"><span><b>Buy VGS</b><span class="new">NEW</span><small>15 Oct · 12 units @ $134.90</small></span><span>$1,628.75<small style="text-align:right">incl $10 fee</small></span></div>
+    <div class="prow"><span><b>Buy VDHG</b><span class="new">NEW</span><small>1 Oct · 30 units @ $70.80</small></span><span>$2,134.00<small style="text-align:right">incl $10 fee</small></span></div>
+    <div class="prow"><span><b>Buy VAS</b><span class="new">NEW</span><small>18 Sep · 10 units @ $103.50</small></span><span>$1,045.00<small style="text-align:right">incl $10 fee</small></span></div>
+    <div class="prow" style="opacity:.6"><span><b>Buy VDHG</b><span class="dup">HAVE IT</span><small>3 Sep · 25 units @ $69.95</small></span><span>$1,758.75</span></div>
+    <div class="mut" style="font-size:12px;text-align:center;margin:8px 0">+ 40 more you already have</div>
+    <div class="btn">Import 3 trades</div>
+    <div class="note" style="text-align:center;margin-top:10px">no doubles, we checked</div>
+  </div>
+
+  <!-- HINT -->
+  <div class="lock">
+    <div style="text-align:center;font-size:44px;font-weight:800;margin-top:20px">9:14</div>
+    <div style="text-align:center;font-size:13px;color:#c4bdd4">Thursday 22 October</div>
+    <div class="notif">
+      <div class="app"><span class="ic" style="background:#ff7a45;width:18px;height:18px;font-size:10px;border-radius:6px;margin:0">☀</span>Curly Journey · now</div>
+      <b>Bought something on CommSec? 📈</b>
+      <div style="margin-top:4px">$1,628.75 went to CommSec on 17 Oct and there's no matching trade yet.</div>
+      <div class="acts"><span>Import CSV</span><span>Add trade</span><span>Not a trade</span></div>
+    </div>
+    <div class="mut" style="font-size:12px;margin-top:14px;text-align:center">Sent when a CommSec payment has no matching trade within 5 days.</div>
+  </div>
+
+</div>
