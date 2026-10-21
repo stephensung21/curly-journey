@@ -12,6 +12,8 @@ A personal app that combines:
 
 ---
 
+**Platform:** Android only (native app, sideloaded).
+
 ## 1. Data sources and how to connect them
 
 | Source | What we need | Best route | Notes |
@@ -167,16 +169,18 @@ Use Pearler's *feel*, not its brand assets or wording:
 
 ```
  ┌───────────────┐      ┌──────────────────────────┐      ┌──────────────────┐
- │  Mobile app   │◄────►│  Backend API (TypeScript) │◄────►│  Postgres         │
- │  Expo / React │ HTTPS│  - sync jobs (cron)       │      │  (Supabase)       │
- │  Native (+web)│      │  - Up webhook receiver    │      └──────────────────┘
+ │ Android app   │◄────►│  Backend API (TypeScript) │◄────►│  Postgres         │
+ │ Expo / React  │ HTTPS│  - sync jobs (cron)       │      │  (Supabase)       │
+ │  Native       │      │  - Up webhook receiver    │      └──────────────────┘
  └───────────────┘      │  - rules / categoriser    │
                         │  - portfolio engine       │──► PocketSmith API v2
                         │  - projections            │──► Up API (+ webhooks)
                         └──────────────────────────┘──► Market data (EOD prices)
 ```
 
-- **App:** Expo (React Native + TypeScript). One codebase for iOS, Android and web, with biometric lock via `expo-local-authentication`. Charts via `victory-native` or `react-native-skia`.
+- **App:** Android only. Expo (React Native + TypeScript) native build, with fingerprint/face unlock via `expo-local-authentication` and push notifications via Expo Notifications (FCM). Charts via `victory-native` or `react-native-skia`.
+- **Android extras:** home-screen widget (net worth / this month's spend), notification-driven quick categorise.
+- **Install:** build a signed APK with EAS Build (free tier) or locally with Gradle, then sideload it (allow "Install unknown apps"). No Play Store listing is needed.
 - **Backend:** Supabase (Postgres + Auth + Edge Functions + scheduled jobs), or a small Node/Hono service. API keys never live on the device.
 - **Jobs:** PocketSmith sync (every 2–4h), price refresh (daily after ASX close, ~4:30pm AEST/AEDT), distribution refresh (weekly), recurring-detection (nightly).
 - **Money maths:** store amounts as integer cents and units as decimals with fixed precision. Do all money calculations on the backend so they're consistent.
@@ -203,7 +207,7 @@ Use Pearler's *feel*, not its brand assets or wording:
 
 | Phase | Scope | Outcome |
 |---|---|---|
-| **0. Foundations** (wk 1–2) | Repo setup, Expo app shell + design system (colours, type, cards, tabs), Supabase schema, auth + biometric lock | Clickable shell in the Pearler-inspired style |
+| **0. Foundations** (wk 1–2) | Repo setup, Expo app shell + design system (colours, type, cards, tabs), Supabase schema, auth + biometric lock, first APK installed on your phone | Clickable shell in the Pearler-inspired style |
 | **1. Banking MVP** (wk 3–5) | PocketSmith sync (CommBank, Amex, mortgage), Up API + webhooks, unified feed, categories and rules, transfer detection, Home net worth | Replaces day-to-day checking across 3 apps |
 | **2. Spending** (wk 6–7) | Budgets, category insights, cash flow and savings rate, recurring detection | Know where the money goes |
 | **3. Portfolio** (wk 8–10) | CommSec CSV import, trades, prices, holdings, performance, target allocation + Next buy | Your CommSec ETFs tracked properly |
@@ -223,7 +227,7 @@ This is a single-user personal app, so it only needs personal costs: no business
 | Up API | Free | Personal access token. |
 | ETF prices | Free | End-of-day prices for 3 ETFs once a day fits within free API limits. |
 | Supabase (Sydney region) | Free | Free tier is ample for one user. Free projects pause after inactivity, which the daily sync jobs prevent. |
-| App distribution | Free | Install as a **PWA** (Expo web, "Add to Home Screen"). Avoids the Apple Developer fee (~US$99/yr), which is only needed for a native iOS build via TestFlight. |
+| App distribution | Free | Android only: sideload a signed APK built with EAS Build (free tier) or Gradle. No Apple Developer account, and a Play Store account (US$25 one-off) is optional. |
 | Domain | Optional (~A$15–25/yr) | The free hosting URL works fine. |
 
 **Minimum total: ~A$120/yr** (just PocketSmith).
@@ -238,8 +242,7 @@ This is a single-user personal app, so it only needs personal costs: no business
 - **Advice boundary:** keep strategy content general, not "you should buy X". Show the disclaimer.
 - **Security:** this app holds your full financial picture. Use encrypted secrets, row-level security in Postgres, no tokens on the device, and 2FA on the backend account.
 - **Open questions for you:**
-  1. Is a PWA (installed from the browser, free) OK, or do you want a native iOS app (needs the ~US$99/yr Apple Developer account)?
-  2. Use PocketSmith's categories, or our own rules from day one?
-  3. Do you use DRP on any of VDHG/VAS/VGS?
-  4. Is the app just for you, or also for a partner (shared household view)?
-  5. Should super be in scope for net worth and FI calculations?
+  1. Use PocketSmith's categories, or our own rules from day one?
+  2. Do you use DRP on any of VDHG/VAS/VGS?
+  3. Is the app just for you, or also for a partner (shared household view)?
+  4. Should super be in scope for net worth and FI calculations?
