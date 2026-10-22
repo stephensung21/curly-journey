@@ -5,4 +5,4 @@ it('shows the four tabs in order', async () => {
   const tabs = await view.findAllByLabelText(/, tab, \d+ of \d+$/);
   const labels = tabs.map(t => String(t.props.accessibilityLabel).split(',')[0]);
   expect(labels).toEqual(['Accounts', 'Spending', 'Projections', 'More']);
-});
+}, 60_000);

@@ -1,9 +1,23 @@
-import { Text, View } from 'react-native';
+import { Link } from 'expo-router';
+import { Pressable } from 'react-native';
+import { AppText } from '../../src/components/AppText';
+import { Card } from '../../src/components/Card';
+import { Screen } from '../../src/components/Screen';
 
 export default function MoreScreen() {
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>More</Text>
-    </View>
+    <Screen>
+      <AppText variant="title">More</AppText>
+      <AppText variant="label" tone="muted">
+        App
+      </AppText>
+      <Link href="/design-system" asChild>
+        <Pressable accessibilityRole="link">
+          <Card>
+            <AppText>Design system</AppText>
+          </Card>
+        </Pressable>
+      </Link>
+    </Screen>
   );
 }
