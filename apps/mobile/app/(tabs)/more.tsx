@@ -11,6 +11,13 @@ export default function MoreScreen() {
       <AppText variant="label" tone="muted">
         App
       </AppText>
+      <Link href="/settings" asChild>
+        <Pressable accessibilityRole="link">
+          <Card>
+            <AppText>Settings</AppText>
+          </Card>
+        </Pressable>
+      </Link>
       <Link href="/design-system" asChild>
         <Pressable accessibilityRole="link">
           <Card>
