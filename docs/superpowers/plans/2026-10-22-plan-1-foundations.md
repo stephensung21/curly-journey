@@ -5,9 +5,9 @@
 **Goal:** A sideloadable Android APK with the four-tab shell, the full design system in light and dark modes, settings for theme and hide balances, and a fingerprint/PIN lock. It uses no bank data yet.
 
 **Architecture:** An npm-workspaces monorepo:
-- `packages/core`: pure TypeScript domain logic (money, dates), unit-tested with Vitest, and later shared with the Supabase Edge Functions.
+- `packages/core`: pure TypeScript domain logic (money, dates), unit-tested with Vitest, and later shared with the backend Worker.
 - `apps/mobile`: the Expo (React Native) app, using expo-router tabs and tested with jest-expo and React Native Testing Library.
-- The backend (Supabase) starts in Plan 2.
+- The backend (Neon + Cloudflare Workers; changed from Supabase on 2026-10-23) starts in Plan 2.
 
 **Tech Stack:** TypeScript (strict), Expo (latest stable SDK at scaffold time), expo-router, react-native-svg, expo-local-authentication, @expo-google-fonts (Bricolage Grotesque, Caveat), zustand + @react-native-async-storage/async-storage, @date-fns/tz + date-fns v4, Vitest, jest-expo, @testing-library/react-native, EAS Build.
 
@@ -489,7 +489,7 @@ it('relocks after 5+ min in background', async () => { /* success first, then Ap
 
 | Plan | Scope (spec sections) | Owner actions first |
 |---|---|---|
-| **2. Bank sync and accounts** | Supabase project (Sydney), schema for institution/account/transaction/category/merchant/rule/sync_log/settings with RLS; single-user sign-in; PocketSmith sync Edge Function (4-hourly cron + pull-to-refresh, `updated_since`, de-dupe on id); account "counts towards" switches and offset flags; Accounts tab with the real list; account detail with two swipe pages (§9.2, visual screen 1); stale/failed sync pill and banner; bank CSV import with de-dupe preview (§9.12) | PocketSmith Foundation plan + developer key; Supabase project + 2FA; CommBank and Amex CSV exports |
+| **2. Bank sync and accounts** | `apps/api` Cloudflare Worker (Hono) + Neon Postgres (Sydney); SQL migrations for institution/account/transaction/category/merchant/rule/sync_log/settings; API-token auth (hashed server-side, secure-store on phone); PocketSmith sync (Workers cron every 4h + pull-to-refresh, `updated_since`, de-dupe on id); account "counts towards" switches and offset flags; Accounts tab with the real list; account detail with two swipe pages (§9.2, visual screen 1); stale/failed sync pill and banner; bank CSV import with de-dupe preview (§9.12) | PocketSmith Foundation plan + developer key; Neon project (Sydney) + free Cloudflare account, 2FA on both; CommBank and Amex CSV exports |
 | **3. Spending and categories** | Merchant cleanup; 6-step categorisation pipeline (§9.4) with AU merchant seed and CommBank category list; recategorise + "always" + "update N earlier"; splits; uncategorised inbox; transfer, mortgage and refund detection, plus "not spending" (§9.5); Spending tab; Home hero card with the stacked in/out chart (axes) and the this-month alternative; auto-categorised % | Optional CommBank category screenshot |
 | **4. Warnings and calendar** | Spending limits with 80%/100% alerts (§9.6, screen 8); bills and dates calendar, repeats, reminders, auto-paid matching, "Did this get paid?" (§9.7, screen 4); push notifications (Expo + FCM) and per-type notification settings (§9.11) | None |
 | **5. Holdings and net worth** | CommSec CSV parser + manual trades; EOD price job; holdings screen (screen 7); trade hint notification; manual assets (super, home) with staleness; daily net-worth snapshots; net worth screen (screen 5) | Sample CommSec CSV |

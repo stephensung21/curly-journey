@@ -55,7 +55,7 @@ Agreed with the owner to leave out of v1 and possibly add later (see `PLAN.md`):
 - **Android only**, sideloaded APK. No Play Store.
 - **Single user.** The owner's data only.
 - **Data access is read-only.** The app never moves money or places trades.
-- **Running cost**: about A$120/yr (PocketSmith Foundation). Everything else stays within free tiers.
+- **Running cost**: about A$120/yr (PocketSmith Foundation). Everything else (Neon, Cloudflare Workers, Expo/EAS) stays within free tiers.
 - **CommBank/Amex data latency is about 1 day**, set by PocketSmith's feed schedule. The owner accepted this.
 - **No CommBank, Amex or CommSec personal API exists.** Bank data comes through PocketSmith and holdings through CommSec CSV.
 - **All months are calendar months** in `Australia/Sydney` time.
@@ -86,7 +86,7 @@ Agreed with the owner to leave out of v1 and possibly add later (see `PLAN.md`):
 
 | Topic | Call | Reason |
 |---|---|---|
-| Stack | Expo (React Native, TypeScript) app; Supabase (Postgres, Sydney region) backend with Edge Functions and scheduled jobs | Matches `PLAN.md`; free tier; keeps keys off the phone |
+| Stack | Expo (React Native, TypeScript) app; **Neon** Postgres (Sydney, `ap-southeast-2`) behind a TypeScript API on **Cloudflare Workers** (Hono), with Workers cron triggers for scheduled jobs and Worker secrets for keys. *Changed 2026-10-23 by the owner from Supabase: their Supabase free-project slots are in use.* | Free tiers; keeps keys and the database off the phone; the Worker runs the same TypeScript as `packages/core` |
 | Up connection | Through PocketSmith, not the Up API | Up is rarely used and next-day is fine, so this saves a whole integration. Still within the 6-bank Foundation limit |
 | Sync frequency | Poll PocketSmith every 4 hours, plus pull-to-refresh | PocketSmith refreshes feeds roughly daily, so more frequent polling gains nothing |
 | Per-account switches | Each account has "counts towards" toggles for Spending, Net worth and Projections | Generalises the owner's super/home exclusion request |
@@ -265,7 +265,8 @@ Each type can be turned on or off in Settings.
 
 - **On the phone**: biometric or PIN lock on open and after 5 minutes in the background. A hide-balances toggle.
 - **Secrets**: PocketSmith and price API keys live only in the backend's secret store, never in the APK.
-- **Database**: Supabase row-level security; single authenticated user; 2FA on the Supabase and PocketSmith accounts (owner action).
+- **Database**: never reachable from the phone. Only the Cloudflare Worker holds the Neon connection string (as a Worker secret). Single user: the app authenticates to the Worker with a long-lived random API token (≥32 bytes), created once at setup, stored only in the phone's secure storage (`expo-secure-store`) behind the app lock, and stored server-side as a hash. The token can be rotated from Settings. All Worker routes require it except the health check. HTTPS only.
+- **Accounts**: 2FA on Neon, Cloudflare, PocketSmith and Expo (owner action).
 
 ## 10. Visual design direction
 
@@ -290,7 +291,7 @@ A fuller visual design pass (all screens, tokens, components) follows this docum
 
 ## 11. Suggested build order
 
-1. **Foundations**: repo, Expo shell with tabs and design tokens, Supabase schema, biometric lock, first APK on the phone.
+1. **Foundations**: repo, Expo shell with tabs and design tokens, biometric lock, first APK on the phone.
 2. **Bank sync**: PocketSmith sync, bank CSV import and backfill, accounts list, account detail, sync health.
 3. **Spending**: categorisation pipeline, recategorise and inbox, transfer and mortgage detection, combined spending, Home in/out chart.
 4. **Warnings and calendar**: limits, bill events, alerts, auto-paid matching.
@@ -310,7 +311,7 @@ A fuller visual design pass (all screens, tokens, components) follows this docum
 ## 13. Owner actions required
 
 - Sign up for PocketSmith Foundation (annual) and connect CommBank, Amex and Up. Confirm that the home loan and offset come through with transactions. Check whether AMP appears as a feed.
-- Create the PocketSmith developer key and the Supabase project; turn on 2FA on both.
+- Create the PocketSmith developer key, a Neon project (Sydney region) and a free Cloudflare account; turn on 2FA on all three.
 - Export a sample CommSec transaction-history CSV so the parser can be built against the real format.
 - Export 6–12 months of CommBank and Amex transaction CSVs for the history backfill.
 - Optionally, a screenshot of CommBank's category list.
