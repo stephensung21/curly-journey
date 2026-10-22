@@ -4,6 +4,8 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@curly/core": "*",
+    "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
+    "@expo-google-fonts/caveat": "^0.4.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~58.0.17",
     "expo-constants": "~58.0.13",
