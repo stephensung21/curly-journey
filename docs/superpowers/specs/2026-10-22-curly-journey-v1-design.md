@@ -263,7 +263,7 @@ Each type can be turned on or off in Settings.
 
 ### 9.13 Security
 
-- **On the phone**: biometric or PIN lock on open and after 5 minutes in the background. A hide-balances toggle.
+- **On the phone**: biometric or PIN lock on open and after 5 minutes in the background. A hide-balances toggle. A privacy cover while the app is in the background. **Screenshots stay allowed** (owner decision 2026-10-23): no Android secure-window flag, so on some phones the app-switcher thumbnail may briefly show balances; Hide balances avoids this.
 - **Secrets**: PocketSmith and price API keys live only in the backend's secret store, never in the APK.
 - **Database**: never reachable from the phone. Only the Cloudflare Worker holds the Neon connection string (as a Worker secret). Single user: the app authenticates to the Worker with a long-lived random API token (≥32 bytes), created once at setup, stored only in the phone's secure storage (`expo-secure-store`) behind the app lock, and stored server-side as a hash. The token can be rotated from Settings. All Worker routes require it except the health check. HTTPS only.
 - **Accounts**: 2FA on Neon, Cloudflare, PocketSmith and Expo (owner action).
