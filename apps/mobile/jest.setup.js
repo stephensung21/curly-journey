@@ -7,3 +7,10 @@ jest.mock('expo-font', () => ({
   ...jest.requireActual('expo-font'),
   useFonts: () => [true, null],
 }));
+
+// Default: the phone has a screen lock and the user authenticates.
+jest.mock('expo-local-authentication', () => ({
+  authenticateAsync: jest.fn(async () => ({ success: true })),
+  getEnrolledLevelAsync: jest.fn(async () => 3),
+  SecurityLevel: { NONE: 0, SECRET: 1, BIOMETRIC_WEAK: 2, BIOMETRIC_STRONG: 3 },
+}));
