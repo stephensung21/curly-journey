@@ -25,3 +25,9 @@ it('addMonths wraps the year', () => {
 });
 
 it('rejects malformed keys', () => expect(() => monthBounds('2026-13')).toThrow());
+
+it('00:30 AEDT on 1 Nov is November', () =>
+  expect(monthKey(new Date('2026-10-31T13:30:00Z'))).toBe('2026-11'));
+
+it('00:30 AEDT on 1 Apr is April', () =>
+  expect(monthKey(new Date('2026-03-31T13:30:00Z'))).toBe('2026-04'));

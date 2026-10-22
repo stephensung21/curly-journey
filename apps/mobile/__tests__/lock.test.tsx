@@ -1,5 +1,6 @@
-import { act, screen } from '@testing-library/react-native';
+import { act, screen, waitFor } from '@testing-library/react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { useEffect } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { AppText } from '../src/components/AppText';
 import { LockGate } from '../src/lock/LockGate';
@@ -73,6 +74,46 @@ describe('LockGate', () => {
     await act(async () => onAppState('active'));
     expect(screen.getByText('secret')).toBeTruthy();
     expect(auth).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays locked when authentication throws', async () => {
+    auth.mockRejectedValue(new Error('hardware unavailable'));
+    await renderScreen(<LockGate><AppText>secret</AppText></LockGate>);
+    expect(await screen.findByText('Unlock')).toBeTruthy();
+    expect(screen.queryByText('secret')).toBeNull();
+  });
+
+  it('keeps the app mounted under the lock after a relock', async () => {
+    auth.mockResolvedValue({ success: true });
+    const mounted = jest.fn();
+    function Child() {
+      useEffect(() => mounted(), []);
+      return <AppText>secret</AppText>;
+    }
+    const now = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    await renderScreen(<LockGate><Child /></LockGate>);
+    expect(await screen.findByText('secret')).toBeTruthy();
+
+    await act(async () => onAppState('background'));
+    let finishAuth: (r: { success: boolean }) => void = () => {};
+    auth.mockImplementation(() => new Promise(r => (finishAuth = r)));
+    now.mockReturnValue(1_400_000);
+    await act(async () => onAppState('active'));
+    await waitFor(() => expect(auth).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Unlock')).toBeTruthy();
+    await act(async () => finishAuth({ success: true }));
+    expect(await screen.findByText('secret')).toBeTruthy();
+    expect(screen.queryByText('Unlock')).toBeNull();
+    expect(mounted).toHaveBeenCalledTimes(1);
+  });
+
+  it('covers the app while it is in the background', async () => {
+    auth.mockResolvedValue({ success: true });
+    await renderScreen(<LockGate><AppText>secret</AppText></LockGate>);
+    expect(await screen.findByText('secret')).toBeTruthy();
+    expect(screen.queryByTestId('privacy-cover')).toBeNull();
+    await act(async () => onAppState('background'));
+    expect(screen.getByTestId('privacy-cover')).toBeTruthy();
   });
 
   it('explains when the phone has no screen lock', async () => {

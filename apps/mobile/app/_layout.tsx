@@ -33,8 +33,8 @@ export default function RootLayout() {
       <LockGate>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-          <Stack.Screen name="design-system" options={{ title: 'Design system' }} />
+          <Stack.Screen name="settings" options={{ headerShown: false }} />
+          <Stack.Screen name="design-system" options={{ headerShown: false }} />
         </Stack>
       </LockGate>
     </ThemeProvider>
