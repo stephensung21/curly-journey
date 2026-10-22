@@ -1,9 +1,10 @@
-import { Text, View } from 'react-native';
+import { AppText } from '../../src/components/AppText';
+import { Screen } from '../../src/components/Screen';
 
 export default function ProjectionsScreen() {
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>Projections</Text>
-    </View>
+    <Screen>
+      <AppText variant="title">Projections</AppText>
+    </Screen>
   );
 }

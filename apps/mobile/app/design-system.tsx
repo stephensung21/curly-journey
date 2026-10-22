@@ -48,7 +48,9 @@ export default function DesignSystemScreen() {
         </AppText>
         <Amount cents={31840000} decimals="never" tone="onAccent" />
       </Card>
-      <HandNote style={{ textAlign: 'right' }}>up $6.2k since Sept</HandNote>
+      <HandNote style={{ textAlign: 'right' }}>
+        up <Amount cents={620000} short inline /> since Sept
+      </HandNote>
 
       <AppText variant="label" tone="muted">
         CommBank
@@ -85,7 +87,9 @@ export default function DesignSystemScreen() {
         <AppText>A toggle</AppText>
         <Toggle value={on} onChange={setOn} />
       </Card>
-      <HandNote tone="pink">$310 more than Sept</HandNote>
+      <HandNote tone="pink">
+        <Amount cents={31000} decimals="never" inline /> more than Sept
+      </HandNote>
       <Button label="Primary button" />
       <Button kind="secondary" label="Secondary button" />
     </Screen>

@@ -42,8 +42,9 @@ export function formatAudShort(cents: Cents, opts: { hidden?: boolean } = {}): s
   assertCents(cents);
   if (opts.hidden) return MASK;
   const dollars = absWholeDollars(cents);
+  // Promote to M when the k figure would round to 1000.0, so $999,950 shows as $1M, not $1000k.
   let body: string;
-  if (dollars >= 1_000_000) body = `${trimmed(dollars / 1_000_000)}M`;
+  if (Math.round(dollars / 100) >= 10_000) body = `${trimmed(dollars / 1_000_000)}M`;
   else if (dollars >= 1_000) body = `${trimmed(dollars / 1_000)}k`;
   else body = String(dollars);
   return `${sign(cents, false)}$${body}`;

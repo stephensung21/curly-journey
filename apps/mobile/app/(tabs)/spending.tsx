@@ -1,9 +1,10 @@
-import { Text, View } from 'react-native';
+import { AppText } from '../../src/components/AppText';
+import { Screen } from '../../src/components/Screen';
 
 export default function SpendingScreen() {
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>Spending</Text>
-    </View>
+    <Screen>
+      <AppText variant="title">Spending</AppText>
+    </Screen>
   );
 }

@@ -1,9 +1,10 @@
-import { Text, View } from 'react-native';
+import { AppText } from '../../src/components/AppText';
+import { Screen } from '../../src/components/Screen';
 
 export default function AccountsScreen() {
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text>Accounts</Text>
-    </View>
+    <Screen>
+      <AppText variant="title">Accounts</AppText>
+    </Screen>
   );
 }

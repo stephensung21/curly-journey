@@ -20,6 +20,14 @@ describe('formatAudShort', () => {
     expect(formatAudShort(40000000)).toBe('$400k');
   });
   it('millions', () => expect(formatAudShort(120000000)).toBe('$1.2M'));
+  it('rounds up across the k/M boundary', () => {
+    expect(formatAudShort(99_995_000)).toBe('$1M');
+    expect(formatAudShort(99_995)).toBe('$1k');
+  });
+  it('keeps values just under a boundary in the lower unit', () => {
+    expect(formatAudShort(95_000)).toBe('$950');
+    expect(formatAudShort(95_000_000)).toBe('$950k');
+  });
   it('negative', () => expect(formatAudShort(-21400000)).toBe('−$214k'));
   it('zero', () => expect(formatAudShort(0)).toBe('$0'));
   it('masks when hidden', () => expect(formatAudShort(120000, { hidden: true })).toBe('$•••'));
