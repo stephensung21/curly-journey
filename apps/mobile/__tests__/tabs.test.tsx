@@ -21,3 +21,11 @@ it('tab bar and tab screens use the app theme', async () => {
   }
   expect(found).toBe(true);
 }, 60_000);
+
+it('every tab has an icon', async () => {
+  const view = await renderRouter('./app', { initialUrl: '/' });
+  await view.findAllByLabelText(/, tab, \d+ of \d+$/);
+  for (const name of ['accounts', 'spending', 'projections', 'more']) {
+    expect(view.getAllByTestId(`tab-icon-${name}`).length).toBeGreaterThan(0);
+  }
+}, 60_000);

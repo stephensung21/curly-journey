@@ -6,6 +6,8 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 jest.mock('expo-font', () => ({
   ...jest.requireActual('expo-font'),
   useFonts: () => [true, null],
+  loadAsync: jest.fn(async () => {}),
+  isLoaded: () => true,
 }));
 
 // Default: the phone has a screen lock and the user authenticates.

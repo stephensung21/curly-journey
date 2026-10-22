@@ -1,6 +1,17 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
+import type { ComponentProps } from 'react';
+import type { ColorValue } from 'react-native';
 import { tabBarColors } from '../../src/theme/chrome';
 import { useTheme } from '../../src/theme/useTheme';
+
+type IconName = ComponentProps<typeof Ionicons>['name'];
+
+function tabIcon(testName: string, name: IconName) {
+  return ({ color, size }: { color: ColorValue; size: number }) => (
+    <Ionicons testID={`tab-icon-${testName}`} name={name} size={size} color={color as string} />
+  );
+}
 
 export default function TabLayout() {
   const t = useTheme();
@@ -17,10 +28,13 @@ export default function TabLayout() {
         },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Accounts' }} />
-      <Tabs.Screen name="spending" options={{ title: 'Spending' }} />
-      <Tabs.Screen name="projections" options={{ title: 'Projections' }} />
-      <Tabs.Screen name="more" options={{ title: 'More' }} />
+      <Tabs.Screen name="index" options={{ title: 'Accounts', tabBarIcon: tabIcon('accounts', 'wallet-outline') }} />
+      <Tabs.Screen name="spending" options={{ title: 'Spending', tabBarIcon: tabIcon('spending', 'pie-chart-outline') }} />
+      <Tabs.Screen
+        name="projections"
+        options={{ title: 'Projections', tabBarIcon: tabIcon('projections', 'trending-up-outline') }}
+      />
+      <Tabs.Screen name="more" options={{ title: 'More', tabBarIcon: tabIcon('more', 'ellipsis-horizontal-circle-outline') }} />
     </Tabs>
   );
 }
