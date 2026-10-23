@@ -5,6 +5,8 @@ import { Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { useConnection } from '../src/api/hooks';
+import { QueryProvider } from '../src/api/QueryProvider';
 import { LockGate } from '../src/lock/LockGate';
 import { navTheme, statusBarStyle } from '../src/theme/chrome';
 import { useTheme } from '../src/theme/useTheme';
@@ -12,6 +14,25 @@ import { useTheme } from '../src/theme/useTheme';
 export { ErrorBoundary } from 'expo-router';
 
 SplashScreen.preventAutoHideAsync();
+
+function AppStack() {
+  const { conn, loading } = useConnection();
+  if (loading) return null;
+  return (
+    <>
+      <Stack>
+        <Stack.Protected guard={!!conn}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="settings" options={{ headerShown: false }} />
+          <Stack.Screen name="design-system" options={{ headerShown: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={!conn}>
+          <Stack.Screen name="connect" options={{ headerShown: false }} />
+        </Stack.Protected>
+      </Stack>
+    </>
+  );
+}
 
 export default function RootLayout() {
   const theme = useTheme();
@@ -31,11 +52,9 @@ export default function RootLayout() {
     <ThemeProvider value={navTheme(theme)}>
       <StatusBar style={statusBarStyle(theme.mode)} />
       <LockGate>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="settings" options={{ headerShown: false }} />
-          <Stack.Screen name="design-system" options={{ headerShown: false }} />
-        </Stack>
+        <QueryProvider>
+          <AppStack />
+        </QueryProvider>
       </LockGate>
     </ThemeProvider>
   );
