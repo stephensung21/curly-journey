@@ -35,7 +35,13 @@ export type Transaction = {
 
 export type TransactionsResponse = { transactions: Transaction[] };
 
-export type SyncResult = { status?: string; accounts?: number; transactions?: number; error?: 'sync_in_progress' | 'sync_failed' };
+export type SyncResult = {
+  status?: string;
+  accounts?: number;
+  transactions?: number;
+  more?: boolean;
+  error?: 'sync_in_progress' | 'sync_failed';
+};
 
 export type SyncStatus = { lastSuccessAt: string | null; lastStatus: 'ok' | 'failed' | 'running' | null; stale: boolean };
 

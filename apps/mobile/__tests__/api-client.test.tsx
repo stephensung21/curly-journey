@@ -61,6 +61,29 @@ describe('hooks', () => {
     });
     await expect(result.current.mutateAsync()).resolves.toEqual({ error: 'sync_in_progress' });
   });
+
+  it('useSyncNow keeps syncing while history is still loading', async () => {
+    fetchMock
+      .mockResolvedValueOnce(res(200, { status: 'ok', more: true }))
+      .mockResolvedValueOnce(res(200, { status: 'ok', more: true }))
+      .mockResolvedValueOnce(res(200, { status: 'ok', more: false }));
+    const qc = new QueryClient();
+    const { result } = await renderHook(() => useSyncNow(), {
+      wrapper: ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+    });
+    await expect(result.current.mutateAsync()).resolves.toEqual({ status: 'ok', more: false });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('useSyncNow stops after 20 rounds', async () => {
+    fetchMock.mockResolvedValue(res(200, { status: 'ok', more: true }));
+    const qc = new QueryClient();
+    const { result } = await renderHook(() => useSyncNow(), {
+      wrapper: ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+    });
+    await result.current.mutateAsync();
+    expect(fetchMock).toHaveBeenCalledTimes(20);
+  });
 });
 
 describe('cache on bad token', () => {

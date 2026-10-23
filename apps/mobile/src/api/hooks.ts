@@ -79,18 +79,26 @@ export function useSyncStatus() {
   });
 }
 
-/** Resolves (does not throw) when a sync is already running. */
+/** Each sync call stays within the Worker's request limit, so history loads over several calls. */
+const MAX_SYNC_ROUNDS = 20;
+
+/** Resolves (does not throw) when a sync is already running. Repeats while the API reports more history to load. */
 export function useSyncNow() {
   const conn = useConn();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (): Promise<SyncResult> => {
-      try {
-        return await apiFetch<SyncResult>(conn, '/sync', { method: 'POST' });
-      } catch (e) {
-        if (e instanceof ApiError && e.status === 409) return { error: 'sync_in_progress' };
-        throw e;
+      let result: SyncResult = {};
+      for (let round = 0; round < MAX_SYNC_ROUNDS; round++) {
+        try {
+          result = await apiFetch<SyncResult>(conn, '/sync', { method: 'POST' });
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 409) return { error: 'sync_in_progress' };
+          throw e;
+        }
+        if (!result.more) break;
       }
+      return result;
     },
     onSettled: () => qc.invalidateQueries(),
   });
