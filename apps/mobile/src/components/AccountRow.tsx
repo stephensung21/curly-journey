@@ -9,11 +9,11 @@ import { IconTile } from './IconTile';
 import { Pill } from './Pill';
 
 export const kindEmoji: Record<AccountKind, string> = {
-  transaction: '🏠', savings: '🐷', credit_card: '💳', mortgage: '🏦', brokerage: '📈', manual_asset: '🏡',
+  transaction: '🏠', savings: '🐷', credit_card: '💳', mortgage: '🏦', brokerage: '📈', manual_asset: '🏡', crypto: '🪙',
 };
 export const kindColor: Record<AccountKind, string> = {
   transaction: accents.yellow, savings: accents.pink, credit_card: accents.pink,
-  mortgage: accents.blue, brokerage: accents.lime, manual_asset: accents.purple,
+  mortgage: accents.blue, brokerage: accents.lime, manual_asset: accents.purple, crypto: accents.orange,
 };
 
 /** Whole days since the last sync (floor, minimum 1). */
@@ -51,6 +51,7 @@ export function AccountRow({ account, lastSuccessAt }: { account: Account; lastS
               Offset · home loan
             </AppText>
           ) : null}
+          {account.needsUpdate ? <Pill tone="warn">update?</Pill> : null}
           {account.stale ? <Pill tone="warn">{days === null ? 'never synced' : `synced ${days} ${days === 1 ? 'day' : 'days'} ago`}</Pill> : null}
         </View>
         <Amount cents={account.balanceCents} decimals="never" />

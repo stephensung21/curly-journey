@@ -1,9 +1,9 @@
-import { institutionGroup, monthKey } from '@curly/core';
+import { dayMonthLabel, institutionGroup, monthKey } from '@curly/core';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Dimensions, type LayoutChangeEvent, Pressable, ScrollView, type ScrollViewInstance, View } from 'react-native';
-import { useAccounts, useCategories, useSpending, useTransactionsQuery } from '../../src/api/hooks';
-import type { SpendingQuery } from '../../src/api/types';
+import { useAccounts, useAccountValues, useCategories, useHoldings, useSetAccountValue, useSpending, useTransactionsQuery } from '../../src/api/hooks';
+import type { Account, SpendingQuery } from '../../src/api/types';
 import { kindColor, kindEmoji } from '../../src/components/AccountRow';
 import { Amount } from '../../src/components/Amount';
 import { AppText } from '../../src/components/AppText';
@@ -12,12 +12,15 @@ import { CategoryBar } from '../../src/components/CategoryBar';
 import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
 import { IconTile } from '../../src/components/IconTile';
 import { MonthSwitcher } from '../../src/components/MonthSwitcher';
+import { Button } from '../../src/components/Button';
+import { Pill } from '../../src/components/Pill';
+import { ValueSheet } from '../../src/components/ValueSheet';
 import { OpenBankAppButton } from '../../src/components/OpenBankApp';
 import { MoreLessNote } from '../../src/components/MoreLessNote';
 import { Screen } from '../../src/components/Screen';
 import { Segmented } from '../../src/components/Segmented';
 import { TransactionList } from '../../src/components/TransactionList';
-import { plainDay, statementLabel, sydneyDate } from '../../src/lib/days';
+import { plainDay, receivedLabel, statementLabel, sydneyDate } from '../../src/lib/days';
 import { now } from '../../src/lib/now';
 import { categoryColor } from '../../src/theme/categoryColor';
 import { accents } from '../../src/theme/tokens';
@@ -51,9 +54,108 @@ function syncedLabel(iso: string | null, current: Date): string | null {
   return `synced ${plainDay(sydneyDate(at))}`;
 }
 
-export default function AccountDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const accountId = Number(id);
+function DetailHeader({ accountId }: { accountId: number }) {
+  const router = useRouter();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Pressable accessibilityLabel="Back" accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
+        <AppText variant="title">‹</AppText>
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Account settings"
+        accessibilityRole="button"
+        hitSlop={8}
+        onPress={() => router.push(`/account/${accountId}/settings`)}
+      >
+        <AppText variant="title">⚙</AppText>
+      </Pressable>
+    </View>
+  );
+}
+
+function Title({ account }: { account: Account }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <IconTile emoji={account.icon ?? kindEmoji[account.kind]} color={kindColor[account.kind]} />
+      <AppText variant="title">{account.displayName ?? account.name}</AppText>
+    </View>
+  );
+}
+
+function ManualDetail({ account }: { account: Account }) {
+  const today = sydneyDate(now());
+  const [editing, setEditing] = useState(false);
+  const values = useAccountValues(account.id).data?.values ?? [];
+  const setValue = useSetAccountValue();
+  return (
+    <Screen>
+      <DetailHeader accountId={account.id} />
+      <Title account={account} />
+      <Card style={{ gap: 6 }}>
+        <Amount cents={account.balanceCents} variant="hero" />
+        {account.balanceDate ? (
+          <AppText variant="label" tone="muted">
+            {`as of ${dayMonthLabel(account.balanceDate)}`}
+          </AppText>
+        ) : null}
+        {account.needsUpdate ? <Pill tone="warn">Time to update</Pill> : null}
+      </Card>
+      <Button label="Update value" onPress={() => setEditing(true)} />
+      <AppText variant="label" tone="muted">
+        History
+      </AppText>
+      <Card style={{ gap: 10 }}>
+        {values.map(v => (
+          <View key={v.asOf} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <AppText>{dayMonthLabel(v.asOf)}</AppText>
+            <Amount cents={v.valueCents} decimals="never" />
+          </View>
+        ))}
+      </Card>
+      <ValueSheet
+        visible={editing}
+        onClose={() => setEditing(false)}
+        today={today}
+        saving={setValue.isPending}
+        onSave={async (valueCents, asOf) => {
+          await setValue.mutateAsync({ id: account.id, valueCents, asOf });
+        }}
+      />
+    </Screen>
+  );
+}
+
+function CoinSpotDetail({ account }: { account: Account }) {
+  const holdings = useHoldings(account.id).data?.holdings ?? [];
+  return (
+    <Screen>
+      <DetailHeader accountId={account.id} />
+      <Title account={account} />
+      <Amount cents={account.balanceCents} variant="hero" />
+      <Card style={{ gap: 12 }}>
+        {holdings.map(h => (
+          <View key={h.symbol} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <IconTile emoji={h.symbol.slice(0, 1)} color={accents.orange} />
+            <View style={{ flex: 1 }}>
+              <AppText variant="bodyStrong">{h.symbol}</AppText>
+              <AppText variant="label" tone="muted">
+                {h.units}
+              </AppText>
+            </View>
+            <Amount cents={h.audCents} />
+          </View>
+        ))}
+      </Card>
+      {account.syncedAt ? (
+        <AppText variant="label" tone="muted">
+          {`Values from CoinSpot · updated ${receivedLabel(account.syncedAt)}`}
+        </AppText>
+      ) : null}
+    </Screen>
+  );
+}
+
+function BankDetail({ accountId }: { accountId: number }) {
   const router = useRouter();
   const t = useTheme();
   const current = now();
@@ -92,19 +194,7 @@ export default function AccountDetailScreen() {
 
   return (
     <Screen>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Pressable accessibilityLabel="Back" accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
-          <AppText variant="title">‹</AppText>
-        </Pressable>
-        <Pressable
-          accessibilityLabel="Account settings"
-          accessibilityRole="button"
-          hitSlop={8}
-          onPress={() => router.push(`/account/${accountId}/settings`)}
-        >
-          <AppText variant="title">⚙</AppText>
-        </Pressable>
-      </View>
+      <DetailHeader accountId={accountId} />
 
       {account ? (
         <View style={{ gap: 6 }}>
@@ -219,4 +309,13 @@ export default function AccountDetailScreen() {
       </View>
     </Screen>
   );
+}
+
+export default function AccountDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const accountId = Number(id);
+  const account = useAccounts().data?.accounts.find(a => a.id === accountId);
+  if (account?.source === 'manual') return <ManualDetail account={account} />;
+  if (account?.source === 'coinspot') return <CoinSpotDetail account={account} />;
+  return <BankDetail accountId={accountId} />;
 }

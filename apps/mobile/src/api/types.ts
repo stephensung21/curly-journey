@@ -2,11 +2,11 @@ import type { CategoryColor, CategorySource, Flow as CoreFlow, Rule as CoreRule,
 
 export type Connection = { url: string; token: string };
 
-export type AccountKind = 'transaction' | 'savings' | 'credit_card' | 'mortgage' | 'brokerage' | 'manual_asset';
+export type AccountKind = 'transaction' | 'savings' | 'credit_card' | 'mortgage' | 'brokerage' | 'manual_asset' | 'crypto';
 
 export type Account = {
   id: number;
-  source: 'pocketsmith' | 'manual';
+  source: 'pocketsmith' | 'manual' | 'coinspot';
   institution: string;
   name: string;
   displayName: string | null;
@@ -20,7 +20,12 @@ export type Account = {
   icon: string | null;
   sortOrder: number | null;
   stale: boolean;
+  syncedAt: string | null;
+  needsUpdate: boolean;
 };
+
+export type AccountValue = { asOf: string; valueCents: number };
+export type Holding = { symbol: string; units: string; audCents: number };
 
 export type AccountsResponse = { accounts: Account[]; lastSuccessAt: string | null };
 

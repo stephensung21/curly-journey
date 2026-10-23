@@ -235,3 +235,23 @@ it('renders no Coming up block when nothing is due', async () => {
   await renderScreen(<AccountsScreen />);
   expect(screen.queryByText('Coming up')).toBeNull();
 });
+
+it('puts CoinSpot and Manual last, flags manual accounts needing an update, and offers to add one', async () => {
+  accounts.push(
+    acct(8, 'Manual', { source: 'manual', kind: 'manual_asset', name: 'AMP super', needsUpdate: true }),
+    acct(9, 'CoinSpot', { source: 'coinspot', kind: 'crypto', name: 'CoinSpot' }),
+    acct(10, 'Aardvark'),
+  );
+  await renderScreen(<AccountsScreen />);
+  const texts: string[] = [];
+  const walk = (n: any): void => {
+    if (typeof n === 'string') texts.push(n);
+    else if (n) (Array.isArray(n) ? n : (n.children ?? [])).forEach(walk);
+  };
+  walk(screen.toJSON());
+  const pos = ['CommSec', 'CoinSpot', 'Manual', 'Aardvark'].map(n => texts.indexOf(n));
+  expect([...pos].sort((x, y) => x - y)).toEqual(pos);
+  expect(screen.getAllByText('update?')).toHaveLength(1);
+  await fireEvent.press(screen.getByText('+ Add super or home value'));
+  expect(mockPush).toHaveBeenCalledWith('/account/new');
+});

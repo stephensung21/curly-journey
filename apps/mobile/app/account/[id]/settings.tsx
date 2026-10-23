@@ -1,8 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
-import { useAccounts, useUpdateAccount } from '../../../src/api/hooks';
+import { useAccounts, useDeleteAccount, useUpdateAccount } from '../../../src/api/hooks';
 import type { Account, AccountSettings } from '../../../src/api/types';
+import { Button } from '../../../src/components/Button';
+import { Sheet } from '../../../src/components/Sheet';
 import { AppText } from '../../../src/components/AppText';
 import { Card } from '../../../src/components/Card';
 import { kindColor, kindEmoji } from '../../../src/components/AccountRow';
@@ -34,6 +36,9 @@ function Form({ account }: { account: Account }) {
   const t = useTheme();
   const router = useRouter();
   const update = useUpdateAccount();
+  const del = useDeleteAccount();
+  const [confirming, setConfirming] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
   const [picking, setPicking] = useState(false);
   const [name, setName] = useState(account.displayName ?? '');
   const save = (settings: AccountSettings) => update.mutate({ id: account.id, settings });
@@ -102,6 +107,31 @@ function Form({ account }: { account: Account }) {
         placeholderTextColor={t.inkFaded}
         style={{ backgroundColor: t.surface, color: t.ink, borderRadius: 12, padding: 12, fontFamily: 'BricolageGrotesque_500Medium', fontSize: 14 }}
       />
+
+      {account.source === 'manual' ? (
+        <>
+          <Button kind="secondary" label="Delete this account" onPress={() => setConfirming(true)} />
+          <Sheet visible={confirming} onClose={() => setConfirming(false)}>
+            <AppText variant="title">{`Delete ${account.displayName ?? account.name}? Its value history goes too.`}</AppText>
+            {deleteError ? <AppText>Couldn't delete the account. Try again.</AppText> : null}
+            <Button
+              label="Delete"
+              disabled={del.isPending}
+              onPress={async () => {
+                try {
+                  await del.mutateAsync(account.id);
+                } catch {
+                  setDeleteError(true);
+                  return;
+                }
+                setConfirming(false);
+                router.replace('/');
+              }}
+            />
+            <Button kind="secondary" label="Cancel" onPress={() => setConfirming(false)} />
+          </Sheet>
+        </>
+      ) : null}
     </Screen>
   );
 }

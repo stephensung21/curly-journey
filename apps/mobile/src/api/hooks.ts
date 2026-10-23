@@ -6,11 +6,13 @@ import { useConnectionStore } from './connectionStore';
 import type {
   Account,
   AccountSettings,
+  AccountValue,
   AccountsResponse,
   CategorisationStats,
   Category,
   Connection,
   DailyPoint,
+  Holding,
   ImportBody,
   ImportCommit,
   ImportPreview,
@@ -459,5 +461,54 @@ export function useDeleteEvent() {
   return useMutation({
     mutationFn: (id: number) => apiFetch<void>(conn, `/events/${id}`, { method: 'DELETE' }),
     onSettled: () => invalidateEvents(qc),
+  });
+}
+
+export type ManualAccountBody = { name: string; icon: string | null; valueCents: number; asOf: string };
+
+export function useCreateManualAccount() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ManualAccountBody) => apiFetch<Account>(conn, '/accounts/manual', { method: 'POST', body: JSON.stringify(body) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
+  });
+}
+
+export function useSetAccountValue() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; valueCents: number; asOf: string }) =>
+      apiFetch<Account>(conn, `/accounts/${id}/value`, { method: 'PUT', body: JSON.stringify(body) }),
+    onSettled: (_d, _e, { id }) =>
+      Promise.all([qc.invalidateQueries({ queryKey: ['accounts'] }), qc.invalidateQueries({ queryKey: ['accountValues', id] })]),
+  });
+}
+
+export function useAccountValues(id: number, enabled = true) {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['accountValues', id],
+    enabled: !!conn.url && enabled,
+    queryFn: () => apiFetch<{ values: AccountValue[] }>(conn, `/accounts/${id}/values`),
+  });
+}
+
+export function useHoldings(id: number, enabled = true) {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['holdings', id],
+    enabled: !!conn.url && enabled,
+    queryFn: () => apiFetch<{ holdings: Holding[] }>(conn, `/accounts/${id}/holdings`),
+  });
+}
+
+export function useDeleteAccount() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(conn, `/accounts/${id}`, { method: 'DELETE' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
   });
 }

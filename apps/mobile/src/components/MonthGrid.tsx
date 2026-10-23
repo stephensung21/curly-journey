@@ -17,10 +17,12 @@ type Props = {
   dots: Record<string, string[]>;
   selected?: string;
   onSelect?: (iso: string) => void;
+  /** Days after this ISO date can't be picked. */
+  maxDate?: string;
 };
 
 /** Monday-first month grid. With onSelect it doubles as a date picker. */
-export function MonthGrid({ month, today, dots, selected, onSelect }: Props) {
+export function MonthGrid({ month, today, dots, selected, onSelect, maxDate }: Props) {
   const t = useTheme();
   const year = Number(month.slice(0, 4));
   const m = Number(month.slice(5, 7));
@@ -48,6 +50,7 @@ export function MonthGrid({ month, today, dots, selected, onSelect }: Props) {
             if (day === null) return <View key={i} testID="grid-blank" style={cellStyle} />;
             const iso = `${month}-${String(day).padStart(2, '0')}`;
             const isToday = iso === today;
+            const disabled = maxDate !== undefined && iso > maxDate;
             const cell = (
               <>
                 <View
@@ -63,7 +66,7 @@ export function MonthGrid({ month, today, dots, selected, onSelect }: Props) {
                     borderColor: t.ink,
                   }}
                 >
-                  <AppText variant="bodyStrong" tone={isToday ? 'onAccent' : iso < today ? 'faded' : 'ink'}>
+                  <AppText variant="bodyStrong" tone={isToday ? 'onAccent' : iso < today || disabled ? 'faded' : 'ink'}>
                     {String(day)}
                   </AppText>
                 </View>
@@ -75,7 +78,12 @@ export function MonthGrid({ month, today, dots, selected, onSelect }: Props) {
               </>
             );
             return onSelect ? (
-              <Pressable key={i} accessibilityRole="button" accessibilityLabel={dayLabel(iso)} onPress={() => onSelect(iso)} style={cellStyle}>
+              <Pressable key={i} accessibilityRole="button" accessibilityLabel={dayLabel(iso)}
+                accessibilityState={{ disabled }}
+                disabled={disabled}
+                onPress={() => onSelect(iso)}
+                style={cellStyle}
+              >
                 {cell}
               </Pressable>
             ) : (

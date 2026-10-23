@@ -21,3 +21,12 @@ it('is not pressable without onSelect', async () => {
   await render(<MonthGrid month="2026-10" today="2026-10-24" dots={{}} />);
   expect(screen.queryByLabelText('Tue 27 Oct')).toBeNull();
 });
+
+it('maxDate disables later days but not the max day itself', async () => {
+  const onSelect = jest.fn();
+  await render(<MonthGrid month="2026-10" today="2026-10-24" dots={{}} onSelect={onSelect} maxDate="2026-10-24" />);
+  await fireEvent.press(screen.getByLabelText('Sun 25 Oct'));
+  expect(onSelect).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByLabelText('Sat 24 Oct'));
+  expect(onSelect).toHaveBeenCalledWith('2026-10-24');
+});

@@ -24,7 +24,7 @@ import { now } from '../../src/lib/now';
 import { useSettings } from '../../src/settings/store';
 import { useTheme } from '../../src/theme/useTheme';
 
-const ORDER = ['CommBank', 'Amex', 'Up', 'CommSec'];
+const ORDER = ['CommBank', 'Amex', 'Up', 'CommSec', 'CoinSpot', 'Manual'];
 
 function groupAccounts(accounts: Account[]): [string, Account[]][] {
   const map = new Map<string, Account[]>();
@@ -219,6 +219,15 @@ export default function AccountsScreen() {
           )}
         </Card>
       ))}
+      {draft ? null : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/account/new')}
+          style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.inkMuted, borderRadius: 14, padding: 12, alignItems: 'center' }}
+        >
+          <AppText tone="muted">+ Add super or home value</AppText>
+        </Pressable>
+      )}
     </Screen>
   );
 }
