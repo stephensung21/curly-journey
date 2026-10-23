@@ -153,3 +153,5 @@ export type Occurrence = {
   payable: boolean;
 };
 export type OccurrencesResponse = { events: CalendarEventDef[]; occurrences: Occurrence[] };
+
+export type NotificationPrefs = { limit: boolean; bill: boolean; paid_check: boolean; sync: boolean; stale: boolean };

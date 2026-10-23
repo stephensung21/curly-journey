@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey 
 import { useCallback, useEffect } from 'react';
 import { ApiError, apiFetch } from './client';
 import { clearConnection, loadConnection, saveConnection } from './connection';
+import { registerForPush } from '../notifications/register';
 import { useConnectionStore } from './connectionStore';
 import type {
   Account,
@@ -21,6 +22,7 @@ import type {
   Limit,
   LimitPatch,
   NewLimit,
+  NotificationPrefs,
   NewCategory,
   NewRule,
   Occurrence,
@@ -511,4 +513,33 @@ export function useDeleteAccount() {
     mutationFn: (id: number) => apiFetch<void>(conn, `/accounts/${id}`, { method: 'DELETE' }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
   });
+}
+
+export function useNotificationPrefs() {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['notificationPrefs'],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<NotificationPrefs>(conn, '/notifications/prefs'),
+  });
+}
+
+export function useSetNotificationPrefs() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<NotificationPrefs>) =>
+      apiFetch<NotificationPrefs>(conn, '/notifications/prefs', { method: 'PUT', body: JSON.stringify(patch) }),
+    onSuccess: prefs => qc.setQueryData(['notificationPrefs'], prefs),
+  });
+}
+
+export function useRegisterDevice() {
+  const conn = useConn();
+  return useMutation({ mutationFn: () => registerForPush(conn) });
+}
+
+export function useTestNotification() {
+  const conn = useConn();
+  return useMutation({ mutationFn: () => apiFetch<{ sent: number }>(conn, '/notifications/test', { method: 'POST' }) });
 }
