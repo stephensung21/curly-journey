@@ -125,3 +125,26 @@ export type Limit = {
 };
 export type NewLimit = { categoryId: number | null; amountCents: number; warnPercent?: number };
 export type LimitPatch = { amountCents?: number; warnPercent?: number };
+
+export type EventRepeat = 'none' | 'weekly' | 'fortnightly' | 'monthly' | 'quarterly' | 'yearly';
+export type CalendarEventDef = {
+  id: number;
+  name: string;
+  emoji: string;
+  amountCents: number | null;
+  accountId: number | null;
+  startDate: string;
+  repeat: EventRepeat;
+  leadDays: number;
+  onDayAlert: boolean;
+};
+export type OccurrenceStatus = 'paid' | 'skipped';
+export type Occurrence = {
+  eventId: number;
+  date: string;
+  status: OccurrenceStatus | null;
+  source: 'auto' | 'user' | null;
+  transactionId: number | null;
+  payable: boolean;
+};
+export type OccurrencesResponse = { events: CalendarEventDef[]; occurrences: Occurrence[] };

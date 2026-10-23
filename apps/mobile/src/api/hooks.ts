@@ -21,6 +21,9 @@ import type {
   NewLimit,
   NewCategory,
   NewRule,
+  Occurrence,
+  OccurrencesResponse,
+  OccurrenceStatus,
   Rule,
   RulePreviewParams,
   SpendingQuery,
@@ -393,5 +396,24 @@ export function useDeleteLimit() {
   return useMutation({
     mutationFn: (id: number) => apiFetch<void>(conn, `/limits/${id}`, { method: 'DELETE' }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['limits'] }),
+  });
+}
+
+export function useOccurrences(from: string, to: string) {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['occurrences', from, to],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<OccurrencesResponse>(conn, `/events/occurrences${qs({ from, to })}`),
+  });
+}
+
+export function useSetOccurrence() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, date, status }: { eventId: number; date: string; status: OccurrenceStatus | null }) =>
+      apiFetch<unknown>(conn, `/events/${eventId}/occurrences/${date}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['occurrences'] }),
   });
 }

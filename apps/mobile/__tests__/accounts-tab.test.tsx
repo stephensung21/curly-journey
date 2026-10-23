@@ -19,6 +19,7 @@ const acct = (id: number, institution: string, over: object = {}) => ({ ...base,
 let accounts: object[];
 let status: object;
 let limits: object[];
+let occurrences: object;
 const refetchAccounts = jest.fn();
 const refetchStatus = jest.fn();
 const mutateAsync = jest.fn();
@@ -46,8 +47,10 @@ beforeEach(() => {
     (mocked.useDaily as jest.Mock).mockReturnValue({ data: [{ day: 1, inCents: 0, mortgageCents: 0, spendingCents: 1000 }] });
   };
   limits = [];
+  occurrences = { events: [], occurrences: [] };
   (mocked.useLimits as jest.Mock).mockImplementation(() => ({ data: { limits } }));
   (mocked.useCategories as jest.Mock).mockReturnValue({ data: [] });
+  (mocked.useOccurrences as jest.Mock).mockImplementation(() => ({ data: occurrences }));
   setup();
 });
 
@@ -203,4 +206,32 @@ it('has no chip when nothing is close', async () => {
   limits = [lim({ percent: 40 })];
   await renderScreen(<AccountsScreen />);
   expect(screen.queryByText(/of your limit/)).toBeNull();
+});
+
+const upcoming = (id: number, name: string, date: string, status: string | null = null) => ({
+  event: { id, name, emoji: '💳', amountCents: null, accountId: null, startDate: date, repeat: 'monthly', leadDays: 1, onDayAlert: false },
+  occurrence: { eventId: id, date, status, source: null, transactionId: null, payable: true },
+});
+
+it('shows the next two unresolved upcoming events and opens the calendar', async () => {
+  const rows = [
+    upcoming(1, 'Internet', '2026-10-24'),
+    upcoming(2, 'Gym', '2026-10-23', 'paid'),
+    upcoming(3, 'Rent', '2026-10-27'),
+    upcoming(4, 'Rego', '2026-11-05'),
+  ];
+  occurrences = { events: rows.map(r => r.event), occurrences: rows.map(r => r.occurrence) };
+  await renderScreen(<AccountsScreen />);
+  expect(screen.getByText('Coming up')).toBeTruthy();
+  expect(screen.getByText('Internet')).toBeTruthy();
+  expect(screen.getByText('Rent')).toBeTruthy();
+  expect(screen.queryByText('Gym')).toBeNull();
+  expect(screen.queryByText('Rego')).toBeNull();
+  await fireEvent.press(screen.getByText('Rent'));
+  expect(mockPush).toHaveBeenCalledWith('/calendar');
+});
+
+it('renders no Coming up block when nothing is due', async () => {
+  await renderScreen(<AccountsScreen />);
+  expect(screen.queryByText('Coming up')).toBeNull();
 });

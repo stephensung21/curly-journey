@@ -18,6 +18,7 @@ import { IconTile } from '../../src/components/IconTile';
 import { Screen } from '../../src/components/Screen';
 import { SortableList } from '../../src/components/SortableList';
 import { SyncBanner } from '../../src/components/SyncBanner';
+import { UpcomingEvents } from '../../src/components/UpcomingEvents';
 import { moveItem } from '../../src/lib/moveItem';
 import { now } from '../../src/lib/now';
 import { useSettings } from '../../src/settings/store';
@@ -187,6 +188,7 @@ export default function AccountsScreen() {
           )}
         </View>
       </HeroCard>
+      <UpcomingEvents />
       {accounts.length === 0 && !accountsQ.isLoading ? (
         <AppText tone="muted">No accounts yet. Connect PocketSmith in the backend, then pull to refresh.</AppText>
       ) : null}

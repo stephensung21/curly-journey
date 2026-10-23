@@ -31,6 +31,7 @@ beforeEach(() => {
   (mocked.useSyncNow as jest.Mock).mockReturnValue({ mutateAsync: jest.fn() });
   (mocked.useSpending as jest.Mock).mockReturnValue({ data: { totalCents: 0 } });
   (mocked.useLimits as jest.Mock).mockReturnValue({ data: { limits: [] } });
+  (mocked.useOccurrences as jest.Mock).mockReturnValue({ data: { events: [], occurrences: [] } });
   (mocked.useCategories as jest.Mock).mockReturnValue({ data: [] });
   (mocked.useInOut as jest.Mock).mockReturnValue({ data: [] });
   (mocked.useDaily as jest.Mock).mockReturnValue({ data: [] });
