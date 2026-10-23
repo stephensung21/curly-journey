@@ -29,11 +29,20 @@ export function detectFlows(txns: FlowTxn[]): Map<number, FlowDecision> {
   const outflows = auto.filter((t) => t.amountCents < 0);
   const inflows = auto.filter((t) => t.amountCents > 0);
 
+  // Index inflows by amount so each outflow only looks at exact opposites; a year of rows stays cheap on CPU.
+  const day = new Map(auto.map((t) => [t.id, dayNumber(t.date)]));
+  const inflowsByAmount = new Map<Cents, FlowTxn[]>();
+  for (const i of inflows) {
+    const list = inflowsByAmount.get(i.amountCents);
+    if (list) list.push(i);
+    else inflowsByAmount.set(i.amountCents, [i]);
+  }
+
   const candidates: { gap: number; o: FlowTxn; i: FlowTxn }[] = [];
   for (const o of outflows) {
-    for (const i of inflows) {
-      if (i.amountCents !== -o.amountCents || i.accountId === o.accountId) continue;
-      const gap = Math.abs(dayNumber(i.date) - dayNumber(o.date));
+    for (const i of inflowsByAmount.get(-o.amountCents) ?? []) {
+      if (i.accountId === o.accountId) continue;
+      const gap = Math.abs(day.get(i.id)! - day.get(o.id)!);
       if (gap <= MAX_PAIR_DAYS) candidates.push({ gap, o, i });
     }
   }

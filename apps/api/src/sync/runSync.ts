@@ -1,7 +1,8 @@
 import { mapAccount, mapTransaction, type PsTransaction } from '@curly/core';
 import type { Deps } from '../app';
 import type { Db } from '../db/db';
-import { makeRepo, type HistoryState } from '../db/repo';
+import { makeRepo, type CarriedEdit, type HistoryState } from '../db/repo';
+import { PIPELINE_CALLS, runPipeline } from '../spending/pipeline';
 
 export type SyncResult = {
   status: 'ok' | 'failed' | 'skipped';
@@ -20,7 +21,8 @@ const HOUR_MS = 60 * 60 * 1000;
  * Workers Free allows 50 outbound requests per invocation, and every Neon query and PocketSmith page is one.
  * Stay under it with room to spare. A run costs: 4 fixed (sync log start, me, accounts, one upsert of every account),
  * then reconciliation (2 per page of recent rows across all accounts, plus one delete), then history with whatever
- * is left (2 per page plus one query per window or resume cursor), then the sync log finish from the reserve.
+ * is left (2 per page plus one query per window or resume cursor), then the categorisation pipeline when at least
+ * PIPELINE_CALLS are left (otherwise `more`), then the sync log finish from the reserve.
  */
 export const MAX_CALLS = 45;
 /** Kept back so a run can always record its result. */
@@ -132,12 +134,13 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
     // Refetch the recent window across all accounts in one paginated pass, then drop feed rows PocketSmith no longer
     // returns there, so a pending row that posts under a new ID disappears. Only accounts whose history has started
     // are pruned; the others get today in their first history window below.
+    let carried: CarriedEdit[] = [];
     const started = states.filter((s) => s.historyFrom !== null).map((s) => s.id);
     if (started.length) {
       const from = addDays(today, -RECONCILE_DAYS);
       const query = { startDate: from, endDate: today };
       const { ids } = await fetchAll((u) => ps.userTransactionsPage(userId, query, u), (a) => localByPs.get(a), { mustFinish: true });
-      await repo.deleteMissingFeedRows(started, from, today, ids);
+      ({ edits: carried } = await repo.deleteMissingFeedRows(started, from, today, ids));
     }
 
     // History, one window per account per pass, so every account gets its recent months before anyone's old ones.
@@ -171,6 +174,16 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
         s.historyDone = done;
         s.historyCursor = null;
       }
+    }
+
+    // Categorise and detect transfers with what is left. Short of budget, leave it to the next run, but still carry
+    // the owner's edits from deleted rows now (they exist only in memory); that one query may come from the reserve,
+    // which still leaves one call to record the result.
+    if (left() >= PIPELINE_CALLS) {
+      if ((await runPipeline(repo, { since, carried })).more) more = true;
+    } else {
+      if (carried.length) await repo.carryEdits(carried);
+      more = true;
     }
 
     await repo.finishSync(id, { status: 'ok', accounts, transactions, more }, deps.now());

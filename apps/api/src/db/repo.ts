@@ -4,9 +4,13 @@ import {
   defaultCounts,
   type AccountKind,
   type AccountRow,
+  type CategoriseInput,
   type Cents,
+  type Flow,
+  type FlowTxn,
   type ImportedRow,
   type ProjectionsRole,
+  type Rule,
   type TransactionRow,
 } from '@curly/core';
 import type { Db } from './db';
@@ -35,6 +39,37 @@ export type TransactionDto = {
   source: 'pocketsmith' | 'csv';
 };
 
+export type CategoryDto = {
+  id: number;
+  name: string;
+  emoji: string;
+  color: string;
+  kind: 'spending' | 'income';
+  sort: number;
+};
+
+/** The owner's edits on a feed row that reconciliation deleted, to carry over to the row that replaced it. */
+export type CarriedEdit = {
+  accountId: number;
+  amountCents: Cents;
+  date: string;
+  categoryId: number | null;
+  categorySource: string | null;
+  flow: Flow;
+  flowSource: 'auto' | 'user' | 'rule';
+  note: string | null;
+};
+
+export type UncategorisedRow = CategoriseInput & { id: number; date: string };
+
+export type CategorisationUpdate = {
+  id: number;
+  categoryId: number | null;
+  source: string | null;
+  flow: Flow | null;
+  ruleId: number | null;
+};
+
 export type AccountSettingsPatch = Partial<
   Pick<AccountDto, 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'displayName'>
 >;
@@ -60,8 +95,16 @@ export interface Repo {
   /** Like upsertTransactions, for rows of several accounts at once (one query per 100 rows). */
   upsertFeedTransactions(rows: { accountId: number; row: TransactionRow }[]): Promise<number>;
   insertCsvRows(accountId: number, rows: { row: ImportedRow; fingerprint: string }[]): Promise<number>;
-  /** Deletes these accounts' feed rows dated `from` to `to` whose external ID is not in `keep`. CSV rows are never touched. */
-  deleteMissingFeedRows(accountIds: number[], from: string, to: string, keep: string[]): Promise<number>;
+  /**
+   * Deletes these accounts' feed rows dated `from` to `to` whose external ID is not in `keep`. CSV rows are never
+   * touched. Returns how many were deleted and the owner's edits on them (rows with a user category or flow).
+   */
+  deleteMissingFeedRows(
+    accountIds: number[],
+    from: string,
+    to: string,
+    keep: string[],
+  ): Promise<{ deleted: number; edits: CarriedEdit[] }>;
   listAccounts(): Promise<AccountDto[]>;
   getAccount(id: number): Promise<AccountDto | null>;
   existingCsvKeys(accountId: number, keys: string[]): Promise<Set<string>>;
@@ -78,10 +121,29 @@ export interface Repo {
   /** Start of the last successful sync, and whether it left history still to fetch. */
   lastOkSync(): Promise<{ startedAt: Date; more: boolean } | null>;
   lastSyncStatus(): Promise<'ok' | 'failed' | 'running' | null>;
+  listCategories(): Promise<CategoryDto[]>;
+  listRules(): Promise<Rule[]>;
+  /** merchant -> category of the latest row the owner categorised. */
+  pastByMerchant(): Promise<Map<string, number>>;
+  /** Up to `limit` rows with categorised = false, oldest first. */
+  uncategorisedForPipeline(limit: number): Promise<UncategorisedRow[]>;
+  /**
+   * Copies each edit onto one matching row (same account and amount, dated within 3 days, not itself user-set; closest
+   * date, then lowest id), in one query. Returns how many rows were updated.
+   */
+  carryEdits(edits: CarriedEdit[]): Promise<number>;
+  /** Writes pipeline results and marks the rows categorised; user-set categories and flows are kept. */
+  applyCategorisation(rows: CategorisationUpdate[]): Promise<void>;
+  /** Every account's rows dated `from` or later, with only what detectFlows needs. */
+  flowTxnsSince(from: string): Promise<FlowTxn[]>;
+  /** Writes flow decisions to rows whose flow_source is 'auto'; returns how many rows changed. */
+  applyFlows(decisions: Map<number, { flow: Flow; pairId: number | null }>): Promise<number>;
 }
 
 const SYNC_LOCK_MS = 10 * 60 * 1000;
 const CHUNK = 100;
+/** Rows per bulk pipeline update: a few arrays per query, so a normal run needs one. */
+const BULK_CHUNK = 1000;
 
 // Dates are cast to text in SQL and bigints to numbers here, so PGlite and Neon return identical shapes.
 const ACCOUNT_COLS = `id, source, institution, name, display_name, kind, balance_cents::text as balance_cents,
@@ -244,15 +306,37 @@ export function makeRepo(db: Db): Repo {
     },
 
     async deleteMissingFeedRows(accountIds, from, to, keep) {
-      if (!accountIds.length) return 0;
-      const rows = await db.query(
+      if (!accountIds.length) return { deleted: 0, edits: [] };
+      const rows = await db.query<{
+        account_id: number;
+        amount_cents: string | number;
+        date: string;
+        category_id: number | null;
+        category_source: string | null;
+        flow: Flow;
+        flow_source: 'auto' | 'user' | 'rule';
+        note: string | null;
+      }>(
         `delete from transaction
          where account_id = any($1::int[]) and source = 'pocketsmith' and date >= $2::date and date <= $3::date
            and external_id <> all($4::text[])
-         returning id`,
+         returning account_id, amount_cents::text as amount_cents, to_char(date, 'YYYY-MM-DD') as date, category_id,
+           category_source, flow, flow_source, note`,
         [accountIds, from, to, keep],
       );
-      return rows.length;
+      const edits = rows
+        .filter((r) => r.category_source === 'user' || r.flow_source === 'user')
+        .map((r) => ({
+          accountId: Number(r.account_id),
+          amountCents: Number(r.amount_cents),
+          date: r.date,
+          categoryId: r.category_id === null ? null : Number(r.category_id),
+          categorySource: r.category_source,
+          flow: r.flow,
+          flowSource: r.flow_source,
+          note: r.note,
+        }));
+      return { deleted: rows.length, edits };
     },
 
     async listAccounts() {
@@ -386,6 +470,183 @@ export function makeRepo(db: Db): Repo {
         'select status from sync_log order by started_at desc, id desc limit 1',
       );
       return rows[0]?.status ?? null;
+    },
+
+    async listCategories() {
+      const rows = await db.query<CategoryDto>('select id, name, emoji, color, kind, sort from category order by sort, id');
+      return rows.map((r) => ({ ...r, id: Number(r.id), sort: Number(r.sort) }));
+    },
+
+    async listRules() {
+      const rows = await db.query<{
+        id: number;
+        origin: 'user' | 'learned';
+        match_text: string;
+        account_id: number | null;
+        amount_cents: string | null;
+        category_id: number | null;
+        flow: Flow | null;
+        created_at: string;
+      }>(
+        `select id, origin, match_text, account_id, amount_cents::text as amount_cents, category_id, flow,
+           to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_at
+         from rule order by id`,
+      );
+      return rows.map((r) => ({
+        id: Number(r.id),
+        origin: r.origin,
+        matchText: r.match_text,
+        accountId: r.account_id === null ? null : Number(r.account_id),
+        amountCents: r.amount_cents === null ? null : Number(r.amount_cents),
+        categoryId: r.category_id === null ? null : Number(r.category_id),
+        flow: r.flow,
+        createdAt: r.created_at,
+      }));
+    },
+
+    async pastByMerchant() {
+      const rows = await db.query<{ merchant: string; category_id: number }>(
+        `select distinct on (merchant) merchant, category_id from transaction
+         where category_source = 'user' and category_id is not null and merchant <> ''
+         order by merchant, date desc, id desc`,
+      );
+      return new Map(rows.map((r) => [r.merchant, Number(r.category_id)]));
+    },
+
+    async uncategorisedForPipeline(limit) {
+      const rows = await db.query<{
+        id: string | number;
+        account_id: number;
+        date: string;
+        amount_cents: string | number;
+        description_raw: string;
+        merchant: string;
+        ps_category: string | null;
+        is_credit_card: boolean;
+      }>(
+        `select t.id, t.account_id, to_char(t.date, 'YYYY-MM-DD') as date, t.amount_cents::text as amount_cents,
+           t.description_raw, t.merchant, t.ps_category, a.kind = 'credit_card' as is_credit_card
+         from transaction t join account a on a.id = t.account_id
+         where not t.categorised
+         order by t.date, t.id
+         limit $1`,
+        [limit],
+      );
+      return rows.map((r) => ({
+        id: Number(r.id),
+        accountId: Number(r.account_id),
+        date: r.date,
+        amountCents: Number(r.amount_cents),
+        description: r.description_raw,
+        merchant: r.merchant,
+        psCategory: r.ps_category,
+        isCreditCard: r.is_credit_card,
+      }));
+    },
+
+    async carryEdits(edits) {
+      if (!edits.length) return 0;
+      // Each edit takes its closest candidate, then each candidate keeps its closest edit, so every edit lands at most
+      // once and no row receives two.
+      const rows = await db.query(
+        `with e as (
+           select * from unnest($1::int[], $2::bigint[], $3::date[], $4::int[], $5::boolean[], $6::text[], $7::boolean[],
+             $8::text[]) with ordinality as e(account_id, amount_cents, date, category_id, user_category, flow, user_flow,
+             note, idx)
+         ), c as (
+           select e.*, t.id as target, abs(t.date - e.date) as gap,
+             row_number() over (partition by e.idx order by abs(t.date - e.date), t.id) as edit_rank
+           from e join transaction t on t.account_id = e.account_id and t.amount_cents = e.amount_cents
+             and abs(t.date - e.date) <= 3 and t.category_source is distinct from 'user' and t.flow_source <> 'user'
+         ), best as (
+           select *, row_number() over (partition by target order by gap, idx) as target_rank from c where edit_rank = 1
+         )
+         update transaction t set
+           category_id = case when b.user_category then b.category_id else t.category_id end,
+           category_source = case when b.user_category then 'user' else t.category_source end,
+           flow = case when b.user_flow then b.flow else t.flow end,
+           flow_source = case when b.user_flow then 'user' else t.flow_source end,
+           pair_id = case when b.user_flow then null else t.pair_id end,
+           note = coalesce(b.note, t.note)
+         from best b
+         where b.target_rank = 1 and t.id = b.target
+         returning t.id`,
+        [
+          edits.map((e) => e.accountId),
+          edits.map((e) => e.amountCents),
+          edits.map((e) => e.date),
+          edits.map((e) => e.categoryId),
+          edits.map((e) => e.categorySource === 'user'),
+          edits.map((e) => e.flow),
+          edits.map((e) => e.flowSource === 'user'),
+          edits.map((e) => e.note),
+        ],
+      );
+      return rows.length;
+    },
+
+    async applyCategorisation(rows) {
+      for (const part of chunks(rows, BULK_CHUNK)) {
+        // A row the owner categorised keeps its category, and one whose flow they set keeps its flow, even if they
+        // edited it after the pipeline read it. A rule's flow replaces a detected one and drops any transfer pair.
+        await db.query(
+          `update transaction t set
+             category_id = case when t.category_source = 'user' then t.category_id else v.category_id end,
+             category_source = case when t.category_source = 'user' then 'user' else v.source end,
+             initial_source = coalesce(t.initial_source, v.source),
+             categorised = true,
+             flow = case when v.flow is not null and t.flow_source <> 'user' then v.flow else t.flow end,
+             pair_id = case when v.flow is not null and t.flow_source <> 'user' then null else t.pair_id end,
+             flow_source = case when v.flow is not null and t.flow_source <> 'user' then 'rule' else t.flow_source end
+           from unnest($1::bigint[], $2::int[], $3::text[], $4::text[]) as v(id, category_id, source, flow)
+           where t.id = v.id`,
+          [part.map((r) => r.id), part.map((r) => r.categoryId), part.map((r) => r.source), part.map((r) => r.flow)],
+        );
+      }
+    },
+
+    async flowTxnsSince(from) {
+      const rows = await db.query<{
+        id: string | number;
+        account_id: number;
+        kind: AccountKind;
+        date: string;
+        amount_cents: string | number;
+        description_raw: string;
+        flow: Flow;
+        flow_source: 'auto' | 'user' | 'rule';
+      }>(
+        `select t.id, t.account_id, a.kind, to_char(t.date, 'YYYY-MM-DD') as date, t.amount_cents::text as amount_cents,
+           t.description_raw, t.flow, t.flow_source
+         from transaction t join account a on a.id = t.account_id
+         where t.date >= $1::date`,
+        [from],
+      );
+      return rows.map((r) => ({
+        id: Number(r.id),
+        accountId: Number(r.account_id),
+        accountKind: r.kind,
+        date: r.date,
+        amountCents: Number(r.amount_cents),
+        description: r.description_raw,
+        flow: r.flow,
+        flowSource: r.flow_source,
+      }));
+    },
+
+    async applyFlows(decisions) {
+      let changed = 0;
+      for (const part of chunks([...decisions], BULK_CHUNK)) {
+        const rows = await db.query(
+          `update transaction t set flow = v.flow, pair_id = v.pair_id
+           from unnest($1::bigint[], $2::text[], $3::bigint[]) as v(id, flow, pair_id)
+           where t.id = v.id and t.flow_source = 'auto' and (t.flow, t.pair_id) is distinct from (v.flow, v.pair_id)
+           returning t.id`,
+          [part.map(([id]) => id), part.map(([, d]) => d.flow), part.map(([, d]) => d.pairId)],
+        );
+        changed += rows.length;
+      }
+      return changed;
     },
   };
 }

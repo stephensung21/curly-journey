@@ -166,11 +166,11 @@ describe('deleteMissingFeedRows', () => {
     await repo.upsertTransactions(b, [tx({ externalId: 'goneB', date: '2026-10-20' })]);
     await repo.upsertTransactions(c, [tx({ externalId: 'other', date: '2026-10-20' })]);
     await repo.insertCsvRows(a, [{ row: { date: '2026-10-20', amountCents: -1, description: 'X' }, fingerprint: 'csv1' }]);
-    expect(await repo.deleteMissingFeedRows([a, b], '2026-10-09', '2026-10-23', ['keep'])).toBe(2);
+    expect(await repo.deleteMissingFeedRows([a, b], '2026-10-09', '2026-10-23', ['keep'])).toEqual({ deleted: 2, edits: [] });
     const left = await db.query<{ external_id: string }>('select external_id from transaction order by external_id');
     expect(left.map((r) => r.external_id)).toEqual(['csv1', 'future', 'keep', 'old', 'other']);
-    expect(await repo.deleteMissingFeedRows([a], '2026-10-09', '2026-10-23', [])).toBe(1);
-    expect(await repo.deleteMissingFeedRows([], '2026-10-01', '2026-10-31', [])).toBe(0);
+    expect((await repo.deleteMissingFeedRows([a], '2026-10-09', '2026-10-23', [])).deleted).toBe(1);
+    expect(await repo.deleteMissingFeedRows([], '2026-10-01', '2026-10-31', [])).toEqual({ deleted: 0, edits: [] });
   });
 });
 

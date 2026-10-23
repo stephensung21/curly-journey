@@ -103,7 +103,7 @@ describe('runSync', () => {
     expect(rows.map((r) => r.external_id)).toEqual(['1', 'c1']);
   });
 
-  it('stores merchant, PocketSmith category, memo and feed time, and never touches the category', async () => {
+  it('stores merchant, PocketSmith category, memo and feed time, and a re-sync never touches the category', async () => {
     const data = {
       accounts: [acct(1, 10)],
       transactions: {
@@ -115,11 +115,12 @@ describe('runSync', () => {
     let now = T0;
     const deps = { db, pocketsmith: ps, now: () => now };
     await runSync(deps);
+    const groceries = await db.query<{ id: number }>("select id from category where name = 'Groceries'");
     const q = () =>
       db.query<{ merchant: string; ps_category: string | null; memo: string | null; feed: string; category_id: number | null }>(
         `select merchant, ps_category, memo, to_char(feed_created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS') as feed, category_id from transaction`,
       );
-    expect(await q()).toEqual([{ merchant: 'Woolworths', ps_category: 'Groceries', memo: 'weekly shop', feed: '2026-10-20T03:04:05', category_id: null }]);
+    expect(await q()).toEqual([{ merchant: 'Woolworths', ps_category: 'Groceries', memo: 'weekly shop', feed: '2026-10-20T03:04:05', category_id: groceries[0]!.id }]);
     const cat = await db.query<{ id: number }>("select id from category where name = 'Dining out'");
     await db.query('update transaction set category_id = $1', [cat[0]!.id]);
     data.transactions[1] = [tx(1, 1, '2026-10-20', { payee: 'WOOLWORTHS 1234 SYDNEY', category: { title: 'Shopping' }, memo: 'edited' })];
