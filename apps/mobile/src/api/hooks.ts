@@ -133,6 +133,32 @@ export function useUpdateAccount() {
   });
 }
 
+/** `ids` is every account id in display order. */
+export function useReorderAccounts() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) => apiFetch<unknown>(conn, '/accounts/order', { method: 'PUT', body: JSON.stringify({ ids }) }),
+    onMutate: async ids => {
+      await qc.cancelQueries({ queryKey: ['accounts'] });
+      const prev = qc.getQueryData<AccountsResponse>(['accounts']);
+      if (prev) {
+        const rank = new Map(ids.map((id, i) => [id, i]));
+        const at = (id: number) => rank.get(id) ?? Number.MAX_SAFE_INTEGER;
+        qc.setQueryData<AccountsResponse>(['accounts'], {
+          ...prev,
+          accounts: [...prev.accounts].sort((a, b) => at(a.id) - at(b.id)),
+        });
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['accounts'], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
+  });
+}
+
 export function useImportPreview() {
   const conn = useConn();
   return useMutation({

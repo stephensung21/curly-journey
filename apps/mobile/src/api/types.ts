@@ -17,13 +17,15 @@ export type Account = {
   countsNetWorth: boolean;
   projections: 'off' | 'etf' | 'mortgage';
   isOffset: boolean;
+  icon: string | null;
+  sortOrder: number | null;
   stale: boolean;
 };
 
 export type AccountsResponse = { accounts: Account[]; lastSuccessAt: string | null };
 
 export type AccountSettings = Partial<
-  Pick<Account, 'displayName' | 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset'>
+  Pick<Account, 'displayName' | 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'icon'>
 >;
 
 export type Flow = CoreFlow;

@@ -28,3 +28,18 @@ jest.mock('./src/api/connection', () => ({
   }),
   clearConnection: jest.fn(async () => {}),
 }));
+
+// Native modules behind the drag-to-reorder list don't exist in Jest.
+jest.mock('react-native-reanimated', () => {
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    default: { View, createAnimatedComponent: c => c },
+    clamp: (v, lo, hi) => Math.min(Math.max(v, lo), hi),
+    runOnJS: fn => fn,
+    useEvent: () => () => {},
+    useSharedValue: v => ({ value: v }),
+    useAnimatedStyle: fn => fn(),
+  };
+});
+require('react-native-gesture-handler/jestSetup');

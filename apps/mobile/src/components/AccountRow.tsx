@@ -26,7 +26,7 @@ export function AccountRow({ account, lastSuccessAt }: { account: Account; lastS
   return (
     <Link href={{ pathname: '/account/[id]', params: { id: String(account.id) } }} asChild>
       <Pressable accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
-        <IconTile emoji={kindEmoji[account.kind]} color={kindColor[account.kind]} />
+        <IconTile emoji={account.icon ?? kindEmoji[account.kind]} color={kindColor[account.kind]} />
         <View style={{ flex: 1, gap: 3 }}>
           <AppText variant="bodyStrong">{account.displayName ?? account.name}</AppText>
           {account.isOffset ? (

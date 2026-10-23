@@ -30,6 +30,8 @@ export type AccountDto = {
   countsNetWorth: boolean;
   projections: ProjectionsRole;
   isOffset: boolean;
+  icon: string | null;
+  sortOrder: number | null;
 };
 
 export type TransactionDto = {
@@ -107,7 +109,7 @@ export type CategorisationUpdate = {
 };
 
 export type AccountSettingsPatch = Partial<
-  Pick<AccountDto, 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'displayName'>
+  Pick<AccountDto, 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'displayName' | 'icon'>
 >;
 
 export type HistoryState = {
@@ -144,6 +146,8 @@ export interface Repo {
     keep: string[],
   ): Promise<{ deleted: number; edits: CarriedEdit[] }>;
   listAccounts(): Promise<AccountDto[]>;
+  /** Sets sort_order to each id's 1-based position; false (nothing written) if an id is unknown or repeated. */
+  setAccountOrder(ids: number[]): Promise<boolean>;
   getAccount(id: number): Promise<AccountDto | null>;
   existingCsvKeys(accountId: number, keys: string[]): Promise<Set<string>>;
   updateAccountSettings(id: number, patch: AccountSettingsPatch): Promise<AccountDto | null>;
@@ -214,7 +218,7 @@ const BULK_CHUNK = 1000;
 
 // Dates are cast to text in SQL and bigints to numbers here, so PGlite and Neon return identical shapes.
 const ACCOUNT_COLS = `id, source, institution, name, display_name, kind, balance_cents::text as balance_cents,
-  to_char(balance_date, 'YYYY-MM-DD') as balance_date, counts_spending, counts_net_worth, projections, is_offset`;
+  to_char(balance_date, 'YYYY-MM-DD') as balance_date, counts_spending, counts_net_worth, projections, is_offset, icon, sort_order`;
 
 type AccountSql = {
   id: number;
@@ -229,6 +233,8 @@ type AccountSql = {
   counts_net_worth: boolean;
   projections: ProjectionsRole;
   is_offset: boolean;
+  icon: string | null;
+  sort_order: number | null;
 };
 
 const toAccountDto = (r: AccountSql): AccountDto => ({
@@ -244,6 +250,8 @@ const toAccountDto = (r: AccountSql): AccountDto => ({
   countsNetWorth: r.counts_net_worth,
   projections: r.projections,
   isOffset: r.is_offset,
+  icon: r.icon,
+  sortOrder: r.sort_order === null ? null : Number(r.sort_order),
 });
 
 type TransactionSql = {
@@ -492,8 +500,19 @@ export function makeRepo(db: Db): Repo {
     },
 
     async listAccounts() {
-      const rows = await db.query<AccountSql>(`select ${ACCOUNT_COLS} from account order by id`);
+      const rows = await db.query<AccountSql>(`select ${ACCOUNT_COLS} from account order by sort_order nulls last, id`);
       return rows.map(toAccountDto);
+    },
+
+    async setAccountOrder(ids) {
+      if (new Set(ids).size !== ids.length) return false;
+      const found = await db.query<{ n: string | number }>('select count(*) as n from account where id = any($1::int[])', [ids]);
+      if (Number(found[0]!.n) !== ids.length) return false;
+      await db.query(
+        'update account a set sort_order = o.ord from unnest($1::int[]) with ordinality as o(id, ord) where a.id = o.id',
+        [ids],
+      );
+      return true;
     },
 
     async getAccount(id) {
@@ -521,6 +540,7 @@ export function makeRepo(db: Db): Repo {
         projections: 'projections',
         isOffset: 'is_offset',
         displayName: 'display_name',
+        icon: 'icon',
       };
       const sets: string[] = [];
       const params: unknown[] = [id];

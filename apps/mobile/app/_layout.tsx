@@ -5,6 +5,7 @@ import { Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useConnection } from '../src/api/hooks';
 import { QueryProvider } from '../src/api/QueryProvider';
 import { LockGate } from '../src/lock/LockGate';
@@ -55,13 +56,15 @@ export default function RootLayout() {
   if (!loaded) return null;
 
   return (
-    <ThemeProvider value={navTheme(theme)}>
-      <StatusBar style={statusBarStyle(theme.mode)} />
-      <LockGate>
-        <QueryProvider>
-          <AppStack />
-        </QueryProvider>
-      </LockGate>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={navTheme(theme)}>
+        <StatusBar style={statusBarStyle(theme.mode)} />
+        <LockGate>
+          <QueryProvider>
+            <AppStack />
+          </QueryProvider>
+        </LockGate>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
