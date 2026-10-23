@@ -22,6 +22,7 @@ import type {
   NewCategory,
   NewRule,
   Occurrence,
+  CalendarEventDef,
   OccurrencesResponse,
   OccurrenceStatus,
   Rule,
@@ -415,5 +416,48 @@ export function useSetOccurrence() {
     mutationFn: ({ eventId, date, status }: { eventId: number; date: string; status: OccurrenceStatus | null }) =>
       apiFetch<unknown>(conn, `/events/${eventId}/occurrences/${date}`, { method: 'PUT', body: JSON.stringify({ status }) }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['occurrences'] }),
+  });
+}
+
+export type EventBody = Omit<CalendarEventDef, 'id'>;
+
+export function useEvents() {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['events'],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<{ events: CalendarEventDef[] }>(conn, '/events'),
+  });
+}
+
+function invalidateEvents(qc: QueryClient) {
+  return Promise.all([qc.invalidateQueries({ queryKey: ['occurrences'] }), qc.invalidateQueries({ queryKey: ['events'] })]);
+}
+
+export function useCreateEvent() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: EventBody) => apiFetch<CalendarEventDef>(conn, '/events', { method: 'POST', body: JSON.stringify(body) }),
+    onSettled: () => invalidateEvents(qc),
+  });
+}
+
+export function useUpdateEvent() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: Partial<EventBody> & { id: number }) =>
+      apiFetch<CalendarEventDef>(conn, `/events/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    onSettled: () => invalidateEvents(qc),
+  });
+}
+
+export function useDeleteEvent() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(conn, `/events/${id}`, { method: 'DELETE' }),
+    onSettled: () => invalidateEvents(qc),
   });
 }

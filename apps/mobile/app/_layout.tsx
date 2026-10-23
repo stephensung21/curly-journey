@@ -34,6 +34,7 @@ function AppStack() {
           <Stack.Screen name="import" options={{ headerShown: false }} />
           <Stack.Screen name="limits" options={{ headerShown: false }} />
           <Stack.Screen name="calendar" options={{ headerShown: false }} />
+          <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="design-system" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Protected guard={!conn}>
