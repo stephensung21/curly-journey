@@ -116,10 +116,10 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
       }
     }
 
-    // History, newest window first, as far as the budget allows.
+    // History, one window per account per pass, so every account gets its recent months before anyone's old ones.
     let more = false;
-    outer: for (const s of states) {
-      while (!s.historyDone) {
+    outer: for (let pending = states.filter((s) => !s.historyDone); pending.length; pending = pending.filter((s) => !s.historyDone)) {
+      for (const s of pending) {
         const endDate = s.historyFrom ? addDays(s.historyFrom, -1) : today;
         const startDate = addDays(endDate, -(WINDOW_DAYS - 1));
         if (!(await fetchAll(repo, s.psId, s.id, { startDate, endDate }, false)) || left() < 1) {

@@ -43,6 +43,20 @@ describe('runSync', () => {
     ]);
   });
 
+  it('loads the newest window of every account before older history', async () => {
+    const ps = fakePocketSmith({ accounts: [acct(1, 1), acct(2, 2), acct(3, 3)] });
+    const { db } = await setup(ps);
+    // Overhead 4 + 3 account upserts, then 2 calls per empty window: room for 4 windows.
+    const r = await runSync({ db, pocketsmith: ps, now: () => T0 }, { maxCalls: 17 });
+    expect(r.more).toBe(true);
+    expect(ps.calls.filter((c) => c.startsWith('transactions:'))).toEqual([
+      'transactions:1::2026-07-26:2026-10-23:1',
+      'transactions:2::2026-07-26:2026-10-23:1',
+      'transactions:3::2026-07-26:2026-10-23:1',
+      'transactions:1::2026-04-27:2026-07-25:1',
+    ]);
+  });
+
   it('incremental uses last start minus 1h once history has started', async () => {
     const ps = fakePocketSmith({ accounts: [acct(1, 10)] });
     const { db } = await setup(ps);
