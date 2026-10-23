@@ -120,7 +120,7 @@ export default function SpendingScreen() {
           {s.uncategorisedCount > 0 ? (
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push('/inbox' as never)}
+              onPress={() => router.push('/inbox')}
               style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.inkMuted, borderRadius: 14, padding: 12 }}
             >
               <AppText variant="bodyStrong">
