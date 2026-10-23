@@ -2,6 +2,7 @@ import { createApp, type Deps } from './app';
 import { coinSpotClient } from './coinspot/client';
 import { neonDb } from './db/db';
 import { pocketSmithClient } from './pocketsmith/client';
+import { expoPush } from './push/expo';
 import { runSync, syncDue } from './sync/runSync';
 
 type Env = {
@@ -18,6 +19,7 @@ function depsFor(env: Env): Deps {
     pocketsmith: pocketSmithClient(env.POCKETSMITH_KEY),
     now: () => new Date(),
     coinspot: env.COINSPOT_KEY && env.COINSPOT_SECRET ? coinSpotClient(env.COINSPOT_KEY, env.COINSPOT_SECRET) : undefined,
+    push: expoPush(env.EXPO_ACCESS_TOKEN),
   };
 }
 

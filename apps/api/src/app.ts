@@ -10,6 +10,7 @@ import { categoryRoutes } from './routes/categories';
 import { eventRoutes } from './routes/events';
 import { importRoutes } from './routes/imports';
 import { limitRoutes } from './routes/limits';
+import { notifyRoutes } from './routes/notify';
 import { ruleRoutes } from './routes/rules';
 import { spendingRoutes } from './routes/spending';
 import { syncRoutes } from './routes/sync';
@@ -30,5 +31,6 @@ export function createApp(deps: Deps) {
   app.route('/', spendingRoutes(deps));
   app.route('/', limitRoutes(deps));
   app.route('/', eventRoutes(deps));
+  app.route('/', notifyRoutes(deps));
   return app;
 }
