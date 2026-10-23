@@ -4,7 +4,13 @@ import { renderScreen } from '../test-utils/renderScreen';
 import SettingsScreen from '../app/settings';
 import { useSettings } from '../src/settings/store';
 
-beforeEach(() => useSettings.setState({ themeMode: 'system', hideBalances: false, homeChart: 'sixMonths' }));
+const mockClear = jest.fn();
+jest.mock('../src/api/hooks', () => ({ useConnection: () => ({ conn: null, loading: false, set: jest.fn(), clear: mockClear }) }));
+
+beforeEach(() => {
+  mockClear.mockClear();
+  useSettings.setState({ themeMode: 'system', hideBalances: false, homeChart: 'sixMonths' });
+});
 
 it('changes theme mode', async () => {
   await renderScreen(<SettingsScreen />);
@@ -30,4 +36,10 @@ it('persists across restarts', async () => {
   expect(saved.state.hideBalances).toBe(true);
   await useSettings.persist.rehydrate();
   expect(useSettings.getState().hideBalances).toBe(true);
+});
+
+it('Disconnect from API clears the connection', async () => {
+  await renderScreen(<SettingsScreen />);
+  await fireEvent.press(screen.getByText('Disconnect from API'));
+  expect(mockClear).toHaveBeenCalledTimes(1);
 });

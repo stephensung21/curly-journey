@@ -1,5 +1,7 @@
 import { View } from 'react-native';
+import { useConnection } from '../src/api/hooks';
 import { AppText } from '../src/components/AppText';
+import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
 import { Screen } from '../src/components/Screen';
 import { Segmented } from '../src/components/Segmented';
@@ -7,6 +9,7 @@ import { Toggle } from '../src/components/Toggle';
 import { useSettings } from '../src/settings/store';
 
 export default function SettingsScreen() {
+  const { clear } = useConnection();
   const { themeMode, hideBalances, homeChart, setThemeMode, setHideBalances, setHomeChart } = useSettings();
 
   return (
@@ -47,6 +50,10 @@ export default function SettingsScreen() {
         value={homeChart}
         onChange={setHomeChart}
       />
+
+      <Card>
+        <Button kind="secondary" label="Disconnect from API" onPress={() => void clear()} />
+      </Card>
     </Screen>
   );
 }
