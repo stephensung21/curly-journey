@@ -28,8 +28,8 @@
 
 **Tech Stack:**
 - Everything from Plans 1 and 2.
-- No new native modules. Swipes use React Native's `PanResponder` and `Animated`. The pager is a horizontal `ScrollView` with `pagingEnabled`. Sheets are a transparent `Modal`.
-- Because there are no new native modules, the APK only needs rebuilding to ship the new JavaScript.
+- One new native module, `expo-intent-launcher` (Task 15). Swipes use React Native's `PanResponder` and `Animated`. The pager is a horizontal `ScrollView` with `pagingEnabled`. Sheets are a transparent `Modal`.
+- The APK is rebuilt once at the end (Task 14) to ship the new JavaScript and `expo-intent-launcher`.
 
 **Spec:** `docs/superpowers/specs/2026-10-22-curly-journey-v1-design.md` (§7 rows "Rule retroactivity", "Split transactions", "Payments to other people", "Amex statement total", "Track the bank"; §9.1 definitions; §9.2–§9.5) and `docs/superpowers/specs/2026-10-22-curly-journey-v1-visual-design.md` (§3, §5, §5.1, §6, screens H, S, 1, 2, 3, §8a). Executors read both.
 
@@ -851,6 +851,54 @@ The empty and error texts stay as they are now.
   - swiping in the inbox works;
   - a recategorised merchant sticks after pull-to-refresh;
   - the auto-sort % shows.
+
+### Task 15: Open the bank's own app (owner request 2026-10-23)
+
+The app never moves money (spec §5). The owner asked for a one-tap way to jump to each synced bank's own app to make a transfer.
+
+**Files:**
+- create `apps/mobile/src/lib/bankApps.ts`, `src/components/OpenBankApp.tsx` and `plugins/withBankAppQueries.js`;
+- modify `app.json` (add the plugin) and `package.json` (add `expo-intent-launcher`);
+- use the component in `app/account/[id].tsx` and on the institution headers in `app/(tabs)/index.tsx`;
+- test goes in `__tests__/open-bank-app.test.tsx`.
+
+**Values:**
+```ts
+BANK_APPS: Record<string, { label: string; androidPackage: string }> = {
+  CommBank: { label: 'CommBank', androidPackage: 'com.commbank.netbank' },
+  Amex:     { label: 'Amex',     androidPackage: 'com.americanexpress.android.acctsvcs.au' },
+  Up:       { label: 'Up',       androidPackage: 'au.com.up.money' },
+};
+bankAppFor(institution: string): { label; androidPackage } | null   // via institutionGroup
+openBankApp(app): Promise<void>
+```
+
+**`openBankApp` behaviour:**
+1. Try `IntentLauncher.openApplication(androidPackage)`.
+2. If that throws, because the app isn't installed, call `Linking.openURL('market://details?id=<pkg>')`.
+3. If that throws too, call `Linking.openURL('https://play.google.com/store/apps/details?id=<pkg>')`.
+
+**Package visibility:** Android 11+ needs it to launch another app. `withBankAppQueries.js` is a config plugin. It uses `withAndroidManifest` to add `<queries><package android:name="…"/></queries>`, with one entry for each `BANK_APPS` package.
+
+**UI:**
+- **Account detail:** a secondary `Button` labelled `Open <label> app ↗` under the balance. It's shown only when `bankAppFor` finds a match.
+- **Accounts tab:** each institution header with a match gets a small `↗` press target, with accessibility label `Open <label> app`.
+
+No money logic is involved: these only launch the other app.
+
+- [ ] **Step 1: Write failing tests:**
+  - `bankAppFor('Commonwealth Bank of Australia')` gives `com.commbank.netbank`.
+  - `bankAppFor('ING')` gives null, and no button is rendered.
+  - Pressing `Open CommBank app ↗` calls `openApplication('com.commbank.netbank')`.
+  - When `openApplication` rejects, `Linking.openURL` is called with the `market://` URL.
+  - A plugin unit test: running it on a minimal manifest object adds 3 `<package>` queries.
+- [ ] **Step 2:** Run `cd apps/mobile && NODE_OPTIONS=--max-old-space-size=2048 npx jest --ci -i open-bank-app`. Expected: FAIL.
+- [ ] **Step 3:** Run `npx expo install expo-intent-launcher`, then implement.
+- [ ] **Step 4:** Run the same command. Expected: PASS. Run `npx tsc --noEmit`. Run `npx expo config --type introspect`; expected: the merged manifest shows the 3 queries.
+- [ ] **Step 5:** Commit: `feat(mobile): open the bank's own app`.
+- [ ] **Owner check (with Task 14):** on the phone, each button opens the right app.
+
+`expo-intent-launcher` is a new native module, so the Task 14 APK rebuild covers it.
 
 ---
 
