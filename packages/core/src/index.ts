@@ -14,3 +14,5 @@ export * from './spending/pocketsmithCategory';
 export * from './spending/categorise';
 export * from './spending/flows';
 export * from './spending/summarise';
+export * from './calendar/events';
+export * from './calendar/match';
