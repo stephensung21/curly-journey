@@ -21,7 +21,7 @@ export type Account = {
 export type AccountsResponse = { accounts: Account[]; lastSuccessAt: string | null };
 
 export type AccountSettings = Partial<
-  Pick<Account, 'displayName' | 'kind' | 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset'>
+  Pick<Account, 'displayName' | 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset'>
 >;
 
 export type Transaction = {
