@@ -386,10 +386,17 @@ runningByDay(lines: SpendLine[], month: string, today: string): { day: number; i
   - `flow_source text not null default 'auto' check (flow_source in ('auto','user','rule'))`
   - `pair_id bigint`
   - `note text`
+  - `memo text`
+  - `feed_created_at timestamptz` (when PocketSmith first received the row)
 - `create index transaction_date on transaction (date)`.
 
 **Changes:**
-- `PsTransaction` gains `category: { title: string } | null`.
+- `PsTransaction` gains:
+  - `category: { title: string } | null`;
+  - `memo: string | null`;
+  - `created_at: string`.
+
+  `TransactionRow` carries `memo` and `feedCreatedAt`. `upsertTransactions` writes them and updates `memo` on conflict. The bank feed gives only a date, not a time, so `feed_created_at` is the closest thing to a timestamp (owner request 2026-10-24).
 - `TransactionRow` gains `psCategory: string | null` and `merchant: string`:
   - `mapTransaction` sets `merchant = cleanMerchant(t.payee || t.original_payee || '')`;
   - `psCategory = t.category?.title ?? null`.
@@ -601,7 +608,8 @@ Every mutation invalidates `transactions`, `spending`, `inbox` and `inout`.
     - `flow='not_spending'`: subline `<category or "No category"> · not spending`;
   - a `Pending` subline suffix is kept: ` · Pending`;
   - split rows show the subline `Split · N categories`;
-  - income amounts are lime with `+`, as now.
+  - income amounts are lime with `+`, as now;
+  - **negative amounts are red** (owner request 2026-10-24). Add a `negative` theme token: dark `#ff5c5c`, light `#c62828` (`#ff5c5c` fails 4.5:1 contrast on white). `flow='transfer'` rows keep their 60% opacity.
 - **`TransactionList({ transactions, categories, today, onPressTxn })`**: day-grouped cards with `dayHeader`, used by account detail and the drill-down.
 - **`Sheet({ visible, onClose, children })`**: a transparent `Modal`, a dimmed backdrop that closes it on press, a `surface` panel with top radius 26, and a grab handle.
 - **`CategoryPicker({ visible, onClose, onPick, categories })`**:
@@ -611,6 +619,7 @@ Every mutation invalidates `transactions`, `spending`, `inbox` and `inout`.
 
 - [ ] **Step 1: Write failing tests:**
   - Each subline case above renders its exact text.
+  - A −$84.20 row's amount uses `negative` (`#ff5c5c` in dark mode). A +$4,700 row stays lime.
   - Hide balances masks the amount.
   - The picker filters "gro" down to Groceries.
   - Picking calls `onPick(id)`.
@@ -636,7 +645,14 @@ Every mutation invalidates `transactions`, `spending`, `inbox` and `inout`.
 - the raw `description`, muted;
 - an `<Amount variant="hero">`;
 - a primary button showing `Choose category` when uncategorised, or `<emoji> <name>` when categorised;
-- a details card with Date, Account and Status;
+- a details card (owner request 2026-10-24) with these rows, each value selectable so it can be copied:
+  - `Full name`: the full raw `description`, never truncated;
+  - `Description`: the PocketSmith `memo`, hidden when empty;
+  - `Category`: the emoji and name, or `Uncategorised`;
+  - `Date`: e.g. `Thu 22 Oct 2026`;
+  - `Received`: `feedCreatedAt` in Sydney time to the minute, e.g. `22 Oct 2026, 7:41am`, hidden when null. Under it, muted: `When the bank feed delivered it. Banks don't share the exact time.`;
+  - `Account`;
+  - `Status`;
 - a **Counts as** `Segmented` control with the options `Spending · Transfer · Mortgage · Not spending`, mapping to flows `normal · transfer · mortgage · not_spending`;
 - a `Split` row;
 - a `Note` input that saves on blur.
@@ -656,6 +672,7 @@ Every mutation invalidates `transactions`, `spending`, `inbox` and `inout`.
   - `Remove split` calls it with `[]`.
 
 - [ ] **Step 1: Write failing tests (hooks mocked as in `account-detail.test.tsx`):**
+  - The details card shows the full name, the memo, `Groceries`, `Thu 22 Oct 2026` and `22 Oct 2026, 7:41am` for `feedCreatedAt: '2026-10-21T20:41:00Z'`. `Received` is hidden when `feedCreatedAt` is null.
   - Picking Groceries calls update with `{ id, categoryId: 1 }`, then shows both toggles, with `Also update 3 earlier Woolworths transactions` when the preview returns 3.
   - `Done` with defaults calls `createRule` with `applyToPast: true`.
   - Turning off the first toggle creates no rule.
@@ -753,7 +770,13 @@ Respect reduced motion: when it's on, skip the snap animation.
 **Header (visual spec screen 1):**
 - everything that's there today;
 - for Amex accounts only (`institutionGroup(account.institution) === 'Amex'`), a `Segmented` with `Calendar month · Statement`. `Statement` passes `period: 'statement'` and shows the period under the switcher, e.g. `26 Sep – 25 Oct`;
-- the month's spent total, from `useSpending({ month, accountId, period })`, as `<Amount>` with a `CrayonUnderline`;
+- **Money in and out** (owner request 2026-10-24), directly under the balance, for the selected month or statement period. It's computed on the phone from that period's transactions:
+  - `In`: Σ positive amounts, in lime with `+`;
+  - `Out`: Σ negative amounts, in `negative` red;
+  - `Change`: their sum, signed (lime when ≥ 0, red when < 0).
+
+  These are raw account flows: transfers count, because they move this account's balance. They update when the month or period changes, and hide balances masks them. Lay them out as three small labelled tiles in one row.
+- the month's spent total, from `useSpending({ month, accountId, period })`, as `<Amount>` with a `CrayonUnderline`, labelled `Spent`;
 - the more/less `HandNote`, with the same rules as Task 10.
 
 **Pages:** a horizontal `ScrollView` with `pagingEnabled` holding two pages:
@@ -768,6 +791,7 @@ The empty and error texts stay as they are now.
   - A non-Amex account shows no `Statement` option.
   - An Amex account shows it, and pressing it calls the hooks with `period: 'statement'` and shows `26 Sep – 25 Oct` for October 2026.
   - Pressing `Categories` shows the category bars.
+  - With rows of +$5,000, −$84.20 and −$500 (transfer), the tiles show `In +$5,000.00`, `Out −$584.20` and `Change +$4,415.80`. Switching the month re-queries and the tiles update. With hide balances on, all three are masked.
   - The month total renders.
   - The existing grouping, sync label and error tests still pass.
 - [ ] **Step 2:** Run `cd apps/mobile && NODE_OPTIONS=--max-old-space-size=2048 npx jest --ci -i account-detail`. Expected: FAIL.
@@ -903,6 +927,51 @@ No money logic is involved: these only launch the other app.
 - [ ] **Owner check (with Task 14):** on the phone, each button opens the right app.
 
 `expo-intent-launcher` is a new native module, so the Task 14 APK rebuild covers it.
+
+---
+
+### Task 16: Account icons and custom order (owner request 2026-10-24)
+
+**Files:**
+- create `apps/api/migrations/0004_account_display.sql`;
+- modify `apps/api/src/db/repo.ts` and `apps/api/src/routes/accounts.ts`;
+- modify `apps/mobile/app/account/[id]/settings.tsx`, `app/(tabs)/index.tsx` and `src/components/AccountRow.tsx`;
+- create `src/components/EmojiPicker.tsx` and `src/components/SortableList.tsx`;
+- tests go in `apps/api/test/accounts.test.ts` and `apps/mobile/__tests__/{account-settings,accounts-reorder}.test.tsx`.
+
+**API:**
+- **Migration:** `alter table account add column icon text, add column sort_order int`.
+- **`AccountDto`** gains `icon: string | null` and `sortOrder: number | null`.
+- **`listAccounts`** orders by `sort_order nulls last, id`.
+- **`PATCH /accounts/:id`** also accepts `icon: string | null`: 1–8 characters (one emoji, which may be several code units), or null to reset to the default.
+- **`PUT /accounts/order { ids: number[] }`**:
+  - sets `sort_order` to each ID's index, in one `update … from unnest($1::int[]) with ordinality` query;
+  - returns 400 `bad_order` if any ID is unknown or repeated;
+  - accounts not listed keep their order.
+
+**Mobile:**
+- **`AccountRow`:** shows `account.icon ?? kindEmoji[account.kind]`.
+- **Account settings:** a new top row, `Icon`, showing the current emoji. Tapping it opens an `EmojiPicker` sheet with:
+  - a grid of about 40 money-and-life emoji: 💳 🏦 💰 💵 🐷 🏠 🚗 ✈️ 🎓 🛒 🍔 ☕ 🎁 💼 🧾 📈 📉 🏖️ 👶 🐶 ❤️ ⭐ 🔒 🧰 🛠️ 🎯 🌱 🍀 🔥 💎 🪙 🏧 📦 🧳 🎮 🎵 📚 🏥 ⚡ 🌊;
+  - a `Default` tile that sets null.
+
+  Saving reuses `useUpdateAccount` (optimistic, with rollback).
+- **Reorder:**
+  - The Accounts tab gets an `Edit order` text button by the title. It switches to reorder mode: rows show a `≡` drag handle, and the button reads `Done`.
+  - Drag a row by its handle (long-press, then move) to reorder it **within its institution group**. Groups keep the fixed CommBank, Amex, Up order. This is Claude's call: dragging across banks has no meaning.
+  - `Done` calls `useReorderAccounts(ids)` with the full ID list, in the order shown.
+  - Each row also gets accessible `Move up` and `Move down` buttons in reorder mode, for screen readers and as a fallback.
+- **`SortableList`:** use `react-native-gesture-handler` (`npx expo install react-native-gesture-handler`, a new native module covered by the Task 14 APK rebuild) with the existing Reanimated 4. Don't add a third-party sortable-list package unless it declares support for Reanimated 4 and React Native 0.88.
+
+- [ ] **Step 1: Write failing tests:**
+  - **API:** `PATCH { icon: '🐷' }` round-trips. A 9-character icon → 400. `PUT /accounts/order` with `[3,1,2]` makes `/accounts` return 3, 1, 2. A duplicate ID → 400 `bad_order`. Without a token → 401.
+  - **Mobile:** picking 🐷 calls update with `{ icon: '🐷' }`. `Default` sends `{ icon: null }`. The row renders the custom icon. In reorder mode, `Move down` on the first CommBank row and then `Done` calls reorder with the swapped IDs. `Done` without changes makes no call.
+- [ ] **Step 2:** Run `npm test -w @curly/api` and `cd apps/mobile && NODE_OPTIONS=--max-old-space-size=2048 npx jest --ci -i account-settings accounts-reorder`. Expected: FAIL.
+- [ ] **Step 3:** Implement.
+- [ ] **Step 4:** Run the same commands. Expected: PASS. Run `npx tsc --noEmit` in both apps. Check drag-to-reorder on the phone (Task 14).
+- [ ] **Step 5:** Commit: `feat: account icons and custom order`.
+
+Run Tasks 15 and 16 before Task 14's final verification and APK rebuild.
 
 ---
 
