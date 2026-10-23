@@ -15,6 +15,7 @@ export type ThemeTokens = {
   strokeLime: string;
   strokeYellow: string;
   chartLime: string;
+  negative: string;
 };
 
 /** Accent fills are the same in both modes (visual spec §2.1). */
@@ -47,6 +48,7 @@ export const themes: Record<Mode, ThemeTokens> = {
     strokeLime: '#c6f36b',
     strokeYellow: '#ffd23f',
     chartLime: '#c6f36b',
+    negative: '#ff5c5c',
   },
   light: {
     bg: '#f6efe3',
@@ -63,6 +65,7 @@ export const themes: Record<Mode, ThemeTokens> = {
     strokeLime: '#5f9412',
     strokeYellow: '#e0a100',
     chartLime: '#5f9412',
+    negative: '#c62828',
   },
 };
 

@@ -25,16 +25,18 @@ const account = {
 };
 let accounts: object[];
 let txns: object[];
+const full = { accountId: 7, merchant: "", categoryId: null, categorySource: null, flow: "normal", flowSource: "auto", note: null, memo: null, feedCreatedAt: null, splits: [] };
 
 beforeEach(() => {
   jest.clearAllMocks();
   accounts = [account];
   txns = [
-    { id: 1, date: '2026-10-22', amountCents: -450, description: 'Coffee', status: 'posted', source: 'pocketsmith' },
-    { id: 2, date: '2026-10-20', amountCents: 500000, description: 'Salary', status: 'pending', source: 'pocketsmith' },
+    { ...full, id: 1, date: '2026-10-22', amountCents: -450, description: 'Coffee', status: 'posted', source: 'pocketsmith' },
+    { ...full, id: 2, date: '2026-10-20', amountCents: 500000, description: 'Salary', status: 'pending', source: 'pocketsmith' },
   ];
   (mocked.useAccounts as jest.Mock).mockImplementation(() => ({ data: { accounts, lastSuccessAt: '2026-10-21T20:40:00Z' }, isLoading: false }));
   (mocked.useTransactions as jest.Mock).mockImplementation(() => ({ data: { transactions: txns }, isLoading: false }));
+  (mocked.useCategories as jest.Mock).mockReturnValue({ data: [] });
 });
 
 it('groups transactions by Sydney day', async () => {
@@ -45,14 +47,14 @@ it('groups transactions by Sydney day', async () => {
 });
 
 it('shows Yesterday header', async () => {
-  txns = [{ id: 3, date: '2026-10-21', amountCents: -100, description: 'x', status: 'posted', source: 'csv' }];
+  txns = [{ ...full, id: 3, date: '2026-10-21', amountCents: -100, description: 'x', status: 'posted', source: 'csv' }];
   await renderScreen(<AccountDetail />);
   expect(screen.getByText('Yesterday · Wed 21 Oct')).toBeTruthy();
 });
 
 it('shows Pending on pending rows', async () => {
   await renderScreen(<AccountDetail />);
-  expect(screen.getAllByText('Pending')).toHaveLength(1);
+  expect(screen.getAllByText(/Pending/)).toHaveLength(1);
 });
 
 it('requests the previous month when switching', async () => {

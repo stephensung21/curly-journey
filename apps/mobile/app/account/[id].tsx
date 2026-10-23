@@ -1,44 +1,19 @@
 import { monthKey } from '@curly/core';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { useAccounts, useTransactions } from '../../src/api/hooks';
-import type { Transaction } from '../../src/api/types';
+import { useAccounts, useCategories, useTransactions } from '../../src/api/hooks';
 import { kindColor, kindEmoji } from '../../src/components/AccountRow';
 import { Amount } from '../../src/components/Amount';
 import { AppText } from '../../src/components/AppText';
-import { Card } from '../../src/components/Card';
 import { IconTile } from '../../src/components/IconTile';
 import { MonthSwitcher } from '../../src/components/MonthSwitcher';
 import { Screen } from '../../src/components/Screen';
-import { TransactionRow } from '../../src/components/TransactionRow';
+import { TransactionList } from '../../src/components/TransactionList';
+import { plainDay, sydneyDate } from '../../src/lib/days';
 import { now } from '../../src/lib/now';
 
 const TZ = 'Australia/Sydney';
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** Sydney calendar date (YYYY-MM-DD) of an instant. */
-function sydneyDate(d: Date): string {
-  return d.toLocaleDateString('en-CA', { timeZone: TZ });
-}
-
-function plainDay(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return `${WEEKDAYS[wd]} ${d} ${MONTHS[m - 1]}`;
-}
-
-function dayBefore(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
-}
-
-export function dayHeader(iso: string, today: string): string {
-  if (iso === today) return `Today · ${plainDay(iso)}`;
-  if (iso === dayBefore(today)) return `Yesterday · ${plainDay(iso)}`;
-  return plainDay(iso);
-}
 
 function syncedLabel(iso: string | null, current: Date): string | null {
   if (!iso) return null;
@@ -61,17 +36,13 @@ export default function AccountDetailScreen() {
   const [month, setMonth] = useState(() => monthKey(current));
   const accountsQ = useAccounts();
   const txQ = useTransactions(accountId, month);
+  const categories = useCategories().data ?? [];
 
   const account = accountsQ.data?.accounts.find(a => a.id === accountId);
   const synced = syncedLabel(accountsQ.data?.lastSuccessAt ?? null, current);
   const today = sydneyDate(current);
 
-  const groups = useMemo(() => {
-    const map = new Map<string, Transaction[]>();
-    const sorted = [...(txQ.data?.transactions ?? [])].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-    for (const t of sorted) map.set(t.date, [...(map.get(t.date) ?? []), t]);
-    return [...map.entries()];
-  }, [txQ.data]);
+  const transactions = txQ.data?.transactions ?? [];
 
   return (
     <Screen>
@@ -112,17 +83,8 @@ export default function AccountDetailScreen() {
       <MonthSwitcher value={month} onChange={setMonth} />
 
       {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
-      {groups.length === 0 && !txQ.isLoading && !txQ.isError ? <AppText tone="muted">No transactions this month.</AppText> : null}
-      {groups.map(([date, rows]) => (
-        <Card key={date}>
-          <AppText variant="label" tone="muted">
-            {dayHeader(date, today)}
-          </AppText>
-          {rows.map(t => (
-            <TransactionRow key={t.id} txn={t} />
-          ))}
-        </Card>
-      ))}
+      {transactions.length === 0 && !txQ.isLoading && !txQ.isError ? <AppText tone="muted">No transactions this month.</AppText> : null}
+      <TransactionList transactions={transactions} categories={categories} today={today} />
     </Screen>
   );
 }
