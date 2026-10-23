@@ -18,7 +18,8 @@ const MAP: Record<string, string[]> = {
   'Fees & interest': ['fees', 'bank fees', 'interest'],
   Cash: ['cash', 'atm'],
   'Government & tax': ['tax', 'government'],
-  Income: ['salary', 'income', 'wages', 'interest income', 'refunds'],
+  // Not 'refunds': a refund reduces its spending category (spec 9.5).
+  Income: ['salary', 'income', 'wages', 'interest income'],
 };
 
 const LOOKUP = new Map<string, string>(

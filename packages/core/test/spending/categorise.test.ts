@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   categorise,
   ruleMatches,
@@ -54,6 +54,21 @@ describe('categorise', () => {
     expect(categorise({ ...unknown, amountCents: 470000 }, ctx0)).toMatchObject({ categoryId: 21, source: 'default' });
     expect(categorise({ ...unknown, amountCents: 4000, isCreditCard: true }, ctx0)).toMatchObject({ categoryId: null, source: null });
     expect(categorise(unknown, ctx0)).toMatchObject({ categoryId: null, source: null });
+  });
+  it('never makes a credit-card credit income from the merchant or PocketSmith steps', () => {
+    const credit = { ...unknown, amountCents: 4000, isCreditCard: true };
+    expect(categorise({ ...credit, psCategory: 'Salary' }, ctx0)).toMatchObject({ categoryId: null, source: null });
+    // A spending category from PocketSmith still applies to a card credit: the refund reduces it.
+    expect(categorise({ ...credit, psCategory: 'Eating Out' }, ctx0)).toMatchObject({ categoryId: 2, source: 'pocketsmith' });
+    // On a bank account the same credit is still income.
+    expect(categorise({ ...credit, isCreditCard: false, psCategory: 'Salary' }, ctx0)).toMatchObject({ categoryId: 21, source: 'pocketsmith' });
+  });
+  it('sorts the rules once per rules list, not once per row', () => {
+    const sort = vi.spyOn(Array.prototype, 'sort');
+    const ctx = { ...ctx0, rules: [learned, user] };
+    for (let i = 0; i < 5; i++) expect(categorise(base, ctx).categoryId).toBe(2);
+    expect(sort).toHaveBeenCalledTimes(1);
+    sort.mockRestore();
   });
   it('name missing from the map falls through', () => {
     expect(categorise(base, { ...ctx0, categoryIdByName: new Map() })).toMatchObject({ categoryId: null, source: null });

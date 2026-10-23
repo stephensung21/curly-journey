@@ -44,14 +44,25 @@ export function ruleMatches(rule: Rule, t: CategoriseInput): boolean {
   );
 }
 
-/** user before learned, then newest first (higher id breaks ties). */
+/** Ordered copies of each rules list seen, so a pipeline run sorts its rules once rather than once per row. */
+const ordered = new WeakMap<Rule[], Rule[]>();
+
+/** user before learned, then newest first (higher id breaks ties). Treat a rules list as immutable once passed in. */
 function orderRules(rules: Rule[]): Rule[] {
-  return [...rules].sort((a, b) => {
-    if (a.origin !== b.origin) return a.origin === 'user' ? -1 : 1;
-    if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
-    return b.id - a.id;
-  });
+  let out = ordered.get(rules);
+  if (!out) {
+    out = [...rules].sort((a, b) => {
+      if (a.origin !== b.origin) return a.origin === 'user' ? -1 : 1;
+      if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+      return b.id - a.id;
+    });
+    ordered.set(rules, out);
+  }
+  return out;
 }
+
+/** The only income-kind category the merchant list and the PocketSmith map can name. */
+const INCOME = 'Income';
 
 export function categorise(t: CategoriseInput, ctx: CategoriseContext): CategoriseResult {
   const matched = orderRules(ctx.rules).filter((r) => ruleMatches(r, t));
@@ -71,7 +82,10 @@ export function categorise(t: CategoriseInput, ctx: CategoriseContext): Categori
   const past = ctx.pastByMerchant.get(t.merchant);
   if (past !== undefined) return done(past, 'past');
 
-  const fromName = (name: string | null) => (name === null ? undefined : ctx.categoryIdByName.get(name));
+  // A credit on a credit card is a refund or a payment, never income: it falls through instead (spec 9.5).
+  const cardCredit = t.isCreditCard && t.amountCents > 0;
+  const fromName = (name: string | null) =>
+    name === null || (cardCredit && name === INCOME) ? undefined : ctx.categoryIdByName.get(name);
 
   const merchantId = fromName(merchantCategory(t.merchant));
   if (merchantId !== undefined) return done(merchantId, 'merchant');
@@ -80,7 +94,7 @@ export function categorise(t: CategoriseInput, ctx: CategoriseContext): Categori
   if (psId !== undefined) return done(psId, 'pocketsmith');
 
   if (t.amountCents > 0 && !t.isCreditCard) {
-    const income = ctx.categoryIdByName.get('Income');
+    const income = ctx.categoryIdByName.get(INCOME);
     if (income !== undefined) return done(income, 'default');
   }
   return done(null, null);

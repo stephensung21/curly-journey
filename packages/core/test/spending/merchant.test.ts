@@ -48,6 +48,8 @@ it('maps PocketSmith categories', () => {
   expect(mapPocketSmithCategory('Salary')).toBe('Income');
   expect(mapPocketSmithCategory('Weird Thing')).toBeNull();
   expect(mapPocketSmithCategory(null)).toBeNull();
+  // A refund reduces its spending category (spec 9.5); it is never income.
+  expect(mapPocketSmithCategory('Refunds')).toBeNull();
 });
 
 it('groups institutions', () => {
@@ -64,7 +66,7 @@ it('has one income seed category', () => {
 
 it('every merchant and map target exists in SEED_CATEGORIES', () => {
   for (const m of MERCHANTS) expect(seedNames.has(m.category), m.name).toBe(true);
-  const titles = ['groceries','supermarket','restaurants','dining','eating out','takeaway','fast food','coffee','cafe','transport','fuel','petrol','public transport','parking','tolls','car','shopping','clothing','electronics','general merchandise','utilities','bills','electricity','gas','water','internet','phone','mobile phone','entertainment','movies','music','games','subscriptions','health','medical','pharmacy','doctor','home','household','home improvement','furniture','insurance','personal care','hair','beauty','fitness','gym','education','travel','holidays','accommodation','flights','gifts','donations','charity','pets','fees','bank fees','interest','cash','atm','tax','government','salary','income','wages','interest income','refunds'];
+  const titles = ['groceries','supermarket','restaurants','dining','eating out','takeaway','fast food','coffee','cafe','transport','fuel','petrol','public transport','parking','tolls','car','shopping','clothing','electronics','general merchandise','utilities','bills','electricity','gas','water','internet','phone','mobile phone','entertainment','movies','music','games','subscriptions','health','medical','pharmacy','doctor','home','household','home improvement','furniture','insurance','personal care','hair','beauty','fitness','gym','education','travel','holidays','accommodation','flights','gifts','donations','charity','pets','fees','bank fees','interest','cash','atm','tax','government','salary','income','wages','interest income'];
   for (const t of titles) {
     const r = mapPocketSmithCategory(t);
     expect(r, t).not.toBeNull();
