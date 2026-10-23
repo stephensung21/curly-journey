@@ -94,7 +94,7 @@ describe('accounts', () => {
     const counted = makeRepo({ query: (t, p) => (queries++, db.query(t, p)) } as Db);
     const states = await counted.upsertAccountStates([acct({ externalId: '1' }), acct({ externalId: '2', balanceCents: 5 })]);
     expect(queries).toBe(1);
-    expect(states[1]).toEqual({ id: first.id, historyFrom: '2026-07-26', historyDone: false });
+    expect(states[1]).toEqual({ id: first.id, historyFrom: '2026-07-26', historyDone: false, historyCursor: null });
     expect(states[0]).toMatchObject({ historyFrom: null, historyDone: false });
     expect(states[0]!.id).not.toBe(first.id);
     expect((await repo.getAccount(first.id))!.balanceCents).toBe(5);
@@ -153,20 +153,51 @@ describe('transactions', () => {
 });
 
 describe('deleteMissingFeedRows', () => {
-  it('deletes only feed rows of that account from the date on that were not kept', async () => {
+  it('deletes only feed rows of the given accounts in the date range that were not kept', async () => {
     const a = await repo.upsertAccount(acct());
     const b = await repo.upsertAccount(acct({ externalId: '2' }));
+    const c = await repo.upsertAccount(acct({ externalId: '3' }));
     await repo.upsertTransactions(a, [
       tx({ externalId: 'old', date: '2026-10-08' }),
       tx({ externalId: 'keep', date: '2026-10-09' }),
       tx({ externalId: 'gone', date: '2026-10-20' }),
+      tx({ externalId: 'future', date: '2026-10-24' }),
     ]);
-    await repo.upsertTransactions(b, [tx({ externalId: 'other', date: '2026-10-20' })]);
+    await repo.upsertTransactions(b, [tx({ externalId: 'goneB', date: '2026-10-20' })]);
+    await repo.upsertTransactions(c, [tx({ externalId: 'other', date: '2026-10-20' })]);
     await repo.insertCsvRows(a, [{ row: { date: '2026-10-20', amountCents: -1, description: 'X' }, fingerprint: 'csv1' }]);
-    expect(await repo.deleteMissingFeedRows(a, '2026-10-09', ['keep'])).toBe(1);
+    expect(await repo.deleteMissingFeedRows([a, b], '2026-10-09', '2026-10-23', ['keep'])).toBe(2);
     const left = await db.query<{ external_id: string }>('select external_id from transaction order by external_id');
-    expect(left.map((r) => r.external_id)).toEqual(['csv1', 'keep', 'old', 'other']);
-    expect(await repo.deleteMissingFeedRows(a, '2026-10-09', [])).toBe(1);
+    expect(left.map((r) => r.external_id)).toEqual(['csv1', 'future', 'keep', 'old', 'other']);
+    expect(await repo.deleteMissingFeedRows([a], '2026-10-09', '2026-10-23', [])).toBe(1);
+    expect(await repo.deleteMissingFeedRows([], '2026-10-01', '2026-10-31', [])).toBe(0);
+  });
+});
+
+describe('upsertFeedTransactions', () => {
+  it('upserts rows for several accounts in one query', async () => {
+    const a = await repo.upsertAccount(acct());
+    const b = await repo.upsertAccount(acct({ externalId: '2' }));
+    let queries = 0;
+    const counted = makeRepo({ query: (t, p) => (queries++, db.query(t, p)) } as Db);
+    expect(await counted.upsertFeedTransactions([
+      { accountId: a, row: tx({ externalId: 'x' }) },
+      { accountId: b, row: tx({ externalId: 'y' }) },
+    ])).toBe(2);
+    expect(queries).toBe(1);
+    const rows = await db.query<{ external_id: string; account_id: number }>('select external_id, account_id from transaction order by external_id');
+    expect(rows).toEqual([{ external_id: 'x', account_id: a }, { external_id: 'y', account_id: b }]);
+  });
+});
+
+describe('history cursor', () => {
+  it('is saved, returned by the account upsert, and cleared when a window completes', async () => {
+    const id = await repo.upsertAccount(acct());
+    const url = 'https://api.pocketsmith.com/v2/transaction_accounts/1/transactions?page=3';
+    await repo.setHistoryCursor(id, url);
+    expect((await repo.upsertAccountState(acct())).historyCursor).toBe(url);
+    await repo.setHistory(id, '2026-07-26', false);
+    expect((await repo.upsertAccountState(acct())).historyCursor).toBeNull();
   });
 });
 

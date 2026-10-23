@@ -39,7 +39,13 @@ export type AccountSettingsPatch = Partial<
   Pick<AccountDto, 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'displayName'>
 >;
 
-export type HistoryState = { id: number; historyFrom: string | null; historyDone: boolean };
+export type HistoryState = {
+  id: number;
+  historyFrom: string | null;
+  historyDone: boolean;
+  /** Next page of the history window in progress, when the last run ran out of budget part-way through it. */
+  historyCursor: string | null;
+};
 
 export interface Repo {
   upsertAccount(row: AccountRow): Promise<number>;
@@ -47,11 +53,15 @@ export interface Repo {
   upsertAccountState(row: AccountRow): Promise<HistoryState>;
   /** Upserts every account in one query; results are in input order. */
   upsertAccountStates(rows: AccountRow[]): Promise<HistoryState[]>;
+  /** Records a completed history window and clears the resume cursor. */
   setHistory(id: number, from: string, done: boolean): Promise<void>;
+  setHistoryCursor(id: number, cursor: string): Promise<void>;
   upsertTransactions(accountId: number, rows: TransactionRow[]): Promise<number>;
+  /** Like upsertTransactions, for rows of several accounts at once (one query per 100 rows). */
+  upsertFeedTransactions(rows: { accountId: number; row: TransactionRow }[]): Promise<number>;
   insertCsvRows(accountId: number, rows: { row: ImportedRow; fingerprint: string }[]): Promise<number>;
-  /** Deletes this account's feed rows dated `from` or later whose external ID is not in `keep`. CSV rows are never touched. */
-  deleteMissingFeedRows(accountId: number, from: string, keep: string[]): Promise<number>;
+  /** Deletes these accounts' feed rows dated `from` to `to` whose external ID is not in `keep`. CSV rows are never touched. */
+  deleteMissingFeedRows(accountIds: number[], from: string, to: string, keep: string[]): Promise<number>;
   listAccounts(): Promise<AccountDto[]>;
   getAccount(id: number): Promise<AccountDto | null>;
   existingCsvKeys(accountId: number, keys: string[]): Promise<Set<string>>;
@@ -122,7 +132,14 @@ export function makeRepo(db: Db): Repo {
     },
 
     async setHistory(id, from, done) {
-      await db.query('update account set history_from = $2::date, history_done = $3 where id = $1', [id, from, done]);
+      await db.query(
+        'update account set history_from = $2::date, history_done = $3, history_cursor = null where id = $1',
+        [id, from, done],
+      );
+    },
+
+    async setHistoryCursor(id, cursor) {
+      await db.query('update account set history_cursor = $2 where id = $1', [id, cursor]);
     },
 
     async upsertAccountState(row) {
@@ -143,31 +160,43 @@ export function makeRepo(db: Db): Repo {
         );
         return `(${Array.from({ length: 10 }, (_, k) => `$${i + k + 1}`).join(', ')})`;
       });
-      const res = await db.query<{ id: number; source: string; external_id: string; history_from: string | null; history_done: boolean }>(
+      const res = await db.query<{
+        id: number;
+        source: string;
+        external_id: string;
+        history_from: string | null;
+        history_done: boolean;
+        history_cursor: string | null;
+      }>(
         `insert into account (source, external_id, institution, name, kind, balance_cents, balance_date,
            counts_spending, counts_net_worth, projections)
          values ${values.join(', ')}
          on conflict (source, external_id) do update set
            institution = excluded.institution, name = excluded.name, kind = excluded.kind,
            balance_cents = excluded.balance_cents, balance_date = excluded.balance_date
-         returning id, source, external_id, to_char(history_from, 'YYYY-MM-DD') as history_from, history_done`,
+         returning id, source, external_id, to_char(history_from, 'YYYY-MM-DD') as history_from, history_done,
+           history_cursor`,
         params,
       );
       // RETURNING order is not guaranteed, so match rows back by key.
       const byKey = new Map(res.map((r) => [`${r.source}|${r.external_id}`, r]));
       return rows.map((row) => {
         const r = byKey.get(`${row.source}|${row.externalId}`)!;
-        return { id: Number(r.id), historyFrom: r.history_from, historyDone: r.history_done };
+        return { id: Number(r.id), historyFrom: r.history_from, historyDone: r.history_done, historyCursor: r.history_cursor };
       });
     },
 
     async upsertTransactions(accountId, rows) {
+      return this.upsertFeedTransactions(rows.map((row) => ({ accountId, row })));
+    },
+
+    async upsertFeedTransactions(items) {
       // Last write wins within a batch; Postgres rejects a conflict target hit twice in one statement.
-      const byKey = new Map(rows.map((r) => [`${r.source}|${r.externalId}`, r]));
+      const byKey = new Map(items.map((it) => [`${it.row.source}|${it.row.externalId}`, it]));
       let affected = 0;
       for (const part of chunks([...byKey.values()], CHUNK)) {
         const params: unknown[] = [];
-        const values = part.map((r) => {
+        const values = part.map(({ accountId, row: r }) => {
           const i = params.length;
           params.push(
             accountId, r.source, r.externalId, r.date, r.amountCents, r.descriptionRaw, r.payee, r.status,
@@ -214,12 +243,14 @@ export function makeRepo(db: Db): Repo {
       return inserted;
     },
 
-    async deleteMissingFeedRows(accountId, from, keep) {
+    async deleteMissingFeedRows(accountIds, from, to, keep) {
+      if (!accountIds.length) return 0;
       const rows = await db.query(
         `delete from transaction
-         where account_id = $1 and source = 'pocketsmith' and date >= $2::date and external_id <> all($3::text[])
+         where account_id = any($1::int[]) and source = 'pocketsmith' and date >= $2::date and date <= $3::date
+           and external_id <> all($4::text[])
          returning id`,
-        [accountId, from, keep],
+        [accountIds, from, to, keep],
       );
       return rows.length;
     },

@@ -1,8 +1,7 @@
-import { mapAccount, mapTransaction } from '@curly/core';
+import { mapAccount, mapTransaction, type PsTransaction } from '@curly/core';
 import type { Deps } from '../app';
 import type { Db } from '../db/db';
-import { makeRepo, type Repo } from '../db/repo';
-import type { TransactionQuery } from '../pocketsmith';
+import { makeRepo, type HistoryState } from '../db/repo';
 
 export type SyncResult = {
   status: 'ok' | 'failed' | 'skipped';
@@ -19,7 +18,9 @@ const HOUR_MS = 60 * 60 * 1000;
 
 /**
  * Workers Free allows 50 outbound requests per invocation, and every Neon query and PocketSmith page is one.
- * Stay under it with room to spare.
+ * Stay under it with room to spare. A run costs: 4 fixed (sync log start, me, accounts, one upsert of every account),
+ * then reconciliation (2 per page of recent rows across all accounts, plus one delete), then history with whatever
+ * is left (2 per page plus one query per window or resume cursor), then the sync log finish from the reserve.
  */
 export const MAX_CALLS = 45;
 /** Kept back so a run can always record its result. */
@@ -77,35 +78,43 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
   let since: string | null = null;
 
   /**
-   * Fetches every page of a query, returning whether it finished and the external IDs it saw. Running out of budget
-   * is allowed during history, where the window is simply retried next run, but a hard failure for reconciliation.
+   * Fetches pages from `cursor` (or the first page) until the last one, upserting each page in one query. A page is
+   * only fetched with at least 3 calls left (the page, its upsert, and the caller's follow-up query), so the caller
+   * can always record what happened. Running out of budget is allowed during history, where the window resumes from
+   * `next` on a later run, but a hard failure for reconciliation.
    */
   async function fetchAll(
-    repo: Repo, psId: number, localId: number, query: TransactionQuery, mustFinish: boolean,
-  ): Promise<{ complete: boolean; ids: string[] }> {
+    getPage: (pageUrl?: string) => Promise<{ items: PsTransaction[]; next: string | null }>,
+    localAccount: (psAccountId: number) => number | undefined,
+    opts: { mustFinish: boolean; cursor?: string | null },
+  ): Promise<{ complete: boolean; ids: string[]; next: string | undefined; pages: number }> {
     const seen = new Set<string>();
     const ids: string[] = [];
-    let next: string | undefined;
+    let next = opts.cursor ?? undefined;
+    let pages = 0;
     do {
-      if (left() < 2) {
-        if (mustFinish) throw new BudgetExhausted();
-        return { complete: false, ids };
+      if (left() < 3) {
+        if (opts.mustFinish) throw new BudgetExhausted();
+        return { complete: false, ids, next, pages };
       }
       used++;
-      const page = await ps.transactionsPage(psId, query, next);
-      if (page.items.length) {
-        const rows = page.items.map(mapTransaction);
-        transactions += await repo.upsertTransactions(localId, rows);
-        for (const r of rows) {
-          ids.push(r.externalId);
-          if (since === null || r.date < since) since = r.date;
-        }
+      const page = await getPage(next);
+      pages++;
+      const rows = [];
+      for (const t of page.items) {
+        const row = mapTransaction(t);
+        ids.push(row.externalId);
+        const accountId = localAccount(t.transaction_account.id);
+        if (accountId === undefined) continue;
+        rows.push({ accountId, row });
+        if (since === null || row.date < since) since = row.date;
       }
+      if (rows.length) transactions += await repo.upsertFeedTransactions(rows);
       if (page.next && seen.has(page.next)) throw new Error('PocketSmith pagination loop detected');
       if (page.next) seen.add(page.next);
       next = page.next ?? undefined;
     } while (next);
-    return { complete: true, ids };
+    return { complete: true, ids, next: undefined, pages };
   }
 
   try {
@@ -118,24 +127,41 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
     if (left() < 1) throw new BudgetExhausted();
     const states = (await repo.upsertAccountStates(psAccounts.map(mapAccount))).map((s, i) => ({ ...s, psId: psAccounts[i]!.id }));
     accounts = states.length;
+    const localByPs = new Map(states.map((s) => [s.psId, s.id]));
 
-    // Refetch the recent window of every account whose history has started, and drop feed rows PocketSmith no longer
-    // returns there: a pending row that posts under a new ID disappears. Accounts without history get today below.
-    const reconcileFrom = addDays(today, -RECONCILE_DAYS);
-    for (const s of states) {
-      if (s.historyFrom === null) continue;
-      const { ids } = await fetchAll(repo, s.psId, s.id, { startDate: reconcileFrom, endDate: today }, true);
-      if (left() < 1) throw new BudgetExhausted();
-      await repo.deleteMissingFeedRows(s.id, reconcileFrom, ids);
+    // Refetch the recent window across all accounts in one paginated pass, then drop feed rows PocketSmith no longer
+    // returns there, so a pending row that posts under a new ID disappears. Only accounts whose history has started
+    // are pruned; the others get today in their first history window below.
+    const started = states.filter((s) => s.historyFrom !== null).map((s) => s.id);
+    if (started.length) {
+      const from = addDays(today, -RECONCILE_DAYS);
+      const query = { startDate: from, endDate: today };
+      const { ids } = await fetchAll((u) => ps.userTransactionsPage(userId, query, u), (a) => localByPs.get(a), { mustFinish: true });
+      await repo.deleteMissingFeedRows(started, from, today, ids);
     }
 
     // History, one window per account per pass, so every account gets its recent months before anyone's old ones.
+    // Accounts least far back go first, and a window already under way before others at the same point, so a long
+    // window resumed over several runs never starves the rest.
+    const order = (a: HistoryState, b: HistoryState) =>
+      (b.historyFrom ?? '9999-12-31').localeCompare(a.historyFrom ?? '9999-12-31') ||
+      Number(b.historyCursor !== null) - Number(a.historyCursor !== null);
     let more = false;
-    outer: for (let pending = states.filter((s) => !s.historyDone); pending.length; pending = pending.filter((s) => !s.historyDone)) {
+    outer: for (
+      let pending = states.filter((s) => !s.historyDone).sort(order);
+      pending.length;
+      pending = pending.filter((s) => !s.historyDone)
+    ) {
       for (const s of pending) {
         const endDate = s.historyFrom ? addDays(s.historyFrom, -1) : today;
         const startDate = addDays(endDate, -(WINDOW_DAYS - 1));
-        if (!(await fetchAll(repo, s.psId, s.id, { startDate, endDate }, false)).complete || left() < 1) {
+        const query = { startDate, endDate };
+        const res = await fetchAll((u) => ps.transactionsPage(s.psId, query, u), () => s.id, {
+          mustFinish: false,
+          cursor: s.historyCursor,
+        });
+        if (!res.complete) {
+          if (res.pages && res.next) await repo.setHistoryCursor(s.id, res.next);
           more = true;
           break outer;
         }
@@ -143,6 +169,7 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
         await repo.setHistory(s.id, startDate, done);
         s.historyFrom = startDate;
         s.historyDone = done;
+        s.historyCursor = null;
       }
     }
 

@@ -64,11 +64,11 @@ describe('runSync', () => {
     let now = T0;
     const deps = { db, pocketsmith: ps, now: () => now };
     await runSync(deps);
-    expect(ps.calls).not.toContain('transactions:1::2026-10-09:2026-10-23:1');
+    expect(ps.calls.some((c) => c.startsWith('userTransactions:'))).toBe(false);
     now = new Date('2026-10-23T04:00:00Z');
     ps.calls.length = 0;
     await runSync(deps);
-    expect(ps.calls.filter((c) => c.startsWith('transactions:'))[0]).toBe('transactions:1::2026-10-09:2026-10-23:1');
+    expect(ps.calls.filter((c) => c.startsWith('userTransactions:'))).toEqual(['userTransactions:1:2026-10-09:2026-10-23:1']);
     expect(ps.calls.some((c) => /^transactions:1:[^:]/.test(c))).toBe(false);
   });
 
@@ -163,15 +163,76 @@ describe('runSync', () => {
   });
 
   it('fails when the budget runs out mid-reconcile', async () => {
-    const ps = fakePocketSmith({ accounts: [acct(1, 1), acct(2, 2)] });
+    const txs = { 1: [tx(1, 1, '2026-10-18'), tx(2, 1, '2026-10-19'), tx(3, 1, '2026-10-20')], 2: [tx(4, 2, '2026-10-20')] };
+    const ps = fakePocketSmith({ accounts: [acct(1, 1), acct(2, 2)], transactions: txs, pageSize: 1 });
     const { db } = await setup(ps);
-    await runSync({ db, pocketsmith: ps, now: () => T0 });
+    expect(await runSync({ db, pocketsmith: ps, now: () => T0 })).toMatchObject({ status: 'ok', more: false });
     const before = await makeRepo(db).lastSuccessfulSync();
+    ps.calls.length = 0;
     const r = await runSync({ db, pocketsmith: ps, now: () => new Date('2026-10-23T04:00:00Z') }, { maxCalls: 9 });
     expect(r.status).toBe('failed');
+    // Overhead 4, then one reconcile page and its upsert: no room for the next page.
+    expect(ps.calls).toEqual(['me', 'transactionAccounts:1', 'userTransactions:1:2026-10-09:2026-10-23:1']);
     expect(await makeRepo(db).lastSuccessfulSync()).toEqual(before);
     const log = await db.query<{ status: string }>('select status from sync_log order by id desc limit 1');
     expect(log[0]!.status).toBe('failed');
+  });
+
+  it('resumes a history window from the saved page instead of restarting it', async () => {
+    const txs = { 1: Array.from({ length: 6 }, (_, i) => tx(i + 1, 1, `2026-10-1${i}`)) };
+    const ps = fakePocketSmith({ accounts: [acct(1, 1)], transactions: txs, pageSize: 1 });
+    const { db } = await setup(ps);
+    // Overhead 4, then two pages with their upserts, then the cursor is saved.
+    const r1 = await runSync({ db, pocketsmith: ps, now: () => T0 }, { maxCalls: 12 });
+    expect(r1).toMatchObject({ status: 'ok', more: true });
+    expect(ps.calls.filter((c) => c.startsWith('transactions:'))).toEqual([
+      'transactions:1::2026-07-26:2026-10-23:1',
+      'transactions:1::2026-07-26:2026-10-23:2',
+    ]);
+    ps.calls.length = 0;
+    await runSync({ db, pocketsmith: ps, now: () => new Date(T0.getTime() + 15 * 60_000) });
+    expect(ps.calls.filter((c) => c.startsWith('transactions:'))[0]).toBe('transactions:1::2026-07-26:2026-10-23:3');
+    const rows = await db.query<{ n: string }>('select count(*)::text as n from transaction');
+    expect(Number(rows[0]!.n)).toBe(6);
+    const acc = await db.query<{ history_cursor: string | null }>('select history_cursor from account');
+    expect(acc[0]!.history_cursor).toBeNull();
+  });
+
+  it('completes history for 12 accounts, one with a long window, within the default budget every run', async () => {
+    const ids = Array.from({ length: 12 }, (_, i) => i + 1);
+    const day = (d: number) => new Date(Date.UTC(2026, 9, 22 - d)).toISOString().slice(0, 10);
+    const txs: Record<number, PsTransaction[]> = {};
+    let n = 0;
+    for (const a of ids) txs[a] = Array.from({ length: 14 }, (_, i) => tx(++n, a, day(i * 30)));
+    // Account 1 also has 120 rows in its newest 90 days: 25 pages of 5, more than one run can fetch.
+    for (let k = 0; k < 120; k++) txs[1]!.push(tx(++n, 1, day(Math.floor(k * 0.75))));
+    const ps = fakePocketSmith({ accounts: ids.map((a) => acct(a, a)), transactions: txs, pageSize: 5 });
+    const db = await pgliteDb();
+    let dbCalls = 0;
+    const counting = {
+      query: (t: string, p?: unknown[]) => {
+        dbCalls++;
+        return db.query(t, p);
+      },
+    } as typeof db;
+    let now = T0.getTime();
+    const results = [];
+    for (let i = 0; i < 40; i++) {
+      dbCalls = 0;
+      const psBefore = ps.calls.length;
+      const r = await runSync({ db: counting, pocketsmith: ps, now: () => new Date(now) });
+      expect(r.status).toBe('ok');
+      expect(dbCalls + ps.calls.length - psBefore).toBeLessThanOrEqual(45);
+      results.push(r);
+      now += 15 * 60_000;
+      if (!r.more) break;
+    }
+    expect(results.at(-1)).toMatchObject({ status: 'ok', more: false });
+    const rows = await db.query<{ n: string }>('select count(*)::text as n from transaction');
+    expect(Number(rows[0]!.n)).toBe(n);
+    const hist = await db.query<{ history_done: boolean; history_cursor: string | null }>('select history_done, history_cursor from account');
+    expect(hist).toHaveLength(12);
+    expect(hist.every((h) => h.history_done && h.history_cursor === null)).toBe(true);
   });
 
   it('fails on a pagination loop instead of spinning', async () => {

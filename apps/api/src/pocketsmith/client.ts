@@ -1,5 +1,5 @@
 import type { PsTransaction, PsTransactionAccount } from '@curly/core';
-import type { PocketSmithClient } from './index';
+import type { PocketSmithClient, TransactionQuery } from './index';
 
 const ORIGIN = 'https://api.pocketsmith.com';
 const BASE = `${ORIGIN}/v2`;
@@ -11,6 +11,14 @@ function nextUrl(link: string | null): string | null {
     if (m && /rel="?next"?/.test(m[2]!)) return m[1]!;
   }
   return null;
+}
+
+function params(query: TransactionQuery): URLSearchParams {
+  const q = new URLSearchParams({ per_page: '100' });
+  if (query.updatedSince) q.set('updated_since', query.updatedSince);
+  if (query.startDate) q.set('start_date', query.startDate);
+  if (query.endDate) q.set('end_date', query.endDate);
+  return q;
 }
 
 export function pocketSmithClient(key: string, fetchImpl: typeof fetch = fetch): PocketSmithClient {
@@ -62,12 +70,10 @@ export function pocketSmithClient(key: string, fetchImpl: typeof fetch = fetch):
       return getAll<PsTransactionAccount>(`${BASE}/users/${userId}/transaction_accounts?per_page=100`);
     },
     transactionsPage(accountId, query, pageUrl) {
-      if (pageUrl) return getPage<PsTransaction>(pageUrl);
-      const q = new URLSearchParams({ per_page: '100' });
-      if (query.updatedSince) q.set('updated_since', query.updatedSince);
-      if (query.startDate) q.set('start_date', query.startDate);
-      if (query.endDate) q.set('end_date', query.endDate);
-      return getPage<PsTransaction>(`${BASE}/transaction_accounts/${accountId}/transactions?${q}`);
+      return getPage<PsTransaction>(pageUrl ?? `${BASE}/transaction_accounts/${accountId}/transactions?${params(query)}`);
+    },
+    userTransactionsPage(userId, query, pageUrl) {
+      return getPage<PsTransaction>(pageUrl ?? `${BASE}/users/${userId}/transactions?${params(query)}`);
     },
   };
 }

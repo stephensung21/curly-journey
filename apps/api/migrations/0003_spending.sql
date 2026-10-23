@@ -65,3 +65,6 @@ alter table transaction add column if not exists memo text;
 alter table transaction add column if not exists feed_created_at timestamptz;
 
 create index if not exists transaction_date on transaction (date);
+
+-- Next page of a history window that ran out of budget mid-way, so the next run resumes instead of restarting.
+alter table account add column if not exists history_cursor text;
