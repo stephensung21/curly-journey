@@ -94,6 +94,19 @@ describe('runAlerts', () => {
     expect(res.sent).toBe(0);
   });
 
+  it('never links a transaction already auto-paid to an older occurrence', async () => {
+    const s = await setup();
+    const bill = { emoji: '🧾', amountCents: 8900, accountId: null, repeat: 'none' as const, leadDays: 0, onDayAlert: false };
+    // today−42, already auto-paid by a transaction dated today−39 (still a candidate today).
+    const a = await s.events.create({ ...bill, name: 'Gas', startDate: '2026-09-13' });
+    const t = await s.txn('2026-09-16', -8900, 'Origin');
+    await s.events.insertAutoPaid([{ eventId: a.id, date: '2026-09-13', transactionId: t }]);
+    // today−38, a similar amount, no status.
+    await s.events.create({ ...bill, name: 'Power', startDate: '2026-09-17' });
+    expect((await s.run()).matched).toBe(0);
+    expect(await s.events.statuses('2026-09-17', '2026-09-17')).toEqual([]);
+  });
+
   it('asks once whether an unmatched bill got paid', async () => {
     const s = await setup();
     const e = await s.internet();

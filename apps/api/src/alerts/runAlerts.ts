@@ -53,13 +53,15 @@ export async function runAlerts(deps: Deps): Promise<{ matched: number; sent: nu
   const now = deps.now();
   const today = sydneyDate(now);
   const matchFrom = addDays(today, -MATCH_DAYS);
+  const candidateFrom = addDays(matchFrom, -MATCH_SLACK);
 
   // Statuses cover the planner's look-ahead too, so a bill skipped ahead of time gets no reminder.
   const [events, statuses, taken, candidates] = await Promise.all([
     eventsRepo.list(),
     eventsRepo.statuses(matchFrom, addDays(today, PLAN_AHEAD)),
-    eventsRepo.takenTransactionIds(matchFrom, addDays(today, MATCH_SLACK)),
-    eventsRepo.paymentCandidates(addDays(matchFrom, -MATCH_SLACK), today),
+    // Any occurrence within the slack of a candidate's date may already hold it, including ones too old to match now.
+    eventsRepo.takenTransactionIds(addDays(candidateFrom, -MATCH_SLACK), addDays(today, MATCH_SLACK)),
+    eventsRepo.paymentCandidates(candidateFrom, today),
   ]);
   const status = new Map(statuses.map((s) => [key(s.eventId, s.date), s.status]));
 
