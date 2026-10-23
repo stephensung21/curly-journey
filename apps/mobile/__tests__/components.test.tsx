@@ -47,6 +47,8 @@ describe('Screen', () => {
 });
 
 describe('AccountRow', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   const account = {
     id: 9, source: 'pocketsmith', institution: 'Up', name: 'Up spend', displayName: 'Daily', kind: 'transaction', balanceCents: 5000,
     balanceDate: null, countsSpending: true, countsNetWorth: true, projections: 'off', isOffset: false, stale: false, icon: null,
