@@ -18,6 +18,13 @@ export default function MoreScreen() {
           </Card>
         </Pressable>
       </Link>
+      <Link href="/import" asChild>
+        <Pressable accessibilityRole="link">
+          <Card>
+            <AppText>Import</AppText>
+          </Card>
+        </Pressable>
+      </Link>
       <Link href="/design-system" asChild>
         <Pressable accessibilityRole="link">
           <Card>
