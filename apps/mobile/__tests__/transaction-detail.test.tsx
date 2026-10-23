@@ -117,6 +117,20 @@ it('falls back to the raw description when the merchant is too short', async () 
   expect(createRule).toHaveBeenCalledWith(expect.objectContaining({ matchText: base.description }));
 });
 
+it('labels sheets with what the rule matches when the merchant is short', async () => {
+  txn = { ...base, merchant: 'AB' };
+  await renderScreen(<TransactionDetail />);
+  await pickGroceries();
+  expect(screen.getByText(`Always put ${base.description} in Groceries`)).toBeTruthy();
+});
+
+it('keeps Back in the error state', async () => {
+  (mocked.useTransaction as jest.Mock).mockReturnValue({ data: undefined, isError: true });
+  await renderScreen(<TransactionDetail />);
+  await fireEvent.press(screen.getByLabelText('Back'));
+  expect(mockBack).toHaveBeenCalled();
+});
+
 it('shows a plain error when saving the category fails', async () => {
   update.mockRejectedValue(new Error('x'));
   await renderScreen(<TransactionDetail />);
@@ -186,6 +200,40 @@ describe('split editor', () => {
     await fireEvent.press(screen.getByText('Save'));
     expect(setSplits).not.toHaveBeenCalled();
     await fireEvent.changeText(screen.getByLabelText('Part 2 amount'), '6');
+    await fireEvent.press(screen.getByText('Save'));
+    expect(setSplits).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables Save visibly and explains why', async () => {
+    await renderScreen(<TransactionDetail />);
+    await openSplit();
+    const save = () => screen.getByRole('button', { name: 'Save' });
+    expect(save().props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
+    await fireEvent.press(screen.getByText('Save'));
+    expect(setSplits).not.toHaveBeenCalled();
+    expect(screen.getByText('Pick a category for every part.')).toBeTruthy();
+    await pickPart(1, 'Groceries');
+    await pickPart(2, 'Eating out');
+    expect(screen.queryByText('Pick a category for every part.')).toBeNull();
+    expect(screen.getByText('Amounts must be numbers above $0.')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Part 1 amount'), '4');
+    await fireEvent.changeText(screen.getByLabelText('Part 2 amount'), '6');
+    expect(screen.queryByText('Amounts must be numbers above $0.')).toBeNull();
+    expect(save().props.accessibilityState).toEqual(expect.objectContaining({ disabled: false }));
+  });
+
+  it('removing an extra part re-enables Save', async () => {
+    await renderScreen(<TransactionDetail />);
+    await openSplit();
+    expect(screen.queryByLabelText('Remove part 1')).toBeNull();
+    await pickPart(1, 'Groceries');
+    await pickPart(2, 'Eating out');
+    await fireEvent.changeText(screen.getByLabelText('Part 1 amount'), '4');
+    await fireEvent.changeText(screen.getByLabelText('Part 2 amount'), '6');
+    await fireEvent.press(screen.getByText('+ Add part'));
+    expect(screen.getByRole('button', { name: 'Save' }).props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
+    await fireEvent.press(screen.getByLabelText('Remove part 3'));
+    expect(screen.getByRole('button', { name: 'Save' }).props.accessibilityState).toEqual(expect.objectContaining({ disabled: false }));
     await fireEvent.press(screen.getByText('Save'));
     expect(setSplits).toHaveBeenCalledTimes(1);
   });

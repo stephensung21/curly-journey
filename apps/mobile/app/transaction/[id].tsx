@@ -30,7 +30,7 @@ const SAVE_ERROR = "Couldn't save. Try again.";
 /** What a learned rule matches on: the merchant, else the start of the raw description. The API needs 3 to 60 characters. */
 function ruleText(txn: Transaction): string | null {
   if (txn.merchant.length >= 3) return txn.merchant;
-  const raw = txn.description.slice(0, 60);
+  const raw = txn.description.slice(0, 60).trim();
   return raw.length >= 3 ? raw : null;
 }
 
@@ -71,7 +71,7 @@ function RememberSheet({
   const [always, setAlways] = useState(true);
   const [past, setPast] = useState(true);
   const [failed, setFailed] = useState(false);
-  const name = txn.merchant || txn.description;
+  const name = matchText ?? txn.description;
   const earlier = preview.data?.matches ?? 0;
 
   async function done() {
@@ -102,7 +102,7 @@ function RememberSheet({
   );
 }
 
-function NotSpendingSheet({ txn, matchText, onClose }: { txn: Transaction; matchText: string; onClose: () => void }) {
+function NotSpendingSheet({ matchText, onClose }: { matchText: string; onClose: () => void }) {
   const createRule = useCreateRule();
   const [always, setAlways] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -120,17 +120,25 @@ function NotSpendingSheet({ txn, matchText, onClose }: { txn: Transaction; match
 
   return (
     <Sheet visible onClose={onClose}>
-      <ToggleRow label={`Always treat ${txn.merchant || txn.description} as not spending`} value={always} onChange={setAlways} />
+      <ToggleRow label={`Always treat ${matchText} as not spending`} value={always} onChange={setAlways} />
       {failed ? <AppText tone="muted">{SAVE_ERROR}</AppText> : null}
       <Button label="Done" onPress={done} />
     </Sheet>
   );
 }
 
+function BackButton() {
+  const router = useRouter();
+  return (
+    <Pressable accessibilityLabel="Back" accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
+      <AppText variant="title">‹</AppText>
+    </Pressable>
+  );
+}
+
 type ErrorKey = 'category' | 'flow' | 'note' | 'split';
 
 function Detail({ txn }: { txn: Transaction }) {
-  const router = useRouter();
   const t = useTheme();
   const categories = useCategories().data ?? [];
   const accounts = useAccounts().data?.accounts ?? [];
@@ -190,9 +198,7 @@ function Detail({ txn }: { txn: Transaction }) {
 
   return (
     <Screen>
-      <Pressable accessibilityLabel="Back" accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
-        <AppText variant="title">‹</AppText>
-      </Pressable>
+      <BackButton />
 
       <View style={{ gap: 6 }}>
         <IconTile emoji={category?.emoji ?? '?'} color={category ? categoryColor(category.color, t) : t.line} size={56} />
@@ -259,7 +265,7 @@ function Detail({ txn }: { txn: Transaction }) {
       <CategoryPicker visible={picking} onClose={() => setPicking(false)} onPick={pickCategory} categories={categories} />
       {remember ? <RememberSheet txn={txn} matchText={matchText} category={remember} onClose={() => setRemember(null)} /> : null}
       {notSpending && matchText !== null ? (
-        <NotSpendingSheet txn={txn} matchText={matchText} onClose={() => setNotSpending(false)} />
+        <NotSpendingSheet matchText={matchText} onClose={() => setNotSpending(false)} />
       ) : null}
       {splitting ? (
         <SplitEditor visible onClose={() => setSplitting(false)} txn={txn} categories={categories} onSave={saveSplits} failed={errors.split} />
@@ -274,6 +280,7 @@ export default function TransactionDetailScreen() {
   if (!q.data) {
     return (
       <Screen>
+        <BackButton />
         <AppText tone="muted">{q.isError ? "Couldn't load this transaction." : 'Loading…'}</AppText>
       </Screen>
     );

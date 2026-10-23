@@ -49,6 +49,11 @@ export function SplitEditor({
   const cents = parts.map(p => magnitudeCents(p.text));
   const assigned = cents.reduce<number>((sum, c) => sum + (c ?? 0), 0);
   const remaining = total - assigned;
+  const hint = parts.some(p => p.categoryId === null)
+    ? 'Pick a category for every part.'
+    : cents.some(c => c === null)
+      ? 'Amounts must be numbers above $0.'
+      : null;
   const valid = parts.length >= 2 && parts.every((p, i) => p.categoryId !== null && cents[i] !== null) && remaining === 0;
 
   const set = (i: number, patch: Partial<Part>) => setParts(ps => ps.map((p, j) => (j === i ? { ...p, ...patch } : p)));
@@ -88,12 +93,23 @@ export function SplitEditor({
                   textAlign: 'right',
                 }}
               />
+              {parts.length > 2 ? (
+                <Pressable
+                  accessibilityLabel={`Remove part ${i + 1}`}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={() => setParts(ps => ps.filter((_, j) => j !== i))}
+                >
+                  <AppText tone="muted">Remove</AppText>
+                </Pressable>
+              ) : null}
             </View>
           );
         })}
         <Pressable accessibilityRole="button" onPress={() => setParts(ps => [...ps, { categoryId: null, text: '' }])}>
           <AppText tone="muted">+ Add part</AppText>
         </Pressable>
+        {hint ? <AppText tone="muted">{hint}</AppText> : null}
         <AppText tone="muted">
           <Amount cents={Math.abs(remaining)} inline />
           {remaining < 0 ? ' too much' : ' left to assign'}
