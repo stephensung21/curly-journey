@@ -128,8 +128,8 @@ export interface Repo {
   /** Up to `limit` rows with categorised = false, oldest first. */
   uncategorisedForPipeline(limit: number): Promise<UncategorisedRow[]>;
   /**
-   * Copies each edit onto one matching row (same account and amount, dated within 3 days, not itself user-set; closest
-   * date, then lowest id), in one query. Returns how many rows were updated.
+   * Copies each edit onto one matching new row (same account and amount, dated within 3 days, not yet categorised,
+   * not itself user-set; closest date, then lowest id), in one query. Returns how many rows were updated.
    */
   carryEdits(edits: CarriedEdit[]): Promise<number>;
   /** Writes pipeline results and marks the rows categorised; user-set categories and flows are kept. */
@@ -557,7 +557,8 @@ export function makeRepo(db: Db): Repo {
            select e.*, t.id as target, abs(t.date - e.date) as gap,
              row_number() over (partition by e.idx order by abs(t.date - e.date), t.id) as edit_rank
            from e join transaction t on t.account_id = e.account_id and t.amount_cents = e.amount_cents
-             and abs(t.date - e.date) <= 3 and t.category_source is distinct from 'user' and t.flow_source <> 'user'
+             and abs(t.date - e.date) <= 3 and not t.categorised
+             and t.category_source is distinct from 'user' and t.flow_source <> 'user'
          ), best as (
            select *, row_number() over (partition by target order by gap, idx) as target_rank from c where edit_rank = 1
          )

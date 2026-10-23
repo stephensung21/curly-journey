@@ -181,9 +181,74 @@ describe('runPipeline after sync', () => {
     await syncAll();
     expect((await rows()).get('101')).toMatchObject({ category: 'Shopping', category_source: 'user', categorised: true });
   });
+
+  it("carries the owner's edits even when the pipeline fails before categorising", async () => {
+    const { db, data, deps, rows, syncAll } = await setup({ 1: [tx(100, 1, '2026-10-20', -20, 'KMART 123', { status: 'pending' })] });
+    await syncAll();
+    const shopping = (await db.query<{ id: number }>("select id from category where name = 'Shopping'"))[0]!.id;
+    await db.query(`update transaction set category_id = $1, category_source = 'user' where external_id = '100'`, [shopping]);
+    data.transactions[1] = [tx(101, 1, '2026-10-20', -20, 'KMART 123 POSTED')];
+    const failing: Db = {
+      query: (t, p) => (/from rule/.test(t) ? Promise.reject(new Error('rules unavailable')) : db.query(t, p)),
+    };
+    expect(await runSync({ ...deps, db: failing })).toMatchObject({ status: 'failed' });
+    expect((await rows()).get('101')).toMatchObject({ category: 'Shopping', category_source: 'user', categorised: false });
+  });
+
+  it("carries the owner's edits even when the history phase fails", async () => {
+    const { db, data, deps, rows, syncAll } = await setup({ 1: [tx(100, 1, '2026-10-20', -20, 'KMART 123', { status: 'pending' })] });
+    await syncAll();
+    const shopping = (await db.query<{ id: number }>("select id from category where name = 'Shopping'"))[0]!.id;
+    await db.query(`update transaction set category_id = $1, category_source = 'user' where external_id = '100'`, [shopping]);
+    data.transactions[1] = [tx(101, 1, '2026-10-20', -20, 'KMART 123 POSTED')];
+    // A new account needs history, and recording its first window fails.
+    data.accounts = [...ACCOUNTS, acct(4, 'bank', 'Saver', 'CommBank')];
+    const failing: Db = {
+      query: (t, p) => (/set history_from/.test(t) ? Promise.reject(new Error('history write failed')) : db.query(t, p)),
+    };
+    expect(await runSync({ ...deps, db: failing })).toMatchObject({ status: 'failed', error: 'history write failed' });
+    expect((await rows()).get('101')).toMatchObject({ category: 'Shopping', category_source: 'user' });
+  });
+
+  it("gives a carried edit only to a new row, never to an older categorised one", async () => {
+    const { db, data, deps, rows, syncAll } = await setup({
+      1: [tx(5, 1, '2026-10-20', -20, 'KMART 123'), tx(100, 1, '2026-10-20', -20, 'KMART 123', { status: 'pending' })],
+    });
+    await syncAll();
+    const shopping = (await db.query<{ id: number }>("select id from category where name = 'Shopping'"))[0]!.id;
+    await db.query(`update transaction set category_id = $1, category_source = 'user', note = 'gift' where external_id = '100'`, [shopping]);
+    data.transactions[1] = [tx(5, 1, '2026-10-20', -20, 'KMART 123'), tx(101, 1, '2026-10-20', -20, 'KMART 123')];
+    expect(await runSync(deps)).toMatchObject({ status: 'ok' });
+    const r = await rows();
+    expect(Number(r.get('5')!.id)).toBeLessThan(Number(r.get('101')!.id));
+    expect(r.get('5')).toMatchObject({ category_source: 'merchant', note: null });
+    expect(r.get('101')).toMatchObject({ category_source: 'user', note: 'gift' });
+  });
+
+  it('skips flow detection when the sync changed nothing and nothing needed categorising', async () => {
+    const { db, deps, syncAll } = await setup({});
+    await syncAll();
+    const texts: string[] = [];
+    const recording: Db = { query: (t, p) => (texts.push(t), db.query(t, p)) };
+    expect(await runSync({ ...deps, db: recording })).toMatchObject({ status: 'ok', more: false, since: null });
+    expect(texts.some((t) => t.includes('t.description_raw, t.flow, t.flow_source'))).toBe(false);
+  });
 });
 
 describe('runPipeline', () => {
+  it('also updates the older partner of a newly paired row', async () => {
+    const { db, rows, syncAll } = await setup({ 1: [tx(1, 1, '2026-10-10', -2530, 'TRANSFER TO 3711')] });
+    await syncAll();
+    expect((await rows()).get('1')).toMatchObject({ flow: 'normal' });
+    const amex = (await db.query<{ id: number }>("select id from account where kind = 'credit_card'"))[0]!.id;
+    const repo = makeRepo(db);
+    await repo.insertCsvRows(amex, [{ row: { date: '2026-10-11', amountCents: 253000, description: 'PAYMENT RECEIVED - THANK YOU' }, fingerprint: 'a1' }]);
+    await runPipeline(repo, { since: '2026-10-11' });
+    const r = await rows();
+    expect(r.get('1')).toMatchObject({ flow: 'transfer', pair_id: r.get('a1')!.id });
+    expect(r.get('a1')).toMatchObject({ flow: 'transfer', pair_id: r.get('1')!.id });
+  });
+
   it('categorises at most 1000 rows per run, oldest first, in a fixed number of queries', async () => {
     const db = await pgliteDb();
     const repo = makeRepo(db);

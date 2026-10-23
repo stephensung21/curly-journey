@@ -78,6 +78,13 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
   let accounts = 0;
   let transactions = 0;
   let since: string | null = null;
+  /** The owner's edits on rows reconciliation deleted; they exist only here until carried to the replacement rows. */
+  let carried: CarriedEdit[] = [];
+  async function carry() {
+    if (!carried.length) return;
+    await repo.carryEdits(carried);
+    carried = [];
+  }
 
   /**
    * Fetches pages from `cursor` (or the first page) until the last one, upserting each page in one query. A page is
@@ -134,7 +141,6 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
     // Refetch the recent window across all accounts in one paginated pass, then drop feed rows PocketSmith no longer
     // returns there, so a pending row that posts under a new ID disappears. Only accounts whose history has started
     // are pruned; the others get today in their first history window below.
-    let carried: CarriedEdit[] = [];
     const started = states.filter((s) => s.historyFrom !== null).map((s) => s.id);
     if (started.length) {
       const from = addDays(today, -RECONCILE_DAYS);
@@ -176,13 +182,14 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
       }
     }
 
-    // Categorise and detect transfers with what is left. Short of budget, leave it to the next run, but still carry
-    // the owner's edits from deleted rows now (they exist only in memory); that one query may come from the reserve,
-    // which still leaves one call to record the result.
-    if (left() >= PIPELINE_CALLS) {
-      if ((await runPipeline(repo, { since, carried })).more) more = true;
+    // Carry the owner's edits first, so the pipeline treats them as the owner's. Then categorise and detect transfers
+    // with what is left (the carry counts within PIPELINE_CALLS), or leave that to the next run. Short of budget, the
+    // carry may use one call of the reserve, which still leaves one to record the result.
+    const room = left() >= PIPELINE_CALLS;
+    await carry();
+    if (room) {
+      if ((await runPipeline(repo, { since })).more) more = true;
     } else {
-      if (carried.length) await repo.carryEdits(carried);
       more = true;
     }
 
@@ -190,6 +197,12 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
     return { status: 'ok', accounts, transactions, more, since };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
+    try {
+      // Best effort: otherwise the owner's edits on deleted rows are lost. May use one call of the reserve.
+      await carry();
+    } catch {
+      // The edits are lost; the sync is already failing.
+    }
     try {
       await repo.finishSync(id, { status: 'failed', error, accounts, transactions }, deps.now());
     } catch {
