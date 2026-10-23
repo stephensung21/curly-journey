@@ -6,6 +6,7 @@ import { makeRepo } from './db/repo';
 import { accountRoutes } from './routes/accounts';
 import { categoryRoutes } from './routes/categories';
 import { importRoutes } from './routes/imports';
+import { limitRoutes } from './routes/limits';
 import { ruleRoutes } from './routes/rules';
 import { spendingRoutes } from './routes/spending';
 import { syncRoutes } from './routes/sync';
@@ -24,5 +25,6 @@ export function createApp(deps: Deps) {
   app.route('/', transactionRoutes(deps));
   app.route('/', ruleRoutes(deps));
   app.route('/', spendingRoutes(deps));
+  app.route('/', limitRoutes(deps));
   return app;
 }
