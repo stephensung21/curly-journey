@@ -11,3 +11,4 @@ export * from './sync/staleness';
 export * from './spending/categories';
 export * from './spending/merchant';
 export * from './spending/pocketsmithCategory';
+export * from './spending/categorise';
