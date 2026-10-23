@@ -108,8 +108,9 @@ describe('transactions', () => {
     ];
     expect(await repo.insertCsvRows(id, rows)).toBe(2);
     expect(await repo.insertCsvRows(id, rows)).toBe(0);
-    const near = await repo.transactionsNear(id, '2026-10-01', '2026-10-02');
-    expect(near).toEqual([{ date: '2026-10-02', amountCents: -100, description: 'X' }]);
+    // transactionsNear returns feed rows only, so CSV rows never appear.
+    expect(await repo.transactionsNear(id, '2026-10-01', '2026-10-02')).toEqual([]);
+    expect(await repo.listTransactions(id, '2026-10')).toHaveLength(2);
   });
 });
 
