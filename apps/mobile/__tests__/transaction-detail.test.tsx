@@ -124,6 +124,38 @@ it('labels sheets with what the rule matches when the merchant is short', async 
   expect(screen.getByText(`Always put ${base.description} in Groceries`)).toBeTruthy();
 });
 
+it('trims a padded merchant for labels and the rule', async () => {
+  txn = { ...base, merchant: '  Woolworths  ' };
+  await renderScreen(<TransactionDetail />);
+  await pickGroceries();
+  expect(screen.getByText('Always put Woolworths in Groceries')).toBeTruthy();
+  await fireEvent.press(screen.getByText('Done'));
+  expect(createRule).toHaveBeenCalledWith(expect.objectContaining({ matchText: 'Woolworths' }));
+});
+
+it('not-spending sheet trims a padded merchant', async () => {
+  txn = { ...base, merchant: '  Woolworths  ' };
+  await renderScreen(<TransactionDetail />);
+  await fireEvent.press(screen.getByText('Not spending'));
+  expect(screen.getByText('Always treat Woolworths as not spending')).toBeTruthy();
+  await fireEvent.press(screen.getByText('Done'));
+  expect(createRule).toHaveBeenCalledWith(expect.objectContaining({ matchText: 'Woolworths', flow: 'not_spending' }));
+});
+
+it('not-spending sheet uses the description when the merchant is short', async () => {
+  txn = { ...base, merchant: 'AB' };
+  await renderScreen(<TransactionDetail />);
+  await fireEvent.press(screen.getByText('Not spending'));
+  expect(screen.getByText(`Always treat ${base.description} as not spending`)).toBeTruthy();
+});
+
+it('keeps Back in the loading state', async () => {
+  (mocked.useTransaction as jest.Mock).mockReturnValue({ data: undefined, isError: false });
+  await renderScreen(<TransactionDetail />);
+  await fireEvent.press(screen.getByLabelText('Back'));
+  expect(mockBack).toHaveBeenCalled();
+});
+
 it('keeps Back in the error state', async () => {
   (mocked.useTransaction as jest.Mock).mockReturnValue({ data: undefined, isError: true });
   await renderScreen(<TransactionDetail />);

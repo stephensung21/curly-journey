@@ -29,7 +29,8 @@ const SAVE_ERROR = "Couldn't save. Try again.";
 
 /** What a learned rule matches on: the merchant, else the start of the raw description. The API needs 3 to 60 characters. */
 function ruleText(txn: Transaction): string | null {
-  if (txn.merchant.length >= 3) return txn.merchant;
+  const merchant = txn.merchant.trim();
+  if (merchant.length >= 3) return merchant;
   const raw = txn.description.slice(0, 60).trim();
   return raw.length >= 3 ? raw : null;
 }
