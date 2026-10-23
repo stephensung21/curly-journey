@@ -7,7 +7,10 @@ import {
 } from '@curly/core';
 import { Hono } from 'hono';
 import type { Deps } from '../app';
+import type { Db } from '../db/db';
 import { makeRepo, type Repo } from '../db/repo';
+import { PIPELINE_CALLS, runPipeline } from '../spending/pipeline';
+import { MAX_CALLS } from '../sync/runSync';
 
 const MAX_BYTES = 2 * 1024 * 1024;
 
@@ -99,12 +102,30 @@ export function importRoutes(deps: Deps) {
   });
 
   r.post('/imports/commit', async (c) => {
-    const { accountId, format, csv } = await readRequest(c.req.raw, repo);
-    const p = await buildPreview(repo, accountId, format, csv);
-    const inserted = await repo.insertCsvRows(
+    // Count queries like runSync does: the pipeline only runs if this request has room for it.
+    let used = 0;
+    const db: Db = {
+      query(text, params) {
+        used++;
+        return deps.db.query(text, params);
+      },
+    };
+    const counted = makeRepo(db);
+    const { accountId, format, csv } = await readRequest(c.req.raw, counted);
+    const p = await buildPreview(counted, accountId, format, csv);
+    const inserted = await counted.insertCsvRows(
       accountId,
       p.new.map((row, i) => ({ row, fingerprint: p.newKeys[i]! })),
     );
+    if (inserted && MAX_CALLS - used >= PIPELINE_CALLS) {
+      const since = p.new.map((row) => row.date).sort()[0]!;
+      try {
+        await runPipeline(counted, { since, now: deps.now() });
+      } catch (e) {
+        // The rows are in and stay uncategorised; the next sync's pipeline picks them up.
+        console.error('pipeline after import failed', e);
+      }
+    }
     return c.json({ inserted });
   });
 

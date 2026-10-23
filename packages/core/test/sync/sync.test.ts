@@ -22,12 +22,19 @@ describe('mapTransaction', () => {
   const base = {
     id: 42, payee: 'Cafe', original_payee: null, date: '2026-10-01', amount: -12.3,
     status: 'posted' as const, updated_at: '2026-10-02T00:00:00Z', transaction_account: { id: 7 },
+    category: { title: 'Eating Out' }, memo: 'lunch', created_at: '2026-10-01T05:00:00Z',
   };
   it('maps fields', () => {
     expect(mapTransaction(base)).toEqual({
       source: 'pocketsmith', externalId: '42', accountExternalId: '7', date: '2026-10-01',
       amountCents: -1230, descriptionRaw: 'Cafe', payee: 'Cafe', status: 'posted',
+      merchant: 'Cafe', psCategory: 'Eating Out', memo: 'lunch', feedCreatedAt: '2026-10-01T05:00:00Z',
     });
+  });
+  it('cleans the merchant from payee, falling back to original_payee', () => {
+    expect(mapTransaction({ ...base, payee: 'WOOLWORTHS 1234 SYDNEY' }).merchant).toBe('Woolworths');
+    expect(mapTransaction({ ...base, payee: '', original_payee: 'WOOLWORTHS 1234 SYDNEY' }).merchant).toBe('Woolworths');
+    expect(mapTransaction({ ...base, category: null, memo: null })).toMatchObject({ psCategory: null, memo: null });
   });
   it('is float-safe', () => {
     expect(mapTransaction({ ...base, amount: 0.1 + 0.2 }).amountCents).toBe(30);

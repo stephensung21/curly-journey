@@ -113,7 +113,8 @@ Agreed with the owner to leave out of v1 and possibly add later (see `PLAN.md`):
 | Up | Spending | PocketSmith API v2 | Balance and transactions |
 | CommSec | ETF holdings (VDHG, VAS, VGS) | CSV import from CommSec transaction history | Trades, which the app turns into holdings |
 | ETF prices | VDHG, VAS, VGS | Free end-of-day price API, refreshed daily after ASX close | Closing prices |
-| AMP super | Super | Manual entry | Value and as-of date |
+| CoinSpot | Crypto | CoinSpot API v2, read-only key (key and secret are Worker secrets `COINSPOT_KEY` / `COINSPOT_SECRET`); 1–2 calls per sync, inside the 45-call budget | Coin balances valued in AUD |
+| AMP super | Super | Manual entry (no Open Banking or member API; no scraping with the owner's password) | Value and as-of date |
 | Home | Property | Manual entry | Value and as-of date, optional growth % |
 | Mortgage terms | Home loan | Manual entry (the feed gives balance only) | Rate, repayment, frequency, term left |
 
@@ -199,7 +200,7 @@ Any transaction can be recategorised at any time. Recategorising updates totals 
 
 ### 9.8 Net worth
 
-- **Assets**: CommBank balances (incl. offset), Up, CommSec holdings at the latest close, AMP super (manual), home (manual, optional annual growth %).
+- **Assets**: CommBank balances (incl. offset), Up, CommSec holdings at the latest close, CoinSpot (AUD value), AMP super (manual), home (manual, optional annual growth %).
 - **Liabilities**: home loan, Amex balance.
 - **Display**: headline figure, a history chart (from daily snapshots taken by the backend), and a breakdown list.
 - **Per-account toggles**:
@@ -207,7 +208,7 @@ Any transaction can be recategorised at any time. Recategorising updates totals 
 | Account | Spending | Net worth | Projections |
 |---|---|---|---|
 | Everyday CommBank, Amex and Up accounts | on | on | off |
-| Super, home | off (locked off by default, can't be counted as spending unless the owner changes it explicitly) | on | off |
+| Super, home, CoinSpot | off (locked off by default, can't be counted as spending unless the owner changes it explicitly) | on | off |
 | CommSec | off | on | ETF |
 | Home loan, offset | off | on | Mortgage |
 
@@ -294,7 +295,7 @@ A fuller visual design pass (all screens, tokens, components) follows this docum
 1. **Foundations**: repo, Expo shell with tabs and design tokens, biometric lock, first APK on the phone.
 2. **Bank sync**: PocketSmith sync, bank CSV import and backfill, accounts list, account detail, sync health.
 3. **Spending**: categorisation pipeline, recategorise and inbox, transfer and mortgage detection, combined spending, Home in/out chart.
-4. **Warnings and calendar**: limits, bill events, alerts, auto-paid matching.
+4. **Warnings and calendar**: limits, bill events, alerts, auto-paid matching. Also (owner request, 2026-10-24): the CoinSpot feed and the manual AMP super account with its 3-month update nudge, pulled forward from step 5.
 5. **Holdings and net worth**: CommSec import, prices, manual entries, net worth and snapshots, trade hint.
 6. **Projections**: ETF, mortgage and Both modes, with unit tests on the projection and amortisation maths.
 

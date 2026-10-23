@@ -5,6 +5,7 @@ import { Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useConnection } from '../src/api/hooks';
 import { QueryProvider } from '../src/api/QueryProvider';
 import { LockGate } from '../src/lock/LockGate';
@@ -26,6 +27,10 @@ function AppStack() {
           <Stack.Screen name="settings" options={{ headerShown: false }} />
           <Stack.Screen name="account/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="account/[id]/settings" options={{ headerShown: false }} />
+          <Stack.Screen name="transaction/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="category/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="inbox" options={{ headerShown: false }} />
+          <Stack.Screen name="rules" options={{ headerShown: false }} />
           <Stack.Screen name="import" options={{ headerShown: false }} />
           <Stack.Screen name="design-system" options={{ headerShown: false }} />
         </Stack.Protected>
@@ -52,13 +57,15 @@ export default function RootLayout() {
   if (!loaded) return null;
 
   return (
-    <ThemeProvider value={navTheme(theme)}>
-      <StatusBar style={statusBarStyle(theme.mode)} />
-      <LockGate>
-        <QueryProvider>
-          <AppStack />
-        </QueryProvider>
-      </LockGate>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={navTheme(theme)}>
+        <StatusBar style={statusBarStyle(theme.mode)} />
+        <LockGate>
+          <QueryProvider>
+            <AppStack />
+          </QueryProvider>
+        </LockGate>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { PsTransaction, PsTransactionAccount } from '@curly/core';
 import { createApp } from '../src/app';
 import { makeRepo } from '../src/db/repo';
+import { PocketSmithError, type TransactionQuery } from '../src/pocketsmith';
 import { runSync, syncDue } from '../src/sync/runSync';
 import { fakePocketSmith, pgliteDb, seedToken } from './helpers';
 
@@ -9,9 +10,10 @@ const acct = (id: number, bal: number): PsTransactionAccount => ({
   id, name: `Acct ${id}`, number: null, type: 'bank', currency_code: 'aud',
   current_balance: bal, current_balance_date: '2026-10-22', institution: { id: 1, title: 'Bank' },
 });
-const tx = (id: number, accountId: number, date = '2026-10-20'): PsTransaction => ({
+const tx = (id: number, accountId: number, date = '2026-10-20', over: Partial<PsTransaction> = {}): PsTransaction => ({
   id, payee: `P${id}`, original_payee: null, date, amount: -10, status: 'posted',
   updated_at: '2026-10-20T00:00:00Z', transaction_account: { id: accountId },
+  category: null, memo: null, created_at: '2026-10-20T01:00:00Z', ...over,
 });
 const T0 = new Date('2026-10-23T00:00:00Z');
 
@@ -25,7 +27,7 @@ async function setup(ps = fakePocketSmith({ accounts: [acct(1, 10), acct(2, 20)]
 describe('runSync', () => {
   it('full sync', async () => {
     const { deps, app, auth } = await setup();
-    expect(await runSync(deps)).toEqual({ status: 'ok', accounts: 2, transactions: 3, more: false });
+    expect(await runSync(deps)).toEqual({ status: 'ok', accounts: 2, transactions: 3, more: false, since: '2026-10-20' });
     const res = await app.request('/accounts', { headers: auth });
     expect(((await res.json()) as { accounts: unknown[] }).accounts.length).toBe(2);
   });
@@ -46,8 +48,8 @@ describe('runSync', () => {
   it('loads the newest window of every account before older history', async () => {
     const ps = fakePocketSmith({ accounts: [acct(1, 1), acct(2, 2), acct(3, 3)] });
     const { db } = await setup(ps);
-    // Overhead 4 + 3 account upserts, then 2 calls per empty window: room for 4 windows.
-    const r = await runSync({ db, pocketsmith: ps, now: () => T0 }, { maxCalls: 17 });
+    // Overhead 4 (one query upserts every account), then 2 calls per empty window: room for 4 windows.
+    const r = await runSync({ db, pocketsmith: ps, now: () => T0 }, { maxCalls: 15 });
     expect(r.more).toBe(true);
     expect(ps.calls.filter((c) => c.startsWith('transactions:'))).toEqual([
       'transactions:1::2026-07-26:2026-10-23:1',
@@ -57,15 +59,75 @@ describe('runSync', () => {
     ]);
   });
 
-  it('incremental uses last start minus 1h once history has started', async () => {
+  it('reconciles the last 14 days of every account whose history has started', async () => {
     const ps = fakePocketSmith({ accounts: [acct(1, 10)] });
     const { db } = await setup(ps);
     let now = T0;
     const deps = { db, pocketsmith: ps, now: () => now };
     await runSync(deps);
+    expect(ps.calls.some((c) => c.startsWith('userTransactions:'))).toBe(false);
+    now = new Date('2026-10-23T04:00:00Z');
+    ps.calls.length = 0;
+    await runSync(deps);
+    expect(ps.calls.filter((c) => c.startsWith('userTransactions:'))).toEqual(['userTransactions:1:2026-10-09:2026-10-23:1']);
+    expect(ps.calls.some((c) => /^transactions:1:[^:]/.test(c))).toBe(false);
+  });
+
+  it('replaces a pending row that posts under a new ID', async () => {
+    const data = { accounts: [acct(1, 10)], transactions: { 1: [tx(100, 1, '2026-10-20', { amount: -20, status: 'pending' })] } };
+    const ps = fakePocketSmith(data);
+    const { db } = await setup(ps);
+    let now = T0;
+    const deps = { db, pocketsmith: ps, now: () => now };
+    await runSync(deps);
+    data.transactions[1] = [tx(101, 1, '2026-10-20', { amount: -20, status: 'posted' })];
+    now = new Date('2026-10-23T04:00:00Z');
+    const r = await runSync(deps);
+    expect(r).toMatchObject({ status: 'ok', since: '2026-10-20' });
+    const rows = await db.query<{ external_id: string; status: string }>('select external_id, status from transaction');
+    expect(rows).toEqual([{ external_id: '101', status: 'posted' }]);
+  });
+
+  it('keeps feed rows older than the window and CSV rows inside it', async () => {
+    const data = { accounts: [acct(1, 10)], transactions: { 1: [tx(1, 1, '2026-09-23'), tx(2, 1, '2026-10-20')] } };
+    const ps = fakePocketSmith(data);
+    const { db } = await setup(ps);
+    let now = T0;
+    const deps = { db, pocketsmith: ps, now: () => now };
+    await runSync(deps);
+    const [a] = await makeRepo(db).listAccounts();
+    await makeRepo(db).insertCsvRows(a!.id, [{ row: { date: '2026-10-21', amountCents: -5, description: 'CSV ROW' }, fingerprint: 'c1' }]);
+    data.transactions[1] = [tx(3, 1, '2026-10-21')];
     now = new Date('2026-10-23T04:00:00Z');
     await runSync(deps);
-    expect(ps.calls).toContain(`transactions:1:${new Date('2026-10-22T23:00:00Z').toISOString()}:::1`);
+    const rows = await db.query<{ external_id: string }>('select external_id from transaction order by external_id');
+    expect(rows.map((r) => r.external_id)).toEqual(['1', '3', 'c1']);
+  });
+
+  it('stores merchant, PocketSmith category, memo and feed time, and a re-sync never touches the category', async () => {
+    const data = {
+      accounts: [acct(1, 10)],
+      transactions: {
+        1: [tx(1, 1, '2026-10-20', { payee: 'WOOLWORTHS 1234 SYDNEY', category: { title: 'Groceries' }, memo: 'weekly shop', created_at: '2026-10-20T03:04:05Z' })],
+      },
+    };
+    const ps = fakePocketSmith(data);
+    const { db } = await setup(ps);
+    let now = T0;
+    const deps = { db, pocketsmith: ps, now: () => now };
+    await runSync(deps);
+    const groceries = await db.query<{ id: number }>("select id from category where name = 'Groceries'");
+    const q = () =>
+      db.query<{ merchant: string; ps_category: string | null; memo: string | null; feed: string; category_id: number | null }>(
+        `select merchant, ps_category, memo, to_char(feed_created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS') as feed, category_id from transaction`,
+      );
+    expect(await q()).toEqual([{ merchant: 'Woolworths', ps_category: 'Groceries', memo: 'weekly shop', feed: '2026-10-20T03:04:05', category_id: groceries[0]!.id }]);
+    const cat = await db.query<{ id: number }>("select id from category where name = 'Dining out'");
+    await db.query('update transaction set category_id = $1', [cat[0]!.id]);
+    data.transactions[1] = [tx(1, 1, '2026-10-20', { payee: 'WOOLWORTHS 1234 SYDNEY', category: { title: 'Shopping' }, memo: 'edited' })];
+    now = new Date('2026-10-23T04:00:00Z');
+    await runSync(deps);
+    expect(await q()).toEqual([{ merchant: 'Woolworths', ps_category: 'Shopping', memo: 'edited', feed: '2026-10-20T03:04:05', category_id: cat[0]!.id }]);
   });
 
   it('spreads a long history over several runs, each within the call budget', async () => {
@@ -88,8 +150,8 @@ describe('runSync', () => {
     for (let i = 0; i < 30; i++) {
       dbCalls = 0;
       const psBefore = ps.calls.length;
-      const r = await runSync({ db: counting, pocketsmith: ps, now: () => new Date(now) }, { maxCalls: 20 });
-      expect(dbCalls + ps.calls.length - psBefore).toBeLessThanOrEqual(20);
+      const r = await runSync({ db: counting, pocketsmith: ps, now: () => new Date(now) }, { maxCalls: 30 });
+      expect(dbCalls + ps.calls.length - psBefore).toBeLessThanOrEqual(30);
       results.push(r);
       now += 15 * 60_000;
       if (!r.more) break;
@@ -102,16 +164,154 @@ describe('runSync', () => {
     expect(hist.every((h) => h.history_done)).toBe(true);
   });
 
-  it('fails without moving the incremental boundary when the budget runs out mid-incremental', async () => {
-    const ps = fakePocketSmith({ accounts: [acct(1, 1), acct(2, 2)] });
+  it('fails when the budget runs out mid-reconcile', async () => {
+    const txs = { 1: [tx(1, 1, '2026-10-18'), tx(2, 1, '2026-10-19'), tx(3, 1, '2026-10-20')], 2: [tx(4, 2, '2026-10-20')] };
+    const ps = fakePocketSmith({ accounts: [acct(1, 1), acct(2, 2)], transactions: txs, pageSize: 1 });
     const { db } = await setup(ps);
-    await runSync({ db, pocketsmith: ps, now: () => T0 });
+    expect(await runSync({ db, pocketsmith: ps, now: () => T0 })).toMatchObject({ status: 'ok', more: false });
     const before = await makeRepo(db).lastSuccessfulSync();
+    ps.calls.length = 0;
     const r = await runSync({ db, pocketsmith: ps, now: () => new Date('2026-10-23T04:00:00Z') }, { maxCalls: 9 });
     expect(r.status).toBe('failed');
+    // Overhead 4, then one reconcile page and its upsert: no room for the next page.
+    expect(ps.calls).toEqual(['me', 'transactionAccounts:1', 'userTransactions:1:2026-10-09:2026-10-23:1']);
     expect(await makeRepo(db).lastSuccessfulSync()).toEqual(before);
     const log = await db.query<{ status: string }>('select status from sync_log order by id desc limit 1');
     expect(log[0]!.status).toBe('failed');
+  });
+
+  it('resumes a history window from the saved page instead of restarting it', async () => {
+    const txs = { 1: Array.from({ length: 6 }, (_, i) => tx(i + 1, 1, `2026-10-1${i}`)) };
+    const ps = fakePocketSmith({ accounts: [acct(1, 1)], transactions: txs, pageSize: 1 });
+    const { db } = await setup(ps);
+    // Overhead 4, then two pages with their upserts, then the cursor is saved.
+    const r1 = await runSync({ db, pocketsmith: ps, now: () => T0 }, { maxCalls: 12 });
+    expect(r1).toMatchObject({ status: 'ok', more: true });
+    expect(ps.calls.filter((c) => c.startsWith('transactions:'))).toEqual([
+      'transactions:1::2026-07-26:2026-10-23:1',
+      'transactions:1::2026-07-26:2026-10-23:2',
+    ]);
+    ps.calls.length = 0;
+    await runSync({ db, pocketsmith: ps, now: () => new Date(T0.getTime() + 15 * 60_000) });
+    expect(ps.calls.filter((c) => c.startsWith('transactions:'))[0]).toBe('transactions:1::2026-07-26:2026-10-23:3');
+    const rows = await db.query<{ n: string }>('select count(*)::text as n from transaction');
+    expect(Number(rows[0]!.n)).toBe(6);
+    const acc = await db.query<{ history_cursor: string | null }>('select history_cursor from account');
+    expect(acc[0]!.history_cursor).toBeNull();
+  });
+
+  it('completes history for 12 accounts, one with a long window, within the default budget every run', async () => {
+    const ids = Array.from({ length: 12 }, (_, i) => i + 1);
+    const day = (d: number) => new Date(Date.UTC(2026, 9, 22 - d)).toISOString().slice(0, 10);
+    const txs: Record<number, PsTransaction[]> = {};
+    let n = 0;
+    for (const a of ids) txs[a] = Array.from({ length: 14 }, (_, i) => tx(++n, a, day(i * 30)));
+    // Account 1 also has 120 rows in its newest 90 days: 25 pages of 5, more than one run can fetch.
+    for (let k = 0; k < 120; k++) txs[1]!.push(tx(++n, 1, day(Math.floor(k * 0.75))));
+    const ps = fakePocketSmith({ accounts: ids.map((a) => acct(a, a)), transactions: txs, pageSize: 5 });
+    const db = await pgliteDb();
+    let dbCalls = 0;
+    const counting = {
+      query: (t: string, p?: unknown[]) => {
+        dbCalls++;
+        return db.query(t, p);
+      },
+    } as typeof db;
+    let now = T0.getTime();
+    const results = [];
+    for (let i = 0; i < 40; i++) {
+      dbCalls = 0;
+      const psBefore = ps.calls.length;
+      const r = await runSync({ db: counting, pocketsmith: ps, now: () => new Date(now) });
+      expect(r.status).toBe('ok');
+      expect(dbCalls + ps.calls.length - psBefore).toBeLessThanOrEqual(45);
+      results.push(r);
+      now += 15 * 60_000;
+      if (!r.more) break;
+    }
+    expect(results.at(-1)).toMatchObject({ status: 'ok', more: false });
+    const rows = await db.query<{ n: string }>('select count(*)::text as n from transaction');
+    expect(Number(rows[0]!.n)).toBe(n);
+    const hist = await db.query<{ history_done: boolean; history_cursor: string | null }>('select history_done, history_cursor from account');
+    expect(hist).toHaveLength(12);
+    expect(hist.every((h) => h.history_done && h.history_cursor === null)).toBe(true);
+  });
+
+  it('keeps the window when the reconcile fetch returns nothing', async () => {
+    const data = { accounts: [acct(1, 10)], transactions: { 1: [tx(1, 1, '2026-10-20'), tx(2, 1, '2026-10-21')] } };
+    const ps = fakePocketSmith(data);
+    const { db } = await setup(ps);
+    await runSync({ db, pocketsmith: ps, now: () => T0 });
+    data.transactions[1] = [];
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await runSync({ db, pocketsmith: ps, now: () => new Date('2026-10-23T04:00:00Z') })).toMatchObject({ status: 'ok' });
+    expect(error).toHaveBeenCalledWith('reconcile delete skipped', 2);
+    error.mockRestore();
+    const rows = await db.query<{ external_id: string }>('select external_id from transaction order by external_id');
+    expect(rows.map((r) => r.external_id)).toEqual(['1', '2']);
+  });
+
+  it('keeps the window when the reconcile would delete over 30% of it and more than 3 rows', async () => {
+    const days = Array.from({ length: 10 }, (_, i) => `2026-10-${String(11 + i).padStart(2, '0')}`);
+    const data = { accounts: [acct(1, 10)], transactions: { 1: days.map((d, i) => tx(i + 1, 1, d)) } };
+    const ps = fakePocketSmith(data);
+    const { db } = await setup(ps);
+    await runSync({ db, pocketsmith: ps, now: () => T0 });
+    const count = async () => Number((await db.query<{ n: string }>('select count(*)::text as n from transaction'))[0]!.n);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // 4 of 10 missing: skipped.
+    data.transactions[1] = data.transactions[1]!.slice(4);
+    expect(await runSync({ db, pocketsmith: ps, now: () => new Date('2026-10-23T04:00:00Z') })).toMatchObject({ status: 'ok' });
+    expect(error).toHaveBeenCalledWith('reconcile delete skipped', 4);
+    expect(await count()).toBe(10);
+    // 3 of 10 missing: deleted as usual.
+    error.mockClear();
+    data.transactions[1] = (await db.query<{ external_id: string }>('select external_id from transaction order by date'))
+      .slice(3)
+      .map((r) => tx(Number(r.external_id), 1, days[Number(r.external_id) - 1]!));
+    expect(await runSync({ db, pocketsmith: ps, now: () => new Date('2026-10-23T08:00:00Z') })).toMatchObject({ status: 'ok' });
+    expect(error).not.toHaveBeenCalled();
+    expect(await count()).toBe(7);
+    error.mockRestore();
+  });
+
+  it('restarts a history window when its saved page is rejected with a 4xx', async () => {
+    const txs = { 1: Array.from({ length: 6 }, (_, i) => tx(i + 1, 1, `2026-10-1${i}`)) };
+    const fake = fakePocketSmith({ accounts: [acct(1, 1)], transactions: txs, pageSize: 1 });
+    let stale = false;
+    const ps = {
+      ...fake,
+      transactionsPage: (id: number, q: TransactionQuery, url?: string) => {
+        if (stale && url) {
+          stale = false;
+          fake.calls.push('rejected');
+          return Promise.reject(new PocketSmithError(404));
+        }
+        return fake.transactionsPage(id, q, url);
+      },
+    };
+    const { db } = await setup(ps);
+    expect(await runSync({ db, pocketsmith: ps, now: () => T0 }, { maxCalls: 12 })).toMatchObject({ status: 'ok', more: true });
+    const saved = await db.query<{ history_cursor: string | null }>('select history_cursor from account');
+    expect(saved[0]!.history_cursor).not.toBeNull();
+    // The saved page is now rejected (say it expired): the window restarts instead of failing every run.
+    stale = true;
+    fake.calls.length = 0;
+    const r = await runSync({ db, pocketsmith: ps, now: () => new Date(T0.getTime() + 15 * 60_000) });
+    expect(r).toMatchObject({ status: 'ok' });
+    expect(fake.calls.filter((c) => c === 'rejected' || c.startsWith('transactions:')).slice(0, 2)).toEqual([
+      'rejected',
+      'transactions:1::2026-07-26:2026-10-23:1',
+    ]);
+    const rows = await db.query<{ n: string }>('select count(*)::text as n from transaction');
+    expect(Number(rows[0]!.n)).toBe(6);
+  });
+
+  it('still fails when a page without a saved cursor is rejected', async () => {
+    const fake = fakePocketSmith({ accounts: [acct(1, 1)] });
+    const ps = { ...fake, transactionsPage: () => Promise.reject(new PocketSmithError(404)) };
+    const { db } = await setup(ps);
+    expect(await runSync({ db, pocketsmith: ps, now: () => T0 })).toMatchObject({ status: 'failed' });
   });
 
   it('fails on a pagination loop instead of spinning', async () => {

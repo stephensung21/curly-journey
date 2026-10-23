@@ -20,6 +20,9 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        // Mount every tab up front and paint the scene in the app colour, so switching tabs never flashes.
+        lazy: false,
+        sceneStyle: { backgroundColor: t.bg },
         tabBarActiveTintColor: tint.active,
         tabBarInactiveTintColor: tint.inactive,
         tabBarStyle: {

@@ -1,5 +1,5 @@
 import type { PsTransaction, PsTransactionAccount } from '@curly/core';
-import type { PocketSmithClient } from './index';
+import { PocketSmithError, type PocketSmithClient, type TransactionQuery } from './index';
 
 const ORIGIN = 'https://api.pocketsmith.com';
 const BASE = `${ORIGIN}/v2`;
@@ -13,10 +13,18 @@ function nextUrl(link: string | null): string | null {
   return null;
 }
 
+function params(query: TransactionQuery): URLSearchParams {
+  const q = new URLSearchParams({ per_page: '100' });
+  if (query.updatedSince) q.set('updated_since', query.updatedSince);
+  if (query.startDate) q.set('start_date', query.startDate);
+  if (query.endDate) q.set('end_date', query.endDate);
+  return q;
+}
+
 export function pocketSmithClient(key: string, fetchImpl: typeof fetch = fetch): PocketSmithClient {
   async function get(url: string): Promise<Response> {
     const res = await fetchImpl(url, { headers: { 'X-Developer-Key': key, Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`PocketSmith request failed with status ${res.status}`);
+    if (!res.ok) throw new PocketSmithError(res.status);
     return res;
   }
 
@@ -62,12 +70,10 @@ export function pocketSmithClient(key: string, fetchImpl: typeof fetch = fetch):
       return getAll<PsTransactionAccount>(`${BASE}/users/${userId}/transaction_accounts?per_page=100`);
     },
     transactionsPage(accountId, query, pageUrl) {
-      if (pageUrl) return getPage<PsTransaction>(pageUrl);
-      const q = new URLSearchParams({ per_page: '100' });
-      if (query.updatedSince) q.set('updated_since', query.updatedSince);
-      if (query.startDate) q.set('start_date', query.startDate);
-      if (query.endDate) q.set('end_date', query.endDate);
-      return getPage<PsTransaction>(`${BASE}/transaction_accounts/${accountId}/transactions?${q}`);
+      return getPage<PsTransaction>(pageUrl ?? `${BASE}/transaction_accounts/${accountId}/transactions?${params(query)}`);
+    },
+    userTransactionsPage(userId, query, pageUrl) {
+      return getPage<PsTransaction>(pageUrl ?? `${BASE}/users/${userId}/transactions?${params(query)}`);
     },
   };
 }

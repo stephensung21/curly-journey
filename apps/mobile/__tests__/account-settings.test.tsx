@@ -12,7 +12,7 @@ jest.mock('../src/api/hooks');
 const mocked = hooks as jest.Mocked<typeof hooks>;
 const account = {
   id: 7, source: 'pocketsmith', institution: 'CommBank', name: 'Everyday', displayName: null, kind: 'transaction',
-  balanceCents: 1, balanceDate: null, countsSpending: true, countsNetWorth: true, projections: 'off', isOffset: false, stale: false,
+  balanceCents: 1, balanceDate: null, countsSpending: true, countsNetWorth: true, projections: 'off', isOffset: false, stale: false, icon: null,
 };
 const mutate = jest.fn();
 let isError = false;
@@ -92,4 +92,21 @@ it('trims the field after saving', async () => {
   await fireEvent(input, 'blur');
   expect(mutate).toHaveBeenCalledWith({ id: 7, settings: { displayName: 'Daily' } });
   expect(screen.getByLabelText('Display name').props.value).toBe('Daily');
+});
+
+it('shows the default icon and saves a picked emoji', async () => {
+  await renderScreen(<AccountSettings />);
+  expect(screen.getByLabelText('Icon')).toBeTruthy();
+  expect(screen.queryByText('Default')).toBeNull();
+  await fireEvent.press(screen.getByLabelText('Icon'));
+  await fireEvent.press(screen.getByLabelText('🐷'));
+  expect(mutate).toHaveBeenCalledWith({ id: 7, settings: { icon: '🐷' } });
+  expect(screen.queryByText('Default')).toBeNull();
+});
+
+it('Default tile resets the icon to null', async () => {
+  await renderScreen(<AccountSettings />);
+  await fireEvent.press(screen.getByLabelText('Icon'));
+  await fireEvent.press(screen.getByText('Default'));
+  expect(mutate).toHaveBeenCalledWith({ id: 7, settings: { icon: null } });
 });

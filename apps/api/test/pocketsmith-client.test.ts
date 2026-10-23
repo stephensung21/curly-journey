@@ -31,6 +31,24 @@ describe('pocketSmithClient', () => {
     }
   });
 
+  it('fetches a page of the user-level transactions endpoint with a date range', async () => {
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify([{ id: 1 }]), {
+        headers: { Link: '<https://api.pocketsmith.com/v2/users/4/transactions?page=2>; rel="next"' },
+      });
+    }) as unknown as typeof fetch;
+    const c = pocketSmithClient('secret-key', fetchImpl);
+    const p1 = await c.userTransactionsPage(4, { startDate: '2026-10-09', endDate: '2026-10-23' });
+    expect(p1).toEqual({ items: [{ id: 1 }], next: 'https://api.pocketsmith.com/v2/users/4/transactions?page=2' });
+    expect(urls[0]).toBe('https://api.pocketsmith.com/v2/users/4/transactions?per_page=100&start_date=2026-10-09&end_date=2026-10-23');
+    await c.userTransactionsPage(4, {}, p1.next!);
+    expect(urls[1]).toBe('https://api.pocketsmith.com/v2/users/4/transactions?page=2');
+    expect(await c.userTransactionsPage(4, {}, 'https://evil.example.com/x').catch((e: Error) => e)).toBeInstanceOf(Error);
+    expect(urls).toHaveLength(2);
+  });
+
   it('throws with status but not the key on non-2xx', async () => {
     const fetchImpl = (async () => new Response('nope', { status: 403 })) as unknown as typeof fetch;
     const c = pocketSmithClient('secret-key', fetchImpl);

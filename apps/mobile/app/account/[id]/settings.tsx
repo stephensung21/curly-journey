@@ -5,7 +5,10 @@ import { useAccounts, useUpdateAccount } from '../../../src/api/hooks';
 import type { Account, AccountSettings } from '../../../src/api/types';
 import { AppText } from '../../../src/components/AppText';
 import { Card } from '../../../src/components/Card';
+import { kindColor, kindEmoji } from '../../../src/components/AccountRow';
+import { EmojiPicker } from '../../../src/components/EmojiPicker';
 import { HandNote } from '../../../src/components/doodles/HandNote';
+import { IconTile } from '../../../src/components/IconTile';
 import { Screen } from '../../../src/components/Screen';
 import { Segmented } from '../../../src/components/Segmented';
 import { Toggle } from '../../../src/components/Toggle';
@@ -31,6 +34,7 @@ function Form({ account }: { account: Account }) {
   const t = useTheme();
   const router = useRouter();
   const update = useUpdateAccount();
+  const [picking, setPicking] = useState(false);
   const [name, setName] = useState(account.displayName ?? '');
   const save = (settings: AccountSettings) => update.mutate({ id: account.id, settings });
 
@@ -44,6 +48,19 @@ function Form({ account }: { account: Account }) {
       </View>
 
       {update.isError ? <AppText tone="muted">Couldn't save. Try again.</AppText> : null}
+
+      <Card>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Icon"
+          onPress={() => setPicking(true)}
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}
+        >
+          <AppText>Icon</AppText>
+          <IconTile emoji={account.icon ?? kindEmoji[account.kind]} color={kindColor[account.kind]} size={36} />
+        </Pressable>
+      </Card>
+      <EmojiPicker visible={picking} onClose={() => setPicking(false)} onPick={icon => save({ icon })} />
 
       <Card>
         <AppText variant="label" tone="muted">

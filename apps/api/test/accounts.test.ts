@@ -89,3 +89,67 @@ describe('GET /accounts/:id/transactions', () => {
     expect((await app.request('/accounts/999/transactions?month=2026-10', { headers: auth })).status).toBe(404);
   });
 });
+
+describe('account icon', () => {
+  it('round-trips an emoji and resets with null', async () => {
+    const { app, auth, ps } = await setup();
+    expect(((await (await patch(app, auth, ps, { icon: '🐷' })).json()) as { icon: string | null }).icon).toBe('🐷');
+    const list = (await (await app.request('/accounts', { headers: auth })).json()) as { accounts: { id: number; icon: string | null }[] };
+    expect(list.accounts.find((a) => a.id === ps)!.icon).toBe('🐷');
+    expect(((await (await patch(app, auth, ps, { icon: null })).json()) as { icon: string | null }).icon).toBeNull();
+  });
+  it('accepts 8 code units, rejects 9, empty and non-strings', async () => {
+    const { app, auth, ps } = await setup();
+    expect((await patch(app, auth, ps, { icon: '12345678' })).status).toBe(200);
+    for (const icon of ['123456789', '', '   ', 5]) {
+      const res = await patch(app, auth, ps, { icon });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: 'bad_patch' });
+    }
+  });
+  it('sync upsert keeps icon and sort_order', async () => {
+    const { app, auth, ps, repo } = await setup();
+    await patch(app, auth, ps, { icon: '🐷' });
+    await app.request('/accounts/order', { method: 'PUT', headers: auth, body: JSON.stringify({ ids: [ps] }) });
+    await repo.upsertAccount({ source: 'pocketsmith', externalId: '1', institution: 'CBA', name: 'Everyday', kind: 'transaction', balanceCents: 5, balanceDate: '2026-10-22' });
+    const a = (await repo.getAccount(ps))!;
+    expect(a.icon).toBe('🐷');
+    expect(a.sortOrder).toBe(1);
+  });
+});
+
+describe('PUT /accounts/order', () => {
+  const put = (app: ReturnType<typeof createApp>, auth: Record<string, string>, body: unknown) =>
+    app.request('/accounts/order', { method: 'PUT', headers: auth, body: JSON.stringify(body) });
+  const ids = async (app: ReturnType<typeof createApp>, auth: Record<string, string>) =>
+    ((await (await app.request('/accounts', { headers: auth })).json()) as { accounts: { id: number }[] }).accounts.map((a) => a.id);
+
+  it('reorders the list', async () => {
+    const { app, auth, repo } = await setup();
+    await repo.upsertAccount({ source: 'pocketsmith', externalId: '2', institution: 'CBA', name: 'Third', kind: 'transaction', balanceCents: 1, balanceDate: '2026-10-22' });
+    const before = await ids(app, auth);
+    expect(before).toHaveLength(3);
+    const want = [before[2]!, before[0]!, before[1]!];
+    const res = await put(app, auth, { ids: want });
+    expect(res.status).toBe(200);
+    expect(await ids(app, auth)).toEqual(want);
+  });
+  it('unlisted accounts sort after listed ones', async () => {
+    const { app, auth, ps, manual } = await setup();
+    await put(app, auth, { ids: [manual] });
+    expect(await ids(app, auth)).toEqual([manual, ps]);
+  });
+  it('400 bad_order on duplicate, unknown, non-integer, empty body shapes', async () => {
+    const { app, auth, ps, manual } = await setup();
+    for (const body of [{ ids: [ps, ps] }, { ids: [ps, 999] }, { ids: [1.5] }, { ids: [0] }, { ids: ['1'] }, { ids: 'x' }, {}, []]) {
+      const res = await put(app, auth, body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: 'bad_order' });
+    }
+    expect(await ids(app, auth)).toEqual([ps, manual]);
+  });
+  it('401 without token', async () => {
+    const { app } = await setup();
+    expect((await app.request('/accounts/order', { method: 'PUT', body: '{"ids":[1]}' })).status).toBe(401);
+  });
+});

@@ -2,6 +2,7 @@ import { isStale } from '@curly/core';
 import { Hono } from 'hono';
 import type { Deps } from '../app';
 import { makeRepo, type AccountSettingsPatch } from '../db/repo';
+import { parseId } from './http';
 
 const BOOLS = ['countsSpending', 'countsNetWorth', 'isOffset'] as const;
 const PROJECTIONS = ['off', 'etf', 'mortgage'];
@@ -9,7 +10,7 @@ const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 function parsePatch(body: unknown): AccountSettingsPatch | null {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
-  const allowed = new Set<string>([...BOOLS, 'projections', 'displayName']);
+  const allowed = new Set<string>([...BOOLS, 'projections', 'displayName', 'icon']);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(body)) {
     if (!allowed.has(k)) return null;
@@ -17,6 +18,14 @@ function parsePatch(body: unknown): AccountSettingsPatch | null {
       if (typeof v !== 'boolean') return null;
     } else if (k === 'projections') {
       if (typeof v !== 'string' || !PROJECTIONS.includes(v)) return null;
+    } else if (k === 'icon') {
+      if (v !== null) {
+        if (typeof v !== 'string') return null;
+        const t = v.trim();
+        if (t.length < 1 || t.length > 8) return null;
+        out[k] = t;
+        continue;
+      }
     } else if (v !== null && typeof v !== 'string') {
       return null;
     }
@@ -24,8 +33,6 @@ function parsePatch(body: unknown): AccountSettingsPatch | null {
   }
   return out as AccountSettingsPatch;
 }
-
-const parseId = (s: string): number | null => (/^\d+$/.test(s) && Number(s) <= Number.MAX_SAFE_INTEGER ? Number(s) : null);
 
 export function accountRoutes(deps: Deps) {
   const r = new Hono();
@@ -38,6 +45,21 @@ export function accountRoutes(deps: Deps) {
       accounts: accounts.map((a) => ({ ...a, stale: a.source === 'pocketsmith' && stale })),
       lastSuccessAt: last ? last.finishedAt.toISOString() : null,
     });
+  });
+
+  r.put('/accounts/order', async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'bad_json' }, 400);
+    }
+    const ids = typeof body === 'object' && body !== null ? (body as { ids?: unknown }).ids : undefined;
+    if (!Array.isArray(ids) || !ids.every((n) => Number.isInteger(n) && n > 0 && n <= 2147483647)) {
+      return c.json({ error: 'bad_order' }, 400);
+    }
+    if (!(await repo.setAccountOrder(ids as number[]))) return c.json({ error: 'bad_order' }, 400);
+    return c.json({ ok: true });
   });
 
   r.patch('/accounts/:id', async (c) => {

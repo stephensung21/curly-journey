@@ -2,6 +2,7 @@
   "name": "curly-journey",
   "private": true,
   "workspaces": ["packages/*", "apps/*"],
+  "overrides": { "react-native-gesture-handler": "~3.3.0" },
   "scripts": {
     "test": "npm test --workspaces --if-present"
   }

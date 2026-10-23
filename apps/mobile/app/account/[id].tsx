@@ -1,43 +1,41 @@
-import { monthKey } from '@curly/core';
+import { institutionGroup, monthKey } from '@curly/core';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
-import { useAccounts, useTransactions } from '../../src/api/hooks';
-import type { Transaction } from '../../src/api/types';
+import { useEffect, useRef, useState } from 'react';
+import { Dimensions, type LayoutChangeEvent, Pressable, ScrollView, type ScrollViewInstance, View } from 'react-native';
+import { useAccounts, useCategories, useSpending, useTransactionsQuery } from '../../src/api/hooks';
+import type { SpendingQuery } from '../../src/api/types';
 import { kindColor, kindEmoji } from '../../src/components/AccountRow';
 import { Amount } from '../../src/components/Amount';
 import { AppText } from '../../src/components/AppText';
 import { Card } from '../../src/components/Card';
+import { CategoryBar } from '../../src/components/CategoryBar';
+import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
 import { IconTile } from '../../src/components/IconTile';
 import { MonthSwitcher } from '../../src/components/MonthSwitcher';
+import { OpenBankAppButton } from '../../src/components/OpenBankApp';
+import { MoreLessNote } from '../../src/components/MoreLessNote';
 import { Screen } from '../../src/components/Screen';
-import { TransactionRow } from '../../src/components/TransactionRow';
+import { Segmented } from '../../src/components/Segmented';
+import { TransactionList } from '../../src/components/TransactionList';
+import { plainDay, statementLabel, sydneyDate } from '../../src/lib/days';
 import { now } from '../../src/lib/now';
+import { categoryColor } from '../../src/theme/categoryColor';
+import { accents } from '../../src/theme/tokens';
+import { useTheme } from '../../src/theme/useTheme';
 
 const TZ = 'Australia/Sydney';
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const PAGES = ['Transactions', 'Categories'] as const;
 
-/** Sydney calendar date (YYYY-MM-DD) of an instant. */
-function sydneyDate(d: Date): string {
-  return d.toLocaleDateString('en-CA', { timeZone: TZ });
-}
-
-function plainDay(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return `${WEEKDAYS[wd]} ${d} ${MONTHS[m - 1]}`;
-}
-
-function dayBefore(iso: string): string {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
-}
-
-export function dayHeader(iso: string, today: string): string {
-  if (iso === today) return `Today · ${plainDay(iso)}`;
-  if (iso === dayBefore(today)) return `Yesterday · ${plainDay(iso)}`;
-  return plainDay(iso);
+function Tile({ label, cents, color, signed }: { label: string; cents: number; color: string; signed?: boolean }) {
+  const t = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: t.surface, borderRadius: 14, padding: 10, gap: 2 }}>
+      <AppText variant="label" tone="muted">
+        {label}
+      </AppText>
+      <Amount cents={cents} signed={signed} style={{ color }} />
+    </View>
+  );
 }
 
 function syncedLabel(iso: string | null, current: Date): string | null {
@@ -57,21 +55,40 @@ export default function AccountDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const accountId = Number(id);
   const router = useRouter();
+  const t = useTheme();
   const current = now();
   const [month, setMonth] = useState(() => monthKey(current));
-  const accountsQ = useAccounts();
-  const txQ = useTransactions(accountId, month);
+  const [view, setView] = useState<'calendar' | 'statement'>('calendar');
+  const [page, setPage] = useState(0);
+  const [width, setWidth] = useState(() => Dimensions.get('window').width - 32);
+  const pager = useRef<ScrollViewInstance>(null);
+  useEffect(() => setView('calendar'), [accountId]);
 
+  const accountsQ = useAccounts();
   const account = accountsQ.data?.accounts.find(a => a.id === accountId);
+  const isAmex = !!account && institutionGroup(account.institution) === 'Amex';
+  const statement = isAmex && view === 'statement';
+  const query: SpendingQuery = statement ? { month, accountId, period: 'statement' } : { month, accountId };
+  const txQ = useTransactionsQuery(query);
+  const spendingQ = useSpending(query);
+  const categories = useCategories().data ?? [];
+  const byId = new Map(categories.map(c => [c.id, c]));
+  const s = spendingQ.data;
+  const max = s ? Math.max(1, ...s.byCategory.map(c => c.cents)) : 1;
+
   const synced = syncedLabel(accountsQ.data?.lastSuccessAt ?? null, current);
   const today = sydneyDate(current);
 
-  const groups = useMemo(() => {
-    const map = new Map<string, Transaction[]>();
-    const sorted = [...(txQ.data?.transactions ?? [])].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-    for (const t of sorted) map.set(t.date, [...(map.get(t.date) ?? []), t]);
-    return [...map.entries()];
-  }, [txQ.data]);
+  const transactions = txQ.data?.transactions ?? [];
+  const loaded = !!txQ.data;
+  const inCents = transactions.reduce((n, x) => (x.amountCents > 0 ? n + x.amountCents : n), 0);
+  const outCents = transactions.reduce((n, x) => (x.amountCents < 0 ? n + x.amountCents : n), 0);
+  const change = inCents + outCents;
+
+  const goTo = (i: number) => {
+    setPage(i);
+    pager.current?.scrollTo({ x: i * width, animated: true });
+  };
 
   return (
     <Screen>
@@ -96,6 +113,7 @@ export default function AccountDetailScreen() {
             <AppText variant="title">{account.displayName ?? account.name}</AppText>
           </View>
           <Amount cents={account.balanceCents} variant="hero" />
+          <OpenBankAppButton institution={account.institution} />
           {synced ? (
             <AppText variant="label" tone="muted">
               {synced}
@@ -109,20 +127,96 @@ export default function AccountDetailScreen() {
         </View>
       ) : null}
 
-      <MonthSwitcher value={month} onChange={setMonth} />
+      {loaded ? (
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Tile label="In" cents={inCents} color={t.noteLime} signed />
+          <Tile label="Out" cents={outCents} color={t.negative} />
+          <Tile label="Change" cents={change} color={change >= 0 ? t.noteLime : t.negative} signed />
+        </View>
+      ) : null}
 
-      {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
-      {groups.length === 0 && !txQ.isLoading && !txQ.isError ? <AppText tone="muted">No transactions this month.</AppText> : null}
-      {groups.map(([date, rows]) => (
-        <Card key={date}>
+      {isAmex ? (
+        <Segmented
+          options={[
+            { value: 'calendar' as const, label: 'Calendar month' },
+            { value: 'statement' as const, label: 'Statement' },
+          ]}
+          value={view}
+          onChange={setView}
+        />
+      ) : null}
+      <MonthSwitcher value={month} onChange={setMonth} />
+      {statement ? (
+        <AppText tone="muted" style={{ textAlign: 'center' }}>
+          {statementLabel(month)}
+        </AppText>
+      ) : null}
+
+      {s ? (
+        <View style={{ gap: 2 }}>
           <AppText variant="label" tone="muted">
-            {dayHeader(date, today)}
+            Spent
           </AppText>
-          {rows.map(t => (
-            <TransactionRow key={t.id} txn={t} />
-          ))}
-        </Card>
-      ))}
+          <Amount cents={s.totalCents} variant="hero" />
+          <CrayonUnderline width={150} color={accents.orange} />
+          <MoreLessNote month={month} totalCents={s.totalCents} prevTotalCents={s.prevTotalCents} />
+        </View>
+      ) : null}
+
+      <View style={{ flexDirection: 'row', gap: 20 }}>
+        {PAGES.map((label, i) => (
+          <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: page === i }} onPress={() => goTo(i)}>
+            <AppText variant={page === i ? 'bodyStrong' : 'body'} tone={page === i ? 'ink' : 'muted'}>
+              {label}
+            </AppText>
+            {page === i ? <CrayonUnderline width={label.length * 9} color={accents.lime} seed={i + 3} /> : <View style={{ height: 14 }} />}
+          </Pressable>
+        ))}
+      </View>
+
+      <View onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}>
+        <ScrollView
+          ref={pager}
+          testID="account-pager"
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={e => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
+        >
+          <View style={{ width, gap: 10 }}>
+            {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
+            {transactions.length === 0 && !txQ.isLoading && !txQ.isError ? <AppText tone="muted">No transactions this month.</AppText> : null}
+            <TransactionList transactions={transactions} categories={categories} today={today} onPressTxn={x => router.push(`/transaction/${x.id}`)} />
+          </View>
+          <View style={{ width, gap: 10 }}>
+            {s && s.byCategory.length > 0 ? (
+              <Card style={{ gap: 12 }}>
+                {s.byCategory.map(c => {
+                  const cat = c.categoryId === null ? undefined : byId.get(c.categoryId);
+                  return (
+                    <CategoryBar
+                      key={c.categoryId ?? 'none'}
+                      emoji={c.categoryId === null ? '?' : (cat?.emoji ?? '?')}
+                      color={c.categoryId === null ? t.line : cat ? categoryColor(cat.color, t) : t.line}
+                      name={c.categoryId === null ? 'Uncategorised' : (cat?.name ?? 'Unknown')}
+                      cents={c.cents}
+                      fraction={c.cents / max}
+                      onPress={() => router.push(`/category/${c.categoryId ?? 'none'}?month=${month}&accountId=${accountId}${statement ? '&period=statement' : ''}` as never)}
+                    />
+                  );
+                })}
+              </Card>
+            ) : s ? (
+              <AppText tone="muted">No spending this month.</AppText>
+            ) : null}
+          </View>
+        </ScrollView>
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+        {PAGES.map((label, i) => (
+          <View key={label} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === i ? accents.lime : t.line }} />
+        ))}
+      </View>
     </Screen>
   );
 }

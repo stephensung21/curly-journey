@@ -61,5 +61,17 @@ export function fakePocketSmith(
       const items = all.slice((page - 1) * size, page * size);
       return { items, next: page * size < all.length ? `${base}?page=${page + 1}` : null };
     },
+    async userTransactionsPage(userId, opts, pageUrl) {
+      const page = pageUrl ? Number(new URL(pageUrl).searchParams.get('page')) : 1;
+      calls.push(`userTransactions:${userId}:${opts.startDate ?? ''}:${opts.endDate ?? ''}:${page}`);
+      // Every account's data is served here, so a failing account fails this endpoint too.
+      if (data.failOnAccount !== undefined) throw new Error(`PocketSmith failed for account ${data.failOnAccount}`);
+      const base = `https://api.pocketsmith.com/v2/users/${userId}/transactions`;
+      const all = Object.values(data.transactions ?? {})
+        .flat()
+        .filter((t) => (!opts.startDate || t.date >= opts.startDate) && (!opts.endDate || t.date <= opts.endDate));
+      const items = all.slice((page - 1) * size, page * size);
+      return { items, next: page * size < all.length ? `${base}?page=${page + 1}` : null };
+    },
   };
 }
