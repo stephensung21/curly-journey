@@ -13,11 +13,15 @@ Notifications.setNotificationHandler({
   }),
 });
 
-async function postToken(conn: Connection): Promise<void> {
+// Android 13+ needs a channel to exist before the permission prompt can show.
+async function ensureChannel(): Promise<void> {
   await Notifications.setNotificationChannelAsync('default', {
     name: 'Default',
     importance: Notifications.AndroidImportance.DEFAULT,
   });
+}
+
+async function postToken(conn: Connection): Promise<void> {
   const projectId = (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId;
   const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
   await apiFetch<void>(conn, '/push/devices', { method: 'POST', body: JSON.stringify({ token }) });
@@ -25,6 +29,7 @@ async function postToken(conn: Connection): Promise<void> {
 
 /** Ask for permission (if needed), then register this device's Expo push token with the API. */
 export async function registerForPush(conn: Connection): Promise<'registered' | 'denied'> {
+  await ensureChannel();
   let perm = await Notifications.getPermissionsAsync();
   if (!perm.granted) perm = await Notifications.requestPermissionsAsync();
   if (!perm.granted) return 'denied';
@@ -38,7 +43,10 @@ export async function reregisterQuietly(conn?: Connection | null): Promise<void>
     const c = conn ?? (await loadConnection());
     if (!c) return;
     const perm = await Notifications.getPermissionsAsync();
-    if (perm.granted) await postToken(c);
+    if (perm.granted) {
+      await ensureChannel();
+      await postToken(c);
+    }
   } catch {
     // Best effort; the Notifications screen shows real status.
   }

@@ -70,8 +70,8 @@ it('sends a test and shows plain errors', async () => {
 });
 
 describe('useNotificationRouting', () => {
-  function Host() {
-    useNotificationRouting();
+  function Host({ ready = true }: { ready?: boolean }) {
+    useNotificationRouting(ready);
     return null;
   }
   const respond = (url: unknown) => {
@@ -90,9 +90,31 @@ describe('useNotificationRouting', () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
+  it('holds the launch response until ready, then pushes it once', async () => {
+    N.getLastNotificationResponseAsync.mockResolvedValue({ notification: { request: { content: { data: { url: '/limits' } } } } } as never);
+    const view = await render(<Host ready={false} />);
+    await Promise.resolve();
+    expect(N.getLastNotificationResponseAsync).not.toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+    await view.rerender(<Host ready />);
+    await waitFor(() => expect(mockPush).toHaveBeenCalledTimes(1));
+    await view.rerender(<Host ready />);
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    N.getLastNotificationResponseAsync.mockResolvedValue(null as never);
+  });
+
   it('follows the response that launched the app', async () => {
     N.getLastNotificationResponseAsync.mockResolvedValueOnce({ notification: { request: { content: { data: { url: '/limits' } } } } } as never);
     await render(<Host />);
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/limits'));
   });
+});
+
+it('creates the Android channel before asking for permission', async () => {
+  N.getPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: true, status: 'undetermined' } as never);
+  N.requestPermissionsAsync.mockResolvedValue({ granted: false, canAskAgain: true, status: 'denied' } as never);
+  await registerForPush(conn);
+  const channel = N.setNotificationChannelAsync.mock.invocationCallOrder[0];
+  expect(channel).toBeLessThan(N.getPermissionsAsync.mock.invocationCallOrder[0]);
+  expect(channel).toBeLessThan(N.requestPermissionsAsync.mock.invocationCallOrder[0]);
 });

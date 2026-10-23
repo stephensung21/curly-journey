@@ -10,9 +10,11 @@ function pathFrom(response: Response): string | null {
   return typeof url === 'string' && url.startsWith('/') && !url.startsWith('//') ? url : null;
 }
 
-export function useNotificationRouting() {
+/** `ready` = navigator mounted and a connection exists; nothing routes before then. */
+export function useNotificationRouting(ready: boolean) {
   const router = useRouter();
   useEffect(() => {
+    if (!ready) return;
     let live = true;
     const go = (r: Response) => {
       const path = pathFrom(r);
@@ -27,5 +29,5 @@ export function useNotificationRouting() {
       sub.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ready]);
 }

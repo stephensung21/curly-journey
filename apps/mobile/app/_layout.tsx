@@ -20,7 +20,7 @@ SplashScreen.preventAutoHideAsync();
 
 function AppStack() {
   const { conn, loading } = useConnection();
-  useNotificationRouting();
+  useNotificationRouting(!loading && !!conn);
   useEffect(() => {
     if (conn) void reregisterQuietly(conn);
   }, [conn]);
