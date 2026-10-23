@@ -37,6 +37,7 @@ beforeEach(() => {
   (mocked.useTransactionsQuery as jest.Mock).mockReturnValue({ data: { transactions: [] }, isLoading: false });
   (mocked.useSpending as jest.Mock).mockReturnValue({ data: { totalCents: 0, prevTotalCents: 0, byCategory: [] } });
   (mocked.useCategories as jest.Mock).mockReturnValue({ data: [] });
+  (mocked.useLimits as jest.Mock).mockReturnValue({ data: { limits: [] } });
   (mocked.useSyncStatus as jest.Mock).mockReturnValue({ data: { lastSuccessAt: null, lastStatus: 'ok' }, refetch: jest.fn() });
   (mocked.useSyncNow as jest.Mock).mockReturnValue({ mutateAsync: jest.fn() });
   (mocked.useInOut as jest.Mock).mockReturnValue({ data: [] });

@@ -110,3 +110,18 @@ export type ImportBody = { accountId: number; format: ImportFormat; csv: string 
 export type ImportedRow = { date: string; amountCents: number; description: string };
 export type ImportPreview = { new: ImportedRow[]; duplicates: ImportedRow[]; skipped: { line: number; reason: string }[] };
 export type ImportCommit = { inserted: number };
+
+export type LimitLevel = 'ok' | 'warn' | 'over';
+/** categoryId null = the whole-month limit. */
+export type Limit = {
+  id: number;
+  categoryId: number | null;
+  amountCents: number;
+  warnPercent: number;
+  spentCents: number;
+  percent: number;
+  level: LimitLevel;
+  alertedAt: string | null;
+};
+export type NewLimit = { categoryId: number | null; amountCents: number; warnPercent?: number };
+export type LimitPatch = { amountCents?: number; warnPercent?: number };

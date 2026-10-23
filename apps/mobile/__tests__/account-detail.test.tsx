@@ -45,6 +45,7 @@ beforeEach(() => {
   (mocked.useSpending as jest.Mock).mockImplementation(() => ({ data: spending, isLoading: false }));
   useSettings.setState({ hideBalances: false });
   (mocked.useCategories as jest.Mock).mockReturnValue({ data: [{ id: 3, name: 'Groceries', emoji: 'G', color: 'lime', kind: 'spending' }] });
+  (mocked.useLimits as jest.Mock).mockReturnValue({ data: { limits: [] } });
 });
 
 it('groups transactions by Sydney day', async () => {

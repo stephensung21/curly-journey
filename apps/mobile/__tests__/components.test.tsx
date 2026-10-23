@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { CategoryBar } from '../src/components/CategoryBar';
 import { HeroCard } from '../src/components/HeroCard';
 import { MonthSwitcher } from '../src/components/MonthSwitcher';
 
@@ -55,4 +56,14 @@ describe('AccountRow', () => {
     expect(s.minHeight).toBeGreaterThanOrEqual(64);
     expect(s.paddingVertical).toBeGreaterThanOrEqual(12);
   });
+});
+
+it('CategoryBar draws a limit marker at its fraction', async () => {
+  await render(<CategoryBar emoji="🛒" color="#c6f36b" name="Groceries" cents={5000} fraction={0.4} limitFraction={0.5} />);
+  expect(screen.getByTestId('limit-marker')).toHaveStyle({ left: '50%' });
+});
+
+it('CategoryBar has no marker without a limit', async () => {
+  await render(<CategoryBar emoji="🛒" color="#c6f36b" name="Groceries" cents={5000} fraction={0.4} />);
+  expect(screen.queryByTestId('limit-marker')).toBeNull();
 });

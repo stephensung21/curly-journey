@@ -32,6 +32,7 @@ function AppStack() {
           <Stack.Screen name="inbox" options={{ headerShown: false }} />
           <Stack.Screen name="rules" options={{ headerShown: false }} />
           <Stack.Screen name="import" options={{ headerShown: false }} />
+          <Stack.Screen name="limits" options={{ headerShown: false }} />
           <Stack.Screen name="design-system" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Protected guard={!conn}>

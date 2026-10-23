@@ -4,7 +4,8 @@ import AccountsScreen from '../app/(tabs)/index';
 import { useSettings } from '../src/settings/store';
 import * as hooks from '../src/api/hooks';
 
-jest.mock('expo-router', () => ({ Link: ({ children }: { children: unknown }) => children }));
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ Link: ({ children }: { children: unknown }) => children, useRouter: () => ({ push: mockPush }) }));
 jest.mock('../src/lib/now', () => ({ now: () => new Date('2026-10-22T02:00:00Z') }));
 jest.mock('../src/api/hooks');
 
@@ -17,6 +18,7 @@ const acct = (id: number, institution: string, over: object = {}) => ({ ...base,
 
 let accounts: object[];
 let status: object;
+let limits: object[];
 const refetchAccounts = jest.fn();
 const refetchStatus = jest.fn();
 const mutateAsync = jest.fn();
@@ -43,6 +45,9 @@ beforeEach(() => {
     });
     (mocked.useDaily as jest.Mock).mockReturnValue({ data: [{ day: 1, inCents: 0, mortgageCents: 0, spendingCents: 1000 }] });
   };
+  limits = [];
+  (mocked.useLimits as jest.Mock).mockImplementation(() => ({ data: { limits } }));
+  (mocked.useCategories as jest.Mock).mockReturnValue({ data: [] });
   setup();
 });
 
@@ -178,4 +183,24 @@ it('Refresh button shows the error when sync rejects', async () => {
   await renderScreen(<AccountsScreen />);
   await fireEvent.press(screen.getByLabelText('Refresh'));
   expect(await screen.findByText('Sync failed. Try again soon.')).toBeTruthy();
+});
+
+const lim = (o: object) => ({ id: 1, categoryId: 2, amountCents: 80000, warnPercent: 80, spentCents: 0, percent: 0, level: 'ok', alertedAt: null, ...o });
+
+it('shows the warning chip for the highest limit and opens limits', async () => {
+  limits = [
+    lim({ id: 1, categoryId: null, percent: 82, level: 'warn' }),
+    lim({ id: 2, percent: 92, level: 'warn' }),
+    lim({ id: 3, categoryId: 3, percent: 10 }),
+  ];
+  (mocked.useCategories as jest.Mock).mockReturnValue({ data: [{ id: 2, name: 'Dining out', emoji: '🍜', color: 'orange', kind: 'spending', sort: 1 }] });
+  await renderScreen(<AccountsScreen />);
+  await fireEvent.press(screen.getByText('Dining out is at 92% of your limit · +1 more'));
+  expect(mockPush).toHaveBeenCalledWith('/limits');
+});
+
+it('has no chip when nothing is close', async () => {
+  limits = [lim({ percent: 40 })];
+  await renderScreen(<AccountsScreen />);
+  expect(screen.queryByText(/of your limit/)).toBeNull();
 });

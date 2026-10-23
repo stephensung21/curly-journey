@@ -12,6 +12,7 @@ jest.mock('../src/api/hooks');
 
 const mocked = hooks as jest.Mocked<typeof hooks>;
 let summary: object;
+let limits: object[];
 const base = {
   totalCents: 120000,
   moneyInCents: 0,
@@ -39,6 +40,8 @@ const base = {
 beforeEach(() => {
   jest.clearAllMocks();
   summary = base;
+  limits = [];
+  (mocked.useLimits as jest.Mock).mockImplementation(() => ({ data: { limits } }));
   (mocked.useSpending as jest.Mock).mockImplementation(() => ({ data: summary, isLoading: false, refetch: jest.fn() }));
   (mocked.useSyncNow as jest.Mock).mockReturnValue({ mutateAsync: jest.fn() });
   (mocked.useCategories as jest.Mock).mockReturnValue({
@@ -122,4 +125,30 @@ it('shows a load error', async () => {
   (mocked.useSpending as jest.Mock).mockImplementation(() => ({ data: undefined, isLoading: false, isError: true, refetch: jest.fn() }));
   await renderScreen(<SpendingScreen />);
   expect(screen.getByText("Couldn't load spending. Pull to try again.")).toBeTruthy();
+});
+
+const lim = (o: object) => ({ id: 1, categoryId: 1, amountCents: 65000, warnPercent: 80, spentCents: 60000, percent: 92, level: 'warn', alertedAt: null, ...o });
+
+it('draws limit markers scaled to the largest limit and lists warnings', async () => {
+  limits = [
+    lim({}),
+    lim({ id: 2, categoryId: 2, amountCents: 100000, spentCents: 30000, percent: 30, level: 'ok' }),
+    lim({ id: 3, categoryId: null, amountCents: 120000, spentCents: 120000, percent: 100, level: 'over' }),
+  ];
+  await renderScreen(<SpendingScreen />);
+  const markers = screen.getAllByTestId('limit-marker');
+  expect(markers).toHaveLength(2);
+  expect(markers[0]).toHaveStyle({ left: '65%' });
+  expect(markers[1]).toHaveStyle({ left: '100%' });
+  expect(screen.getByText('Groceries is at 92% of your limit')).toBeTruthy();
+  expect(screen.getByText("This month's spending is at 100% of your limit")).toBeTruthy();
+  expect(screen.queryByText(/Dining out is at/)).toBeNull();
+});
+
+it('shows no markers or warning lines when an institution is chosen', async () => {
+  limits = [lim({})];
+  await renderScreen(<SpendingScreen />);
+  await fireEvent.press(screen.getByText('Amex'));
+  expect(screen.queryByTestId('limit-marker')).toBeNull();
+  expect(screen.queryByText(/of your limit/)).toBeNull();
 });

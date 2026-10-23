@@ -16,6 +16,9 @@ import type {
   ImportPreview,
   InboxResponse,
   InOutMonth,
+  Limit,
+  LimitPatch,
+  NewLimit,
   NewCategory,
   NewRule,
   Rule,
@@ -353,5 +356,42 @@ export function useCategorisationStats() {
     queryKey: ['categorisationStats'],
     enabled: !!conn.url,
     queryFn: () => apiFetch<CategorisationStats>(conn, '/stats/categorisation'),
+  });
+}
+
+export function useLimits(month: string) {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['limits', month],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<{ limits: Limit[] }>(conn, `/limits${qs({ month })}`),
+  });
+}
+
+export function useCreateLimit() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: NewLimit) => apiFetch<Limit>(conn, '/limits', { method: 'POST', body: JSON.stringify(body) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['limits'] }),
+  });
+}
+
+export function useUpdateLimit() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: LimitPatch & { id: number }) =>
+      apiFetch<Limit>(conn, `/limits/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['limits'] }),
+  });
+}
+
+export function useDeleteLimit() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(conn, `/limits/${id}`, { method: 'DELETE' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['limits'] }),
   });
 }

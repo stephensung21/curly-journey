@@ -5,7 +5,7 @@ import * as hooks from '../src/api/hooks';
 import { moveItem } from '../src/lib/moveItem';
 import { useSettings } from '../src/settings/store';
 
-jest.mock('expo-router', () => ({ Link: ({ children }: { children: unknown }) => children }));
+jest.mock('expo-router', () => ({ Link: ({ children }: { children: unknown }) => children, useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('../src/lib/now', () => ({ now: () => new Date('2026-10-22T02:00:00Z') }));
 jest.mock('../src/api/hooks');
 
@@ -30,6 +30,8 @@ beforeEach(() => {
   (mocked.useSyncStatus as jest.Mock).mockReturnValue({ data: { lastSuccessAt: null, lastStatus: 'ok', stale: false }, refetch: jest.fn() });
   (mocked.useSyncNow as jest.Mock).mockReturnValue({ mutateAsync: jest.fn() });
   (mocked.useSpending as jest.Mock).mockReturnValue({ data: { totalCents: 0 } });
+  (mocked.useLimits as jest.Mock).mockReturnValue({ data: { limits: [] } });
+  (mocked.useCategories as jest.Mock).mockReturnValue({ data: [] });
   (mocked.useInOut as jest.Mock).mockReturnValue({ data: [] });
   (mocked.useDaily as jest.Mock).mockReturnValue({ data: [] });
   (mocked.useReorderAccounts as jest.Mock).mockReturnValue({ mutate: reorder });

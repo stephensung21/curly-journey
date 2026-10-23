@@ -1,12 +1,14 @@
-import { monthKey } from '@curly/core';
+import { limitMessage, monthKey, WHOLE_MONTH_LABEL } from '@curly/core';
+import { useRouter } from 'expo-router';
 import { useCallback, useRef, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, View } from 'react-native';
-import { useAccounts, useDaily, useInOut, useReorderAccounts, useSpending, useSyncNow, useSyncStatus } from '../../src/api/hooks';
+import { useAccounts, useCategories, useDaily, useInOut, useLimits, useReorderAccounts, useSpending, useSyncNow, useSyncStatus } from '../../src/api/hooks';
 import type { Account } from '../../src/api/types';
 import { AccountRow, kindColor, kindEmoji } from '../../src/components/AccountRow';
 import { Amount } from '../../src/components/Amount';
 import { AppText } from '../../src/components/AppText';
 import { Card } from '../../src/components/Card';
+import { Chip } from '../../src/components/Chip';
 import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
 import { SunDoodle } from '../../src/components/doodles/SunDoodle';
 import { HeroCard } from '../../src/components/HeroCard';
@@ -70,7 +72,10 @@ export default function AccountsScreen() {
   const month = monthKey(now());
   const homeChart = useSettings(s => s.homeChart);
   const hideBalances = useSettings(s => s.hideBalances);
+  const router = useRouter();
   const spendingQ = useSpending({ month });
+  const limits = useLimits(month).data?.limits ?? [];
+  const categoryNames = new Map((useCategories().data ?? []).map(c => [c.id, c.name]));
   const inOutQ = useInOut(month, 6);
   const dailyQ = useDaily(month);
   const accountsQ = useAccounts();
@@ -113,6 +118,13 @@ export default function AccountsScreen() {
           ? `${firstStale.institution} hasn't updated since ${sydneyWeekday(lastSuccessAt)}`
           : `${firstStale.institution} hasn't updated recently`
         : null;
+
+  const warned = limits.filter(l => l.level !== 'ok').sort((a, b) => b.percent - a.percent);
+  const top = warned[0];
+  const chipText = top
+    ? limitMessage(top.categoryId === null ? WHOLE_MONTH_LABEL : (categoryNames.get(top.categoryId) ?? 'A category'), top.percent) +
+      (warned.length > 1 ? ` · +${warned.length - 1} more` : '')
+    : null;
 
   const shown = draft ?? groupAccounts(accounts);
   const idsOf = (groups: [string, Account[]][]) => groups.flatMap(([, rows]) => rows.map(a => a.id));
@@ -162,6 +174,11 @@ export default function AccountsScreen() {
         </AppText>
         <Amount cents={spendingQ.data?.totalCents ?? 0} variant="hero" tone="onAccent" />
         <CrayonUnderline width={150} color={t.inkOnAccent} />
+        {chipText ? (
+          <View style={{ marginTop: 8, alignItems: 'flex-start' }}>
+            <Chip label={chipText} onPress={() => router.push('/limits')} />
+          </View>
+        ) : null}
         <View style={{ marginTop: 10 }}>
           {homeChart === 'sixMonths' ? (
             <InOutChart mode="sixMonths" data={inOutQ.data ?? []} hideBalances={hideBalances} onHero />
