@@ -1,6 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react-native';
 import { CategoryPicker } from '../src/components/CategoryPicker';
 import * as hooks from '../src/api/hooks';
+import { ApiError } from '../src/api/client';
 import type { Category } from '../src/api/types';
 import { renderScreen } from '../test-utils/renderScreen';
 
@@ -15,11 +16,13 @@ const mutateAsync = jest.fn();
 
 beforeEach(() => {
   jest.clearAllMocks();
+  pickSpy.mockClear();
   mutateAsync.mockResolvedValue({ id: 9, name: 'Pets', emoji: '🐶', color: 'line', kind: 'spending', sort: 9 });
   (hooks.useCreateCategory as jest.Mock).mockReturnValue({ mutateAsync, isPending: false });
 });
 
-const open = (onPick = jest.fn()) =>
+const pickSpy = jest.fn();
+const open = (onPick = pickSpy) =>
   renderScreen(<CategoryPicker visible onClose={jest.fn()} onPick={onPick} categories={cats} />);
 
 it('filters by name, case-insensitively', async () => {
@@ -60,4 +63,33 @@ it('closes from the backdrop', async () => {
   await renderScreen(<CategoryPicker visible onClose={onClose} onPick={jest.fn()} categories={cats} />);
   await fireEvent.press(screen.getByLabelText('Close'));
   expect(onClose).toHaveBeenCalled();
+});
+
+async function fillAndAdd() {
+  await open();
+  await fireEvent.press(screen.getByText('+ New category'));
+  await fireEvent.changeText(screen.getByLabelText('Category name'), 'Pets');
+  await fireEvent.press(screen.getByText('Add category'));
+}
+
+it('says so when the category already exists', async () => {
+  mutateAsync.mockRejectedValue(new ApiError(409, 'category_exists'));
+  await fillAndAdd();
+  expect(screen.getByText('That category already exists.')).toBeTruthy();
+  expect(pickSpy).not.toHaveBeenCalled();
+  expect(screen.getByLabelText('Category name').props.value).toBe('Pets');
+});
+
+it('shows a generic error when adding fails', async () => {
+  mutateAsync.mockRejectedValue(new Error('network'));
+  await fillAndAdd();
+  expect(screen.getByText("Couldn't add category. Try again.")).toBeTruthy();
+  expect(pickSpy).not.toHaveBeenCalled();
+});
+
+it('clears the error when the name changes', async () => {
+  mutateAsync.mockRejectedValue(new ApiError(409, 'category_exists'));
+  await fillAndAdd();
+  await fireEvent.changeText(screen.getByLabelText('Category name'), 'Pets 2');
+  expect(screen.queryByText('That category already exists.')).toBeNull();
 });

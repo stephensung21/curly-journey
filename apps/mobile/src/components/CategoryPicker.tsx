@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
+import { ApiError } from '../api/client';
 import { useCreateCategory } from '../api/hooks';
 import type { Category } from '../api/types';
 import { categoryColor } from '../theme/categoryColor';
@@ -27,6 +28,7 @@ export function CategoryPicker({
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState('🏷️');
+  const [error, setError] = useState<string | null>(null);
 
   const needle = search.trim().toLowerCase();
   const shown = categories.filter(c => c.name.toLowerCase().includes(needle));
@@ -43,7 +45,13 @@ export function CategoryPicker({
   } as const;
 
   async function add() {
-    const created = await create.mutateAsync({ name: name.trim(), emoji: emoji.trim(), color: 'line', kind: 'spending' });
+    let created;
+    try {
+      created = await create.mutateAsync({ name: name.trim(), emoji: emoji.trim(), color: 'line', kind: 'spending' });
+    } catch (e) {
+      setError(e instanceof ApiError && e.status === 409 ? 'That category already exists.' : "Couldn't add category. Try again.");
+      return;
+    }
     setAdding(false);
     setName('');
     if (created) onPick(created.id);
@@ -92,7 +100,10 @@ export function CategoryPicker({
               placeholder="Name"
               placeholderTextColor={t.inkFaded}
               value={name}
-              onChangeText={setName}
+              onChangeText={v => {
+                setName(v);
+                setError(null);
+              }}
               maxLength={40}
               style={input}
             />
@@ -105,6 +116,7 @@ export function CategoryPicker({
               maxLength={8}
               style={input}
             />
+            {error ? <AppText tone="muted">{error}</AppText> : null}
             <Button label="Add category" onPress={add} disabled={!canAdd || create.isPending} />
           </View>
         ) : null}
