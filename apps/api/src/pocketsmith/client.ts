@@ -20,23 +20,35 @@ export function pocketSmithClient(key: string, fetchImpl: typeof fetch = fetch):
     return res;
   }
 
+  function checkOrigin(url: string): void {
+    let origin: string;
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      throw new Error('PocketSmith pagination returned an invalid next URL');
+    }
+    if (origin !== ORIGIN) throw new Error('PocketSmith pagination returned a next URL on an unexpected origin');
+  }
+
+  async function getPage<T>(url: string): Promise<{ items: T[]; next: string | null }> {
+    checkOrigin(url);
+    const res = await get(url);
+    const items = (await res.json()) as T[];
+    const next = nextUrl(res.headers.get('Link'));
+    if (next) checkOrigin(next);
+    return { items, next };
+  }
+
   async function getAll<T>(first: string): Promise<T[]> {
     const out: T[] = [];
     const seen = new Set<string>();
     let url: string | null = first;
     while (url) {
-      let origin: string;
-      try {
-        origin = new URL(url).origin;
-      } catch {
-        throw new Error('PocketSmith pagination returned an invalid next URL');
-      }
-      if (origin !== ORIGIN) throw new Error('PocketSmith pagination returned a next URL on an unexpected origin');
       if (seen.has(url)) throw new Error('PocketSmith pagination loop detected');
       seen.add(url);
-      const res = await get(url);
-      out.push(...((await res.json()) as T[]));
-      url = nextUrl(res.headers.get('Link'));
+      const page: { items: T[]; next: string | null } = await getPage<T>(url);
+      out.push(...page.items);
+      url = page.next;
     }
     return out;
   }
@@ -49,10 +61,13 @@ export function pocketSmithClient(key: string, fetchImpl: typeof fetch = fetch):
     transactionAccounts(userId) {
       return getAll<PsTransactionAccount>(`${BASE}/users/${userId}/transaction_accounts?per_page=100`);
     },
-    transactions(accountId, opts) {
+    transactionsPage(accountId, query, pageUrl) {
+      if (pageUrl) return getPage<PsTransaction>(pageUrl);
       const q = new URLSearchParams({ per_page: '100' });
-      if (opts.updatedSince) q.set('updated_since', opts.updatedSince);
-      return getAll<PsTransaction>(`${BASE}/transaction_accounts/${accountId}/transactions?${q}`);
+      if (query.updatedSince) q.set('updated_since', query.updatedSince);
+      if (query.startDate) q.set('start_date', query.startDate);
+      if (query.endDate) q.set('end_date', query.endDate);
+      return getPage<PsTransaction>(`${BASE}/transaction_accounts/${accountId}/transactions?${q}`);
     },
   };
 }

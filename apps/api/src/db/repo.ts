@@ -38,8 +38,13 @@ export type AccountSettingsPatch = Partial<
   Pick<AccountDto, 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'displayName'>
 >;
 
+export type HistoryState = { id: number; historyFrom: string | null; historyDone: boolean };
+
 export interface Repo {
   upsertAccount(row: AccountRow): Promise<number>;
+  /** Upsert, returning how far back this account's history has been fetched. */
+  upsertAccountState(row: AccountRow): Promise<HistoryState>;
+  setHistory(id: number, from: string, done: boolean): Promise<void>;
   upsertTransactions(accountId: number, rows: TransactionRow[]): Promise<number>;
   insertCsvRows(accountId: number, rows: { row: ImportedRow; fingerprint: string }[]): Promise<number>;
   listAccounts(): Promise<AccountDto[]>;
@@ -51,10 +56,12 @@ export interface Repo {
   startSync(now: Date): Promise<number | null>;
   finishSync(
     id: number,
-    result: { status: 'ok' | 'failed'; error?: string; accounts?: number; transactions?: number },
+    result: { status: 'ok' | 'failed'; error?: string; accounts?: number; transactions?: number; more?: boolean },
     now: Date,
   ): Promise<void>;
   lastSuccessfulSync(): Promise<{ startedAt: Date; finishedAt: Date } | null>;
+  /** Start of the last successful sync, and whether it left history still to fetch. */
+  lastOkSync(): Promise<{ startedAt: Date; more: boolean } | null>;
   lastSyncStatus(): Promise<'ok' | 'failed' | 'running' | null>;
 }
 
@@ -106,21 +113,30 @@ function chunks<T>(items: T[], size: number): T[][] {
 export function makeRepo(db: Db): Repo {
   return {
     async upsertAccount(row) {
+      return (await this.upsertAccountState(row)).id;
+    },
+
+    async setHistory(id, from, done) {
+      await db.query('update account set history_from = $2::date, history_done = $3 where id = $1', [id, from, done]);
+    },
+
+    async upsertAccountState(row) {
       const counts = defaultCounts(row.kind);
-      const rows = await db.query<{ id: number }>(
+      const rows = await db.query<{ id: number; history_from: string | null; history_done: boolean }>(
         `insert into account (source, external_id, institution, name, kind, balance_cents, balance_date,
            counts_spending, counts_net_worth, projections)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          on conflict (source, external_id) do update set
            institution = excluded.institution, name = excluded.name, kind = excluded.kind,
            balance_cents = excluded.balance_cents, balance_date = excluded.balance_date
-         returning id`,
+         returning id, to_char(history_from, 'YYYY-MM-DD') as history_from, history_done`,
         [
           row.source, row.externalId, row.institution, row.name, row.kind, row.balanceCents, row.balanceDate,
           counts.countsSpending, counts.countsNetWorth, counts.projections,
         ],
       );
-      return Number(rows[0]!.id);
+      const r = rows[0]!;
+      return { id: Number(r.id), historyFrom: r.history_from, historyDone: r.history_done };
     },
 
     async upsertTransactions(accountId, rows) {
@@ -270,9 +286,20 @@ export function makeRepo(db: Db): Repo {
     async finishSync(id, result, now) {
       await db.query(
         `update sync_log set status = $2, error = $3, accounts_synced = $4, transactions_upserted = $5,
-           finished_at = $6::timestamptz where id = $1`,
-        [id, result.status, result.error ?? null, result.accounts ?? null, result.transactions ?? null, now.toISOString()],
+           finished_at = $6::timestamptz, more = $7 where id = $1`,
+        [
+          id, result.status, result.error ?? null, result.accounts ?? null, result.transactions ?? null,
+          now.toISOString(), result.more ?? false,
+        ],
       );
+    },
+
+    async lastOkSync() {
+      const rows = await db.query<{ started_at: unknown; more: boolean }>(
+        `select started_at, more from sync_log where status = 'ok' order by started_at desc limit 1`,
+      );
+      const r = rows[0];
+      return r ? { startedAt: asDate(r.started_at), more: r.more } : null;
     },
 
     async lastSuccessfulSync() {

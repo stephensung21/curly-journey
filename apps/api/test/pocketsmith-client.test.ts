@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { pocketSmithClient } from '../src/pocketsmith/client';
 
 describe('pocketSmithClient', () => {
-  it('follows Link rel=next and sends the key', async () => {
+  it('fetches one page with filters, returns the next link, and sends the key', async () => {
     const seen: { url: string; headers: Headers }[] = [];
     const fetchImpl = (async (url: string, init?: RequestInit) => {
       seen.push({ url, headers: new Headers(init?.headers) });
@@ -14,11 +14,16 @@ describe('pocketSmithClient', () => {
       return new Response(JSON.stringify([{ id: 2 }]));
     }) as unknown as typeof fetch;
     const c = pocketSmithClient('secret-key', fetchImpl);
-    const rows = await c.transactions(9, { updatedSince: '2026-01-01T00:00:00.000Z' });
-    expect(rows.map((r) => r.id)).toEqual([1, 2]);
+    const p1 = await c.transactionsPage(9, { updatedSince: '2026-01-01T00:00:00.000Z', startDate: '2026-07-01', endDate: '2026-09-28' });
+    expect(p1.items.map((r) => r.id)).toEqual([1]);
+    expect(p1.next).toBe('https://api.pocketsmith.com/v2/transaction_accounts/9/transactions?page=2');
     expect(seen[0]!.url).toContain('/transaction_accounts/9/transactions');
     expect(seen[0]!.url).toContain('per_page=100');
     expect(seen[0]!.url).toContain('updated_since=');
+    expect(seen[0]!.url).toContain('start_date=2026-07-01');
+    expect(seen[0]!.url).toContain('end_date=2026-09-28');
+    const p2 = await c.transactionsPage(9, {}, p1.next!);
+    expect(p2).toEqual({ items: [{ id: 2 }], next: null });
     expect(seen[1]!.url).toBe('https://api.pocketsmith.com/v2/transaction_accounts/9/transactions?page=2');
     for (const s of seen) {
       expect(s.headers.get('X-Developer-Key')).toBe('secret-key');
@@ -34,30 +39,28 @@ describe('pocketSmithClient', () => {
     expect((err as Error).message).not.toContain('secret-key');
   });
 
-  it('throws on a repeated next URL', async () => {
-    const u = 'https://api.pocketsmith.com/v2/transaction_accounts/9/transactions?page=2';
-    let n = 0;
-    const fetchImpl = (async () => {
-      n++;
-      return new Response('[]', { headers: { Link: `<${u}>; rel="next"` } });
-    }) as unknown as typeof fetch;
-    const c = pocketSmithClient('secret-key', fetchImpl);
-    const err = await c.transactions(9, {}).catch((e: Error) => e);
-    expect(err).toBeInstanceOf(Error);
-    expect((err as Error).message).not.toContain('secret-key');
-    expect(n).toBeLessThanOrEqual(3);
-  });
-
-  it('refuses a next URL on another origin and never sends the key there', async () => {
+  it('refuses a next link on another origin', async () => {
     const urls: string[] = [];
     const fetchImpl = (async (url: string) => {
       urls.push(url);
       return new Response('[]', { headers: { Link: '<https://evil.example.com/x?page=2>; rel="next"' } });
     }) as unknown as typeof fetch;
     const c = pocketSmithClient('secret-key', fetchImpl);
-    const err = await c.transactions(9, {}).catch((e: Error) => e);
+    const err = await c.transactionsPage(9, {}).catch((e: Error) => e);
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).not.toContain('secret-key');
     expect(urls).toHaveLength(1);
+  });
+
+  it('never sends the key to a page URL on another origin', async () => {
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      urls.push(url);
+      return new Response('[]');
+    }) as unknown as typeof fetch;
+    const c = pocketSmithClient('secret-key', fetchImpl);
+    const err = await c.transactionsPage(9, {}, 'https://evil.example.com/x?page=2').catch((e: Error) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(urls).toHaveLength(0);
   });
 });

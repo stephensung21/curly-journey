@@ -11,7 +11,7 @@ export function syncRoutes(deps: Deps) {
     const res = await runSync(deps);
     if (res.status === 'skipped') return c.json({ error: 'sync_in_progress' }, 409);
     if (res.status === 'failed') return c.json({ error: 'sync_failed' }, 502);
-    return c.json({ status: res.status, accounts: res.accounts, transactions: res.transactions });
+    return c.json({ status: res.status, accounts: res.accounts, transactions: res.transactions, more: res.more });
   });
 
   r.get('/sync/status', async (c) => {

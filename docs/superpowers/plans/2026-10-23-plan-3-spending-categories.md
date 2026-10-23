@@ -100,7 +100,7 @@ packages/core/src/spending/flows.ts        FlowTxn, detectFlows
 packages/core/src/spending/summarise.ts    SpendLine, summarise, statementPeriod, monthPeriod, inOutByMonth, runningByDay
 packages/core/test/spending/*.test.ts
 
-apps/api/migrations/0002_spending.sql
+apps/api/migrations/0003_spending.sql
 apps/api/src/db/repo.ts                    + categories, rules, splits, lines, pipeline queries
 apps/api/src/sync/runSync.ts               + reconcile window, ps_category, merchant, post-sync pipeline
 apps/api/src/spending/pipeline.ts          runPipeline(repo, { since })
@@ -366,12 +366,12 @@ runningByDay(lines: SpendLine[], month: string, today: string): { day: number; i
 ### Task 4: Schema, sync capture and pending reconciliation (API)
 
 **Files:**
-- create `apps/api/migrations/0002_spending.sql`;
+- create `apps/api/migrations/0003_spending.sql`;
 - modify `packages/core/src/sync/pocketsmith.ts` and `apps/api/src/pocketsmith/{index,client}.ts`;
 - modify `apps/api/src/sync/runSync.ts` and `apps/api/src/db/repo.ts`;
 - tests go in `apps/api/test/{sync,repo}.test.ts`.
 
-**Migration `0002_spending.sql`:**
+**Migration `0003_spending.sql`:**
 - `category (id serial pk, name text not null unique, emoji text not null, color text not null, kind text not null check (kind in ('spending','income')), sort int not null)`, seeded from `SEED_CATEGORIES` with literal `insert … on conflict (name) do nothing`. The SQL file holds the values; a core test asserts the SQL names equal `SEED_CATEGORIES` names.
 - `rule (id serial pk, origin text not null check (origin in ('user','learned')), match_text text not null, account_id int null references account(id) on delete cascade, amount_cents bigint null, category_id int null references category(id), flow text null check (flow in ('normal','transfer','mortgage','not_spending')), created_at timestamptz not null default now(), check (category_id is not null or flow is not null))`.
 - `transaction_split (id bigserial pk, transaction_id bigint not null references transaction(id) on delete cascade, category_id int not null references category(id), amount_cents bigint not null)`.
@@ -395,13 +395,17 @@ runningByDay(lines: SpendLine[], month: string, today: string): { day: number; i
   - `psCategory = t.category?.title ?? null`.
 - `upsertTransactions` writes `merchant` and `ps_category`, and updates them on conflict. It **never** touches the category or flow columns.
 - `insertCsvRows` writes `merchant = cleanMerchant(description)`.
-- `PocketSmithClient.transactions(accountId, opts: { updatedSince?: string; startDate?: string })` maps `startDate` to the `start_date` query parameter.
-- `runSync`, for each account, after the incremental fetch:
-  1. fetches again with `startDate` = Sydney today minus 14 days;
-  2. upserts those rows;
-  3. calls `repo.deleteMissingFeedRows(localId, startDate, keptExternalIds)`.
+- **Sync already works within a call budget** (fix branch `fix/sync-subrequest-budget`, merged before this plan):
+  - Workers Free allows 50 outbound requests per invocation, and every Neon query and PocketSmith page counts as one. `runSync` counts calls against `MAX_CALLS = 45`.
+  - Pagination is driven by `fetchAll(...)` over `PocketSmithClient.transactionsPage(accountId, { updatedSince?, startDate?, endDate? }, pageUrl?)`.
+  - History loads in 90-day windows over several runs, tracked by `account.history_from` / `history_done`. The result has `more: true` while history is still loading.
+  - Keep every new query and request inside that budget.
+- `runSync`, for each account whose history has started, after the incremental pass and **before** the history pass:
+  1. calls `fetchAll` with `startDate` = Sydney today minus 14 days and `mustFinish = true`;
+  2. calls `repo.deleteMissingFeedRows(localId, startDate, keptExternalIds)`. That's one query per account, so `fetchAll` must return the IDs it saw.
 
   It records the earliest date touched across both fetches as the pipeline's `since` (Task 5 consumes it).
+  The reconcile window adds about 2 calls per account. Check that the "spreads a long history" test in `test/sync.test.ts` still passes with its 20-call budget.
 - `Repo.deleteMissingFeedRows(accountId: number, from: string, keep: string[]): Promise<number>` deletes `source = 'pocketsmith'` rows with `date >= from` whose `external_id` is not in `keep`.
 - `SyncResult` gains `since: string | null`.
 
@@ -411,7 +415,7 @@ runningByDay(lines: SpendLine[], month: string, today: string): { day: number; i
   - A CSV row in the window is never deleted.
   - After upsert, `merchant` is `Woolworths` for payee `WOOLWORTHS 1234 SYDNEY`, and `ps_category` is stored.
   - Re-sync of a row whose `category_id` was set leaves `category_id` unchanged.
-  - The fake client records `transactions:<id>:<updatedSince>:<startDate>` calls; extend `fakePocketSmith` accordingly.
+  - The fake client already records `transactions:<id>:<updatedSince>:<startDate>:<endDate>:<page>` calls.
 - [ ] **Step 2:** Run `npm test -w @curly/api`. Expected: FAIL.
 - [ ] **Step 3:** Implement the migration, mapping, client parameter, repo method and runSync changes.
 - [ ] **Step 4:** Run `npm test -w @curly/api` and `npm test -w @curly/core`. Expected: PASS. Then `npx tsc --noEmit -p apps/api`. Expected: clean.
