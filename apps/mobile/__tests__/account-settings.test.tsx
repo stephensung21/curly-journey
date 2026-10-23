@@ -17,12 +17,14 @@ const account = {
 const mutate = jest.fn();
 let isError = false;
 let kind = 'transaction';
+let displayName: string | null = null;
 
 beforeEach(() => {
   jest.clearAllMocks();
   isError = false;
   kind = 'transaction';
-  (mocked.useAccounts as jest.Mock).mockImplementation(() => ({ data: { accounts: [{ ...account, kind }], lastSuccessAt: null } }));
+  displayName = null;
+  (mocked.useAccounts as jest.Mock).mockImplementation(() => ({ data: { accounts: [{ ...account, kind, displayName }], lastSuccessAt: null } }));
   (mocked.useUpdateAccount as jest.Mock).mockImplementation(() => ({ mutate, isError }));
 });
 
@@ -48,11 +50,12 @@ it('choosing Mortgage sends projections mortgage', async () => {
 });
 
 it('display name saves on blur, empty saves null', async () => {
+  displayName = 'Daily';
   await renderScreen(<AccountSettings />);
   const input = screen.getByLabelText('Display name');
-  await fireEvent.changeText(input, 'Daily');
+  await fireEvent.changeText(input, 'Other');
   await fireEvent(input, 'blur');
-  expect(mutate).toHaveBeenCalledWith({ id: 7, settings: { displayName: 'Daily' } });
+  expect(mutate).toHaveBeenCalledWith({ id: 7, settings: { displayName: 'Other' } });
   await fireEvent.changeText(input, '');
   await fireEvent(input, 'blur');
   expect(mutate).toHaveBeenLastCalledWith({ id: 7, settings: { displayName: null } });
@@ -70,4 +73,23 @@ it('HandNote only for manual_asset', async () => {
   kind = 'manual_asset';
   await renderScreen(<AccountSettings />);
   expect(screen.getByText(/super stays out of your spending, promise/)).toBeTruthy();
+});
+
+it('blur with no change does not save', async () => {
+  await renderScreen(<AccountSettings />);
+  const input = screen.getByLabelText('Display name');
+  await fireEvent(input, 'focus');
+  await fireEvent(input, 'blur');
+  await fireEvent.changeText(input, '  ');
+  await fireEvent(input, 'blur');
+  expect(mutate).not.toHaveBeenCalled();
+});
+
+it('trims the field after saving', async () => {
+  await renderScreen(<AccountSettings />);
+  const input = screen.getByLabelText('Display name');
+  await fireEvent.changeText(input, '  Daily  ');
+  await fireEvent(input, 'blur');
+  expect(mutate).toHaveBeenCalledWith({ id: 7, settings: { displayName: 'Daily' } });
+  expect(screen.getByLabelText('Display name').props.value).toBe('Daily');
 });

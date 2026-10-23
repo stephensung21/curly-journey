@@ -75,7 +75,12 @@ function Form({ account }: { account: Account }) {
         accessibilityLabel="Display name"
         value={name}
         onChangeText={setName}
-        onBlur={() => save({ displayName: name.trim() === '' ? null : name.trim() })}
+        onBlur={() => {
+          const trimmed = name.trim();
+          setName(trimmed);
+          if (trimmed === (account.displayName ?? '')) return;
+          save({ displayName: trimmed === '' ? null : trimmed });
+        }}
         placeholder={account.name}
         placeholderTextColor={t.inkFaded}
         style={{ backgroundColor: t.surface, color: t.ink, borderRadius: 12, padding: 12, fontFamily: 'BricolageGrotesque_500Medium', fontSize: 14 }}
