@@ -69,7 +69,9 @@ export default function SpendingScreen() {
   const byId = new Map(categories.map(c => [c.id, c]));
   const max = s ? Math.max(1, ...s.byCategory.map(c => c.cents)) : 1;
   const drill = (id: number | null) =>
-    router.push(`/category/${id ?? 'none'}?month=${month}${institution ? `&institution=${institution}` : ''}` as never);
+    router.push(
+      `/category/${id ?? 'none'}?month=${month}${institution ? `&institution=${encodeURIComponent(institution)}` : ''}` as never,
+    );
   const notCounted = (s?.notCounted ?? []).filter(n => n.count > 0);
   const empty = s && s.totalCents === 0 && s.byCategory.length === 0;
 
@@ -112,7 +114,7 @@ export default function SpendingScreen() {
               style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.inkMuted, borderRadius: 14, padding: 12 }}
             >
               <AppText variant="bodyStrong">
-                {`${s.uncategorisedCount} ${s.uncategorisedCount === 1 ? 'transaction' : 'transactions'} to sort · Sort ›`}
+                {`${s.uncategorisedCount} to sort this month · Sort ›`}
               </AppText>
             </Pressable>
           ) : null}

@@ -76,14 +76,14 @@ it('Amex chip sets the institution', async () => {
 
 it('sort box navigates to the inbox', async () => {
   await renderScreen(<SpendingScreen />);
-  await fireEvent.press(screen.getByText('3 transactions to sort · Sort ›'));
+  await fireEvent.press(screen.getByText('3 to sort this month · Sort ›'));
   expect(mockPush).toHaveBeenCalledWith('/inbox');
 });
 
 it('uses the singular for one transaction', async () => {
   summary = { ...base, uncategorisedCount: 1 };
   await renderScreen(<SpendingScreen />);
-  expect(screen.getByText('1 transaction to sort · Sort ›')).toBeTruthy();
+  expect(screen.getByText('1 to sort this month · Sort ›')).toBeTruthy();
 });
 
 it('hides zero-count not-counted entries', async () => {

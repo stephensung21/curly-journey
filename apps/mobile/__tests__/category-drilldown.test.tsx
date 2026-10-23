@@ -28,6 +28,7 @@ beforeEach(() => {
         { ...full, id: 2, date: '2026-10-20', amountCents: -2500, description: 'Coles' },
         { ...full, id: 3, date: '2026-10-20', amountCents: -9900, description: 'Transfer thing', flow: 'transfer' },
       ],
+      totalCents: 12345,
     },
     isLoading: false,
   });
@@ -38,11 +39,19 @@ it('queries by category, month and institution', async () => {
   expect(mocked.useTransactionsQuery).toHaveBeenLastCalledWith({ month: '2026-10', categoryId: 1, institution: 'Amex' });
 });
 
-it('shows header and total of normal-flow rows', async () => {
+it("shows header and the server's total, which matches the Spending bar (split parts, excluded accounts)", async () => {
   await renderScreen(<CategoryScreen />);
   expect(screen.getByText('🛒 Groceries')).toBeTruthy();
   expect(screen.getByText('October 2026')).toBeTruthy();
-  expect(screen.getByText('$70.00')).toBeTruthy();
+  expect(screen.getByText('$123.45')).toBeTruthy();
+  expect(screen.queryByText('$70.00')).toBeNull();
+});
+
+it('shows no total while loading', async () => {
+  (mocked.useTransactionsQuery as jest.Mock).mockReturnValue({ data: undefined, isLoading: true });
+  await renderScreen(<CategoryScreen />);
+  expect(screen.getByText('🛒 Groceries')).toBeTruthy();
+  expect(screen.queryByText('$0.00')).toBeNull();
 });
 
 it('groups rows by day', async () => {

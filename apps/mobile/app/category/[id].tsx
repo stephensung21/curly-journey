@@ -35,7 +35,8 @@ export default function CategoryScreen() {
   const txQ = useTransactionsQuery(query);
   const category = uncategorised ? undefined : categories.find(c => c.id === categoryId);
   const transactions = txQ.data?.transactions ?? [];
-  const total = -transactions.filter(t => t.flow === 'normal').reduce((sum, t) => sum + t.amountCents, 0);
+  // From the server, so it matches the Spending bar: split parts and excluded accounts are counted the same way.
+  const total = txQ.data?.totalCents;
   const title = uncategorised ? '? Uncategorised' : category ? `${category.emoji} ${category.name}` : '';
 
   return (
@@ -49,7 +50,7 @@ export default function CategoryScreen() {
         </AppText>
         {account ? <AppText tone="muted">{account.displayName ?? account.name}</AppText> : null}
         <AppText tone="muted">{accountId && statement ? statementLabel(month!) : monthLabel(month!)}</AppText>
-        <Amount cents={total} variant="hero" />
+        {total !== undefined ? <Amount cents={total} variant="hero" /> : null}
       </View>
       {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
       <TransactionList

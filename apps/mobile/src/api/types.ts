@@ -89,7 +89,11 @@ export type InboxItem = Transaction & { guesses: number[] };
 export type InboxResponse = { items: InboxItem[]; total: number };
 export type CategorisationStats = { autoPercent: number | null; sample: number };
 
-export type TransactionsResponse = { transactions: Transaction[] };
+export type TransactionsResponse = {
+  transactions: Transaction[];
+  /** With a categoryId: that category's Spending bar for the same filters (split parts count separately). */
+  totalCents?: number;
+};
 
 export type SyncResult = {
   status?: string;
