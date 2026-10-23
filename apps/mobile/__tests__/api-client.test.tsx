@@ -62,3 +62,22 @@ describe('hooks', () => {
     await expect(result.current.mutateAsync()).resolves.toEqual({ error: 'sync_in_progress' });
   });
 });
+
+describe('cache on bad token', () => {
+  it('clears cached data on 401 and does not refetch with the old token', async () => {
+    const { useQueryClient } = require('@tanstack/react-query');
+    let release: () => void = () => {};
+    fetchMock.mockImplementation(() => new Promise(r => (release = () => r(res(401)))));
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryProvider>{children}</QueryProvider>;
+    const { result } = await renderHook(() => ({ qc: useQueryClient(), q: useAccounts() }), { wrapper });
+    result.current.qc.setQueryData(['transactions', 1, '2026-10'], { transactions: [] });
+    expect(result.current.qc.getQueryData(['transactions', 1, '2026-10'])).toBeDefined();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    release();
+    await waitFor(() => expect(clearConnection).toHaveBeenCalled());
+    await waitFor(() => expect(result.current.qc.getQueryData(['transactions', 1, '2026-10'])).toBeUndefined());
+    const calls = fetchMock.mock.calls.length;
+    await new Promise(r => setTimeout(r, 50));
+    expect(fetchMock.mock.calls.length).toBe(calls);
+  });
+});

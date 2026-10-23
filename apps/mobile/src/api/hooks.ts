@@ -19,6 +19,7 @@ import type {
 export function useConnection() {
   const conn = useConnectionStore(s => s.conn);
   const loading = useConnectionStore(s => s.loading);
+  const qc = useQueryClient();
 
   useEffect(() => {
     if (!useConnectionStore.getState().loading) return;
@@ -33,12 +34,14 @@ export function useConnection() {
 
   const set = useCallback(async (c: Connection) => {
     await saveConnection(c);
+    qc.clear();
     useConnectionStore.setState({ conn: c, loading: false, authError: false });
-  }, []);
+  }, [qc]);
   const clear = useCallback(async () => {
     await clearConnection();
+    qc.clear();
     useConnectionStore.setState({ conn: null, loading: false });
-  }, []);
+  }, [qc]);
 
   return { conn, loading, set, clear };
 }
