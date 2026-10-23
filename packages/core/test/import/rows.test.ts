@@ -37,3 +37,12 @@ describe('short Amex rows', () => {
     expect(() => parseAmexCsv(text)).toThrow(RangeError);
   });
 });
+
+describe('impossible dates', () => {
+  it('commbank skips 31/02 and month 13 with line numbers', () => {
+    const text = '31/02/2026,"-1.00","A","+1.00"\n05/13/2026,"-2.00","B","+1.00"\n20/10/2026,"-3.00","C","+1.00"\n';
+    const { rows, skipped } = parseCommBankRows(text);
+    expect(rows.map((r) => r.description)).toEqual(['C']);
+    expect(skipped.map((s) => s.line)).toEqual([1, 2]);
+  });
+});

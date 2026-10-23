@@ -12,6 +12,11 @@ export type ImportedRow = {
 export function parseAuDate(s: string): string {
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s.trim());
   if (!m) throw new RangeError(`Not a dd/mm/yyyy date: ${JSON.stringify(s)}`);
+  const [y, mo, d] = [Number(m[3]), Number(m[2]), Number(m[1])];
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  if (mo < 1 || mo > 12 || t.getUTCFullYear() !== y || t.getUTCMonth() !== mo - 1 || t.getUTCDate() !== d) {
+    throw new RangeError(`Not a real date: ${JSON.stringify(s)}`);
+  }
   return `${m[3]}-${m[2]!.padStart(2, '0')}-${m[1]!.padStart(2, '0')}`;
 }
 
