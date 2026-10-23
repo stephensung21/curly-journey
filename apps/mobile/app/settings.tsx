@@ -56,7 +56,7 @@ export default function SettingsScreen() {
 
       <Pressable accessibilityRole="button" onPress={() => router.push('/rules')}>
         <Card>
-          <AppText>{autoPercent === null ? 'Rules' : `Rules · ${autoPercent}% auto-sorted`}</AppText>
+          <AppText>{autoPercent === null ? 'Rules' : `Rules \u00b7 ${autoPercent}% auto-sorted`}</AppText>
         </Card>
       </Pressable>
 

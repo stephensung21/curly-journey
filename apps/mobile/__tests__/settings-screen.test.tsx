@@ -54,7 +54,7 @@ it('Disconnect from API clears the connection', async () => {
 
 it('Rules row shows the auto-sorted percent and opens the rules screen', async () => {
   await renderScreen(<SettingsScreen />);
-  await fireEvent.press(screen.getByText('Rules · 92% auto-sorted'));
+  await fireEvent.press(screen.getByText('Rules \u00b7 92% auto-sorted'));
   expect(mockPush).toHaveBeenCalledWith('/rules');
 });
 
