@@ -698,12 +698,16 @@ export function makeRepo(db: Db): Repo {
         sets.push(`note = $${params.length}::text`);
       }
       if (sets.length) {
-        // One statement. A flow edit on a paired row also frees the partner (unless the owner set its flow) and
+        // One statement. A flow edit on a paired row also frees the partner (keeping its flow if the owner set it) and
         // marks it uncategorised so the next pipeline run re-detects it. The CTE reads the pair_id from before the update.
         const unpair = patch.flow !== undefined
           ? `, freed as (
-               update transaction p set flow = 'normal', flow_source = 'auto', pair_id = null, categorised = false
-               from old where p.id = old.pair_id and p.flow_source <> 'user'
+               update transaction p set
+                 flow = case when p.flow_source = 'user' then p.flow else 'normal' end,
+                 flow_source = case when p.flow_source = 'user' then p.flow_source else 'auto' end,
+                 pair_id = null,
+                 categorised = case when p.flow_source = 'user' then p.categorised else false end
+               from old where p.id = old.pair_id
              )`
           : '';
         const done = await db.query(

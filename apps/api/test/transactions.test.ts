@@ -146,7 +146,7 @@ describe('PATCH /transactions/:id', () => {
     await ctx.db.query("update transaction set flow_source = 'user', categorised = true where id = $1", [b]);
     await ctx.call('PATCH', `/transactions/${a}`, { flow: 'normal' });
     expect(await get(a)).toMatchObject({ flow: 'normal', flow_source: 'user', pair_id: null });
-    expect(await get(b)).toMatchObject({ flow: 'transfer', flow_source: 'user', categorised: true });
+    expect(await get(b)).toMatchObject({ flow: 'transfer', flow_source: 'user', pair_id: null, categorised: true });
   });
 
   it('validates and 404s', async () => {

@@ -5,6 +5,17 @@ import * as hooks from '../src/api/hooks';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn(), back: jest.fn() }) }));
 jest.mock('../src/api/hooks');
+// Records each Button's onPress as rendered, so a test can fire one render's handler twice in the same tick.
+const pressHandlers: Record<string, () => void> = {};
+jest.mock('../src/components/Button', () => {
+  const actual = jest.requireActual('../src/components/Button');
+  return {
+    Button: (props: { label: string; onPress?: () => void }) => {
+      if (props.onPress) pressHandlers[props.label] = props.onPress;
+      return actual.Button(props);
+    },
+  };
+});
 
 const mocked = hooks as jest.Mocked<typeof hooks>;
 const base = {
@@ -113,11 +124,11 @@ it('ignores a second accept on a card while its update is pending', async () => 
   let resolve!: (v: object) => void;
   mutateAsync.mockReturnValue(new Promise(r => { resolve = r; }));
   await renderScreen(<Inbox />);
-  const use = screen.getByText('Use Groceries');
   // Same render, same closure: what a fast double tap does before React re-renders.
-  await act(async () => { void fireEvent.press(use); void fireEvent.press(use); });
+  const use = pressHandlers['Use Groceries']!;
+  await act(async () => { use(); use(); });
   expect(mutateAsync).toHaveBeenCalledTimes(1);
   expect(screen.getByText('Sort 2')).toBeTruthy();
   expect(screen.getByText('Mystery Cafe')).toBeTruthy();
-  resolve({});
+  await act(async () => { resolve({}); });
 });
