@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
 import { renderScreen } from '../test-utils/renderScreen';
 import Inbox from '../app/inbox';
 import * as hooks from '../src/api/hooks';
@@ -107,4 +107,17 @@ it('empty inbox hides the percentage when null', async () => {
   await renderScreen(<Inbox />);
   expect(screen.getByText('All sorted!')).toBeTruthy();
   expect(screen.queryByText(/sorted automatically/)).toBeNull();
+});
+
+it('ignores a second accept on a card while its update is pending', async () => {
+  let resolve!: (v: object) => void;
+  mutateAsync.mockReturnValue(new Promise(r => { resolve = r; }));
+  await renderScreen(<Inbox />);
+  const use = screen.getByText('Use Groceries');
+  // Same render, same closure: what a fast double tap does before React re-renders.
+  await act(async () => { void fireEvent.press(use); void fireEvent.press(use); });
+  expect(mutateAsync).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('Sort 2')).toBeTruthy();
+  expect(screen.getByText('Mystery Cafe')).toBeTruthy();
+  resolve({});
 });
