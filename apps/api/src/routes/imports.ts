@@ -63,11 +63,19 @@ async function buildPreview(repo: Repo, accountId: number, format: 'commbank' | 
 
   const known = await repo.existingCsvKeys(accountId, keys);
   const dates = rows.map((r) => r.date).sort();
+  // Feed rows only (CSV rows are covered by `known`); each can explain at most one CSV row.
   const near = await repo.transactionsNear(accountId, shiftDay(dates[0]!, -2), shiftDay(dates[dates.length - 1]!, 2));
 
   rows.forEach((row, i) => {
-    if (known.has(keys[i]!) || near.some((t) => isLikelyDuplicate(row, t))) out.duplicates.push(row);
-    else {
+    if (known.has(keys[i]!)) {
+      out.duplicates.push(row);
+      return;
+    }
+    const hit = near.findIndex((t) => isLikelyDuplicate(row, t));
+    if (hit >= 0) {
+      near.splice(hit, 1);
+      out.duplicates.push(row);
+    } else {
       out.new.push(row);
       out.newKeys.push(keys[i]!);
     }

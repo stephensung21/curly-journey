@@ -248,7 +248,7 @@ export function makeRepo(db: Db): Repo {
       const rows = await db.query<{ date: string; amount_cents: string | number; description_raw: string }>(
         `select to_char(date, 'YYYY-MM-DD') as date, amount_cents::text as amount_cents, description_raw
          from transaction
-         where account_id = $1 and date >= $2::date and date <= $3::date
+         where account_id = $1 and source = 'pocketsmith' and date >= $2::date and date <= $3::date
          order by date, id`,
         [accountId, from, to],
       );

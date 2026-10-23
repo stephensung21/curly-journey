@@ -87,3 +87,27 @@ describe('imports', () => {
     expect((await post('/imports/preview', { accountId, format: 'commbank', csv }, { 'Content-Length': String(3 * 1024 * 1024) })).status).toBe(413);
   });
 });
+
+describe('fuzzy duplicate matching', () => {
+  const commbank = (rows: [string, string, string][]) => rows.map(([d, a, desc]) => `${d},"${a}","${desc}","+1.00"`).join('\n') + '\n';
+
+  it('one feed row swallows only one of two identical CSV rows', async () => {
+    const { post, accountId, repo } = await setup();
+    await repo.upsertTransactions(accountId, [{
+      source: 'pocketsmith', externalId: 'f2', accountExternalId: '1', date: '2026-10-20', amountCents: -450,
+      descriptionRaw: 'CAFE ABC', payee: 'Cafe', status: 'posted',
+    }]);
+    const text = commbank([['20/10/2026', '-4.50', 'CAFE ABC'], ['20/10/2026', '-4.50', 'CAFE ABC']]);
+    const b = (await (await post('/imports/preview', { accountId, format: 'commbank', csv: text })).json()) as Preview;
+    expect(b.duplicates).toHaveLength(1);
+    expect(b.new).toHaveLength(1);
+  });
+
+  it('earlier CSV import does not swallow a new CSV row a day later', async () => {
+    const { post, accountId } = await setup();
+    await post('/imports/commit', { accountId, format: 'commbank', csv: commbank([['20/10/2026', '-4.50', 'CAFE ABC']]) });
+    const b = (await (await post('/imports/preview', { accountId, format: 'commbank', csv: commbank([['21/10/2026', '-4.50', 'CAFE ABC']]) })).json()) as Preview;
+    expect(b.duplicates).toHaveLength(0);
+    expect(b.new).toHaveLength(1);
+  });
+});
