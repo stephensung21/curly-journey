@@ -17,6 +17,7 @@ const full = { accountId: 7, merchant: '', categoryId: 1, categorySource: null, 
 beforeEach(() => {
   jest.clearAllMocks();
   mockParams = { id: '1', month: '2026-10', institution: 'Amex' };
+  (mocked.useAccounts as jest.Mock).mockReturnValue({ data: { accounts: [{ id: 7, name: 'Everyday', displayName: 'Daily' }] } });
   (mocked.useCategories as jest.Mock).mockReturnValue({
     data: [{ id: 1, name: 'Groceries', emoji: '🛒', color: 'lime', kind: 'spending', sort: 1 }],
   });
@@ -57,4 +58,20 @@ it('handles the uncategorised bucket', async () => {
   await renderScreen(<CategoryScreen />);
   expect(mocked.useTransactionsQuery).toHaveBeenLastCalledWith({ month: '2026-10', categoryId: 'none' });
   expect(screen.getByText('? Uncategorised')).toBeTruthy();
+});
+
+it('scopes to an account and shows its name', async () => {
+  mockParams = { id: '1', month: '2026-10', accountId: '7' };
+  await renderScreen(<CategoryScreen />);
+  expect(mocked.useTransactionsQuery).toHaveBeenLastCalledWith({ month: '2026-10', categoryId: 1, accountId: 7 });
+  expect(screen.getByText('Daily')).toBeTruthy();
+  expect(screen.getByText('October 2026')).toBeTruthy();
+});
+
+it('statement period passes through and shows the range', async () => {
+  mockParams = { id: '1', month: '2026-10', accountId: '7', period: 'statement' };
+  await renderScreen(<CategoryScreen />);
+  expect(mocked.useTransactionsQuery).toHaveBeenLastCalledWith({ month: '2026-10', categoryId: 1, accountId: 7, period: 'statement' });
+  expect(screen.getByText('26 Sep – 25 Oct')).toBeTruthy();
+  expect(screen.queryByText('October 2026')).toBeNull();
 });

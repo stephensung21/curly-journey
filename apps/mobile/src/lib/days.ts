@@ -1,3 +1,4 @@
+import { statementPeriod } from '@curly/core';
 const TZ = 'Australia/Sydney';
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -38,4 +39,12 @@ export function receivedLabel(iso: string): string {
     .replace(/\s/g, '')
     .toLowerCase();
   return `${d} ${MONTHS[m! - 1]} ${y}, ${time}`;
+}
+
+
+/** Statement period for a month, e.g. "26 Sep – 25 Oct". */
+export function statementLabel(month: string): string {
+  const day = (ymd: string) => `${Number(ymd.slice(8, 10))} ${MONTHS[Number(ymd.slice(5, 7)) - 1]}`;
+  const p = statementPeriod(month);
+  return `${day(p.from)} – ${day(p.to)}`;
 }

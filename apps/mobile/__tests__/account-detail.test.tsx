@@ -125,7 +125,7 @@ it('Categories tab shows the bars and drills down', async () => {
   await renderScreen(<AccountDetail />);
   await fireEvent.press(screen.getByText('Categories'));
   await fireEvent.press(screen.getByText('Groceries'));
-  expect(mockPush).toHaveBeenCalledWith('/category/3?month=2026-10');
+  expect(mockPush).toHaveBeenCalledWith('/category/3?month=2026-10&accountId=7');
 });
 
 it('Categories page says so when there is no spending', async () => {
@@ -170,4 +170,22 @@ it('shows no tile figures while loading', async () => {
   await renderScreen(<AccountDetail />);
   expect(screen.queryByText('In')).toBeNull();
   expect(screen.queryByText('$0.00')).toBeNull();
+});
+
+it('Amex Statement category bar drills down with the statement period', async () => {
+  accounts = [amex];
+  await renderScreen(<AccountDetail />);
+  await fireEvent.press(screen.getByText('Statement'));
+  await fireEvent.press(screen.getByText('Groceries'));
+  expect(mockPush).toHaveBeenCalledWith('/category/3?month=2026-10&accountId=7&period=statement');
+});
+
+it('swiping the pager selects the Categories tab', async () => {
+  await renderScreen(<AccountDetail />);
+  const tab = () => screen.getByRole('button', { name: 'Categories' });
+  expect(tab().props.accessibilityState.selected).toBe(false);
+  const { Dimensions } = require('react-native');
+  const width = Dimensions.get('window').width - 32;
+  await fireEvent(screen.getByTestId('account-pager'), 'momentumScrollEnd', { nativeEvent: { contentOffset: { x: width } } });
+  expect(tab().props.accessibilityState.selected).toBe(true);
 });

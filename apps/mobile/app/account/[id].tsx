@@ -1,4 +1,4 @@
-import { institutionGroup, monthKey, statementPeriod } from '@curly/core';
+import { institutionGroup, monthKey } from '@curly/core';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Dimensions, type LayoutChangeEvent, Pressable, ScrollView, type ScrollViewInstance, View } from 'react-native';
@@ -16,20 +16,14 @@ import { MoreLessNote } from '../../src/components/MoreLessNote';
 import { Screen } from '../../src/components/Screen';
 import { Segmented } from '../../src/components/Segmented';
 import { TransactionList } from '../../src/components/TransactionList';
-import { plainDay, sydneyDate } from '../../src/lib/days';
+import { plainDay, statementLabel, sydneyDate } from '../../src/lib/days';
 import { now } from '../../src/lib/now';
 import { categoryColor } from '../../src/theme/categoryColor';
 import { accents } from '../../src/theme/tokens';
 import { useTheme } from '../../src/theme/useTheme';
 
 const TZ = 'Australia/Sydney';
-const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const PAGES = ['Transactions', 'Categories'] as const;
-
-/** 2026-09-26 -> "26 Sep". */
-function shortDay(ymd: string): string {
-  return `${Number(ymd.slice(8, 10))} ${SHORT_MONTHS[Number(ymd.slice(5, 7)) - 1]}`;
-}
 
 function Tile({ label, cents, color, signed }: { label: string; cents: number; color: string; signed?: boolean }) {
   const t = useTheme();
@@ -80,7 +74,6 @@ export default function AccountDetailScreen() {
   const byId = new Map(categories.map(c => [c.id, c]));
   const s = spendingQ.data;
   const max = s ? Math.max(1, ...s.byCategory.map(c => c.cents)) : 1;
-  const period = statementPeriod(month);
 
   const synced = syncedLabel(accountsQ.data?.lastSuccessAt ?? null, current);
   const today = sydneyDate(current);
@@ -153,7 +146,7 @@ export default function AccountDetailScreen() {
       <MonthSwitcher value={month} onChange={setMonth} />
       {statement ? (
         <AppText tone="muted" style={{ textAlign: 'center' }}>
-          {`${shortDay(period.from)} – ${shortDay(period.to)}`}
+          {statementLabel(month)}
         </AppText>
       ) : null}
 
@@ -182,6 +175,7 @@ export default function AccountDetailScreen() {
       <View onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}>
         <ScrollView
           ref={pager}
+          testID="account-pager"
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
@@ -205,7 +199,7 @@ export default function AccountDetailScreen() {
                       name={c.categoryId === null ? 'Uncategorised' : (cat?.name ?? 'Unknown')}
                       cents={c.cents}
                       fraction={c.cents / max}
-                      onPress={() => router.push(`/category/${c.categoryId ?? 'none'}?month=${month}` as never)}
+                      onPress={() => router.push(`/category/${c.categoryId ?? 'none'}?month=${month}&accountId=${accountId}${statement ? '&period=statement' : ''}` as never)}
                     />
                   );
                 })}

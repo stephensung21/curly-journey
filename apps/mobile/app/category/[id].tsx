@@ -1,22 +1,37 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { useCategories, useTransactionsQuery } from '../../src/api/hooks';
+import { useAccounts, useCategories, useTransactionsQuery } from '../../src/api/hooks';
 import type { TransactionQuery } from '../../src/api/types';
 import { Amount } from '../../src/components/Amount';
 import { AppText } from '../../src/components/AppText';
 import { monthLabel } from '../../src/components/MonthSwitcher';
 import { Screen } from '../../src/components/Screen';
 import { TransactionList } from '../../src/components/TransactionList';
-import { sydneyDate } from '../../src/lib/days';
+import { statementLabel, sydneyDate } from '../../src/lib/days';
 import { now } from '../../src/lib/now';
 
 export default function CategoryScreen() {
-  const { id, month, institution } = useLocalSearchParams<{ id: string; month: string; institution?: string }>();
+  const { id, month, institution, accountId, period } = useLocalSearchParams<{
+    id: string;
+    month: string;
+    institution?: string;
+    accountId?: string;
+    period?: string;
+  }>();
   const router = useRouter();
   const categories = useCategories().data ?? [];
   const uncategorised = id === 'none';
   const categoryId = uncategorised ? 'none' : Number(id);
-  const query: TransactionQuery = { month: month!, categoryId, ...(institution ? { institution } : {}) };
+  const statement = period === 'statement';
+  const query: TransactionQuery = {
+    month: month!,
+    categoryId,
+    ...(institution ? { institution } : {}),
+    ...(accountId ? { accountId: Number(accountId) } : {}),
+    ...(accountId && statement ? { period: 'statement' as const } : {}),
+  };
+  const accounts = useAccounts().data?.accounts;
+  const account = accountId ? accounts?.find(a => a.id === Number(accountId)) : undefined;
   const txQ = useTransactionsQuery(query);
   const category = uncategorised ? undefined : categories.find(c => c.id === categoryId);
   const transactions = txQ.data?.transactions ?? [];
@@ -32,7 +47,8 @@ export default function CategoryScreen() {
         <AppText variant="title" accessibilityRole="header">
           {title}
         </AppText>
-        <AppText tone="muted">{monthLabel(month!)}</AppText>
+        {account ? <AppText tone="muted">{account.displayName ?? account.name}</AppText> : null}
+        <AppText tone="muted">{accountId && statement ? statementLabel(month!) : monthLabel(month!)}</AppText>
         <Amount cents={total} variant="hero" />
       </View>
       {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
