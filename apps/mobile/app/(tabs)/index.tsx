@@ -11,6 +11,7 @@ import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
 import { SunDoodle } from '../../src/components/doodles/SunDoodle';
 import { HeroCard } from '../../src/components/HeroCard';
 import { InOutChart } from '../../src/components/InOutChart';
+import { OpenBankAppLink } from '../../src/components/OpenBankApp';
 import { Screen } from '../../src/components/Screen';
 import { SyncBanner } from '../../src/components/SyncBanner';
 import { now } from '../../src/lib/now';
@@ -121,9 +122,12 @@ export default function AccountsScreen() {
       ) : null}
       {groupAccounts(accounts).map(([institution, rows]) => (
         <Card key={institution}>
-          <AppText variant="label" tone="muted">
-            {institution}
-          </AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <AppText variant="label" tone="muted">
+              {institution}
+            </AppText>
+            <OpenBankAppLink institution={institution} />
+          </View>
           {rows.map(a => (
             <AccountRow key={a.id} account={a} lastSuccessAt={lastSuccessAt} />
           ))}

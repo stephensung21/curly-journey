@@ -12,6 +12,7 @@ import { CategoryBar } from '../../src/components/CategoryBar';
 import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
 import { IconTile } from '../../src/components/IconTile';
 import { MonthSwitcher } from '../../src/components/MonthSwitcher';
+import { OpenBankAppButton } from '../../src/components/OpenBankApp';
 import { MoreLessNote } from '../../src/components/MoreLessNote';
 import { Screen } from '../../src/components/Screen';
 import { Segmented } from '../../src/components/Segmented';
@@ -112,6 +113,7 @@ export default function AccountDetailScreen() {
             <AppText variant="title">{account.displayName ?? account.name}</AppText>
           </View>
           <Amount cents={account.balanceCents} variant="hero" />
+          <OpenBankAppButton institution={account.institution} />
           {synced ? (
             <AppText variant="label" tone="muted">
               {synced}
