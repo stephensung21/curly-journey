@@ -1,0 +1,9 @@
+name = "curly-journey-api"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = ["0 */4 * * *"]
+
+# Secrets (DATABASE_URL, POCKETSMITH_KEY) are set with "wrangler secret put", never here.
