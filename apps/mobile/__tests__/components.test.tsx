@@ -38,3 +38,21 @@ describe('Screen', () => {
     for (const img of images) expect(img.props.fadeDuration).toBe(0);
   });
 });
+
+describe('AccountRow', () => {
+  const { accountRowStyle } = require('../src/components/AccountRow');
+  const { themes } = require('../src/theme/tokens');
+
+  it('highlights the row while it is pressed, in both modes', () => {
+    for (const t of [themes.light, themes.dark]) {
+      expect(accountRowStyle(false, t).backgroundColor).toBe('transparent');
+      expect(accountRowStyle(true, t).backgroundColor).toBe(t.line);
+    }
+  });
+
+  it('gives each row a tall touch target with room between rows', () => {
+    const s = accountRowStyle(false, themes.light);
+    expect(s.minHeight).toBeGreaterThanOrEqual(64);
+    expect(s.paddingVertical).toBeGreaterThanOrEqual(12);
+  });
+});
