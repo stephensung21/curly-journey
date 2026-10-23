@@ -806,6 +806,8 @@ The empty and error texts stay as they are now.
 - modify `app/(tabs)/index.tsx`;
 - tests go in `__tests__/{inout-chart,accounts-tab}.test.tsx`.
 
+**Refresh button** (owner request 2026-10-24): a `↻` press target in the Accounts title row, on the right, with accessibility label `Refresh`. It runs the same flow as pull-to-refresh: `useSyncNow`, which repeats while history loads, then refetches accounts and status. While running, the button shows an `ActivityIndicator` and is disabled, and a muted `Syncing…` line shows under the title. Errors reuse the existing `Sync failed. Try again soon.` text. Pull-to-refresh stays.
+
 **Hero card** (above the account list, below the sync banner, visual spec screen H):
 - a `SunDoodle` at the top right of the screen;
 - a `HeroCard` containing:
@@ -835,6 +837,7 @@ The empty and error texts stay as they are now.
   - Tapping the `Sep` bar group shows `September: in $5,200 · mortgage $3,100 · spending $2,480`.
   - `thisMonth` mode renders day labels including `1` and the last day.
   - The Accounts tab shows `You've spent this month` and the total from `useSpending`.
+  - Pressing `Refresh` calls the sync mutation once and shows `Syncing…`. A second press while it's running does nothing. A rejected sync shows `Sync failed. Try again soon.`
 - [ ] **Step 2:** Run `cd apps/mobile && NODE_OPTIONS=--max-old-space-size=2048 npx jest --ci -i inout-chart accounts-tab`. Expected: FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run the same command. Expected: PASS. Then run `npx tsc --noEmit`.
