@@ -1,6 +1,8 @@
 import { mapAccount, mapTransaction, type PsTransaction } from '@curly/core';
 import type { Deps } from '../app';
 import type { Db } from '../db/db';
+import { CoinSpotError } from '../coinspot/client';
+import { makeManualRepo } from '../db/manual';
 import { makeRepo, type HistoryState } from '../db/repo';
 import { PocketSmithError } from '../pocketsmith';
 import { PIPELINE_CALLS, runPipeline } from '../spending/pipeline';
@@ -21,7 +23,8 @@ const HOUR_MS = 60 * 60 * 1000;
 /**
  * Workers Free allows 50 outbound requests per invocation, and every Neon query and PocketSmith page is one.
  * Stay under it with room to spare. A run costs: 4 fixed (sync log start, me, accounts, one upsert of every account),
- * then reconciliation (2 per page of recent rows across all accounts, plus one delete that also saves the owner's
+ * then CoinSpot when configured and at least 5 calls are left (3: its request and 2 queries; a failure is logged and
+ * skipped), then reconciliation (2 per page of recent rows across all accounts, plus one delete that also saves the owner's
  * edits), then history with whatever is left (2 per page plus one query per window or resume cursor, plus one to
  * clear a rejected cursor), then the categorisation pipeline when at least
  * PIPELINE_CALLS are left (otherwise `more`), then the sync log finish from the reserve.
@@ -146,6 +149,17 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
     if (left() < 1) throw new BudgetExhausted();
     const states = (await repo.upsertAccountStates(psAccounts.map(mapAccount))).map((s, i) => ({ ...s, psId: psAccounts[i]!.id }));
     accounts = states.length;
+
+    // Optional feed: a CoinSpot failure or missing key must never break the PocketSmith sync.
+    if (deps.coinspot && left() >= 5) {
+      try {
+        used++;
+        const holdings = await deps.coinspot.balances();
+        await makeManualRepo(db).upsertCoinspot(holdings, deps.now());
+      } catch (e) {
+        console.error('coinspot failed', e instanceof CoinSpotError ? e.status : 'error');
+      }
+    }
     const localByPs = new Map(states.map((s) => [s.psId, s.id]));
 
     // Refetch the recent window across all accounts in one paginated pass, then drop feed rows PocketSmith no longer

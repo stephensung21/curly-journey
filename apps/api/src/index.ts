@@ -1,12 +1,24 @@
 import { createApp, type Deps } from './app';
+import { coinSpotClient } from './coinspot/client';
 import { neonDb } from './db/db';
 import { pocketSmithClient } from './pocketsmith/client';
 import { runSync, syncDue } from './sync/runSync';
 
-type Env = { DATABASE_URL: string; POCKETSMITH_KEY: string };
+type Env = {
+  DATABASE_URL: string;
+  POCKETSMITH_KEY: string;
+  COINSPOT_KEY?: string;
+  COINSPOT_SECRET?: string;
+  EXPO_ACCESS_TOKEN?: string;
+};
 
 function depsFor(env: Env): Deps {
-  return { db: neonDb(env.DATABASE_URL), pocketsmith: pocketSmithClient(env.POCKETSMITH_KEY), now: () => new Date() };
+  return {
+    db: neonDb(env.DATABASE_URL),
+    pocketsmith: pocketSmithClient(env.POCKETSMITH_KEY),
+    now: () => new Date(),
+    coinspot: env.COINSPOT_KEY && env.COINSPOT_SECRET ? coinSpotClient(env.COINSPOT_KEY, env.COINSPOT_SECRET) : undefined,
+  };
 }
 
 export default {

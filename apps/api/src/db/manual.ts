@@ -1,4 +1,4 @@
-import { defaultCounts } from '@curly/core';
+import { defaultCounts, sydneyDate } from '@curly/core';
 import { ACCOUNT_COLS, toAccountDto, type AccountDto, type AccountSql } from './repo';
 import type { Db } from './db';
 
@@ -11,6 +11,8 @@ export type ManualRepo = {
   values(accountId: number): Promise<ManualValue[]>;
   remove(accountId: number): Promise<boolean>;
   holdings(accountId: number): Promise<Holding[]>;
+  /** Two queries: upsert the CoinSpot account, then replace its holdings. */
+  upsertCoinspot(holdings: Holding[], now: Date): Promise<void>;
 };
 
 export function makeManualRepo(db: Db): ManualRepo {
@@ -78,6 +80,27 @@ export function makeManualRepo(db: Db): ManualRepo {
         [accountId],
       );
       return rows.map((r) => ({ symbol: r.symbol, units: r.units, audCents: Number(r.aud_cents) }));
+    },
+
+    async upsertCoinspot(holdings, now) {
+      const c = defaultCounts('crypto');
+      const total = holdings.reduce((n, h) => n + h.audCents, 0);
+      const rows = await db.query<{ id: number }>(
+        `insert into account (source, external_id, institution, name, kind, balance_cents, balance_date,
+                              counts_spending, counts_net_worth, projections, synced_at)
+         values ('coinspot', 'coinspot', 'CoinSpot', 'CoinSpot', 'crypto', $1, $2::date, $3, $4, $5, $6)
+         on conflict (source, external_id) do update
+           set balance_cents = excluded.balance_cents, balance_date = excluded.balance_date, synced_at = excluded.synced_at
+         returning id`,
+        [total, sydneyDate(now), c.countsSpending, c.countsNetWorth, c.projections, now],
+      );
+      await db.query(
+        `with d as (delete from account_holding where account_id = $1)
+         insert into account_holding (account_id, symbol, units, aud_cents)
+         select $1, symbol, units, aud_cents
+         from unnest($2::text[], $3::text[], $4::bigint[]) as t(symbol, units, aud_cents)`,
+        [rows[0]!.id, holdings.map((h) => h.symbol), holdings.map((h) => h.units), holdings.map((h) => h.audCents)],
+      );
     },
   };
 }

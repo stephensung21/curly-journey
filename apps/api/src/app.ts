@@ -1,3 +1,5 @@
+import type { CoinSpotClient } from './coinspot/client';
+import type { PushClient } from './push/types';
 import { Hono } from 'hono';
 import { bearerAuth } from './auth';
 import type { Db } from './db/db';
@@ -13,7 +15,7 @@ import { spendingRoutes } from './routes/spending';
 import { syncRoutes } from './routes/sync';
 import { transactionRoutes } from './routes/transactions';
 
-export type Deps = { db: Db; pocketsmith: PocketSmithClient; now: () => Date };
+export type Deps = { db: Db; pocketsmith: PocketSmithClient; now: () => Date; coinspot?: CoinSpotClient; push?: PushClient };
 
 export function createApp(deps: Deps) {
   const app = new Hono();
