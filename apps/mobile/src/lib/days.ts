@@ -23,3 +23,19 @@ export function dayHeader(iso: string, today: string): string {
   if (iso === dayBefore(today)) return `Yesterday · ${plainDay(iso)}`;
   return plainDay(iso);
 }
+
+/** `Thu 22 Oct 2026` */
+export function fullDay(iso: string): string {
+  return `${plainDay(iso)} ${iso.slice(0, 4)}`;
+}
+
+/** `22 Oct 2026, 7:41am`: an instant in Sydney time, to the minute. */
+export function receivedLabel(iso: string): string {
+  const at = new Date(iso);
+  const [y, m, d] = sydneyDate(at).split('-').map(Number);
+  const time = at
+    .toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: TZ })
+    .replace(/\s/g, '')
+    .toLowerCase();
+  return `${d} ${MONTHS[m! - 1]} ${y}, ${time}`;
+}

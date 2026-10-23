@@ -84,7 +84,7 @@ export default function AccountDetailScreen() {
 
       {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
       {transactions.length === 0 && !txQ.isLoading && !txQ.isError ? <AppText tone="muted">No transactions this month.</AppText> : null}
-      <TransactionList transactions={transactions} categories={categories} today={today} />
+      <TransactionList transactions={transactions} categories={categories} today={today} onPressTxn={t => router.push(`/transaction/${t.id}`)} />
     </Screen>
   );
 }
