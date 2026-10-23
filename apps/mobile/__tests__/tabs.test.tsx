@@ -29,3 +29,9 @@ it('every tab has an icon', async () => {
     expect(view.getAllByTestId(`tab-icon-${name}`).length).toBeGreaterThan(0);
   }
 }, 60_000);
+
+it('renders every tab up front so switching never shows a blank first frame', async () => {
+  const view = await renderRouter('./app', { initialUrl: '/' });
+  await view.findAllByLabelText(/, tab, \d+ of \d+$/);
+  expect(view.getByTestId('spending-scroll', { includeHiddenElements: true })).toBeTruthy();
+}, 60_000);
