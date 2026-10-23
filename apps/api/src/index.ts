@@ -14,6 +14,11 @@ export default {
     return createApp(depsFor(env)).fetch(request);
   },
   scheduled(_event: unknown, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }): void {
-    ctx.waitUntil(runSync(depsFor(env)));
+    ctx.waitUntil(
+      runSync(depsFor(env)).then((result) => {
+        // Status only: the error text could echo connection details.
+        if (result.status === 'failed') console.error('sync failed', result.status);
+      }),
+    );
   },
 };
