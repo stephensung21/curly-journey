@@ -2,6 +2,7 @@ import { isStale } from '@curly/core';
 import { Hono } from 'hono';
 import type { Deps } from '../app';
 import { makeRepo, type AccountSettingsPatch } from '../db/repo';
+import { parseId } from './http';
 
 const BOOLS = ['countsSpending', 'countsNetWorth', 'isOffset'] as const;
 const PROJECTIONS = ['off', 'etf', 'mortgage'];
@@ -24,8 +25,6 @@ function parsePatch(body: unknown): AccountSettingsPatch | null {
   }
   return out as AccountSettingsPatch;
 }
-
-const parseId = (s: string): number | null => (/^\d+$/.test(s) && Number(s) <= Number.MAX_SAFE_INTEGER ? Number(s) : null);
 
 export function accountRoutes(deps: Deps) {
   const r = new Hono();

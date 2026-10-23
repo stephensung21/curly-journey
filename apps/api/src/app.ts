@@ -4,8 +4,11 @@ import type { Db } from './db/db';
 import type { PocketSmithClient } from './pocketsmith';
 import { makeRepo } from './db/repo';
 import { accountRoutes } from './routes/accounts';
+import { categoryRoutes } from './routes/categories';
 import { importRoutes } from './routes/imports';
+import { ruleRoutes } from './routes/rules';
 import { syncRoutes } from './routes/sync';
+import { transactionRoutes } from './routes/transactions';
 
 export type Deps = { db: Db; pocketsmith: PocketSmithClient; now: () => Date };
 
@@ -16,5 +19,8 @@ export function createApp(deps: Deps) {
   app.route('/', accountRoutes(deps));
   app.route('/', importRoutes(deps));
   app.route('/', syncRoutes(deps));
+  app.route('/', categoryRoutes(deps));
+  app.route('/', transactionRoutes(deps));
+  app.route('/', ruleRoutes(deps));
   return app;
 }

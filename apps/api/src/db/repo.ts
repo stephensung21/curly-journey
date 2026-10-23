@@ -1,9 +1,10 @@
 import {
-  addMonths,
   cleanMerchant,
   defaultCounts,
+  monthPeriod,
   type AccountKind,
   type AccountRow,
+  type CategorySource,
   type CategoriseInput,
   type Cents,
   type Flow,
@@ -32,11 +33,45 @@ export type AccountDto = {
 
 export type TransactionDto = {
   id: number;
+  accountId: number;
   date: string;
   amountCents: Cents;
   description: string;
+  merchant: string;
   status: 'posted' | 'pending';
   source: 'pocketsmith' | 'csv';
+  categoryId: number | null;
+  categorySource: CategorySource | null;
+  flow: Flow;
+  flowSource: 'auto' | 'user' | 'rule';
+  note: string | null;
+  memo: string | null;
+  /** ISO 8601 UTC: when PocketSmith first received the row. */
+  feedCreatedAt: string | null;
+  splits: { categoryId: number; amountCents: Cents }[];
+};
+
+export type TransactionFilter = {
+  from: string;
+  to: string;
+  accountIds?: number[];
+  /** A category id, or 'none' for rows without one. */
+  categoryId?: number | 'none';
+};
+
+export type TransactionPatch = {
+  categoryId?: number | null;
+  flow?: Flow;
+  note?: string | null;
+};
+
+export type NewCategory = Pick<CategoryDto, 'name' | 'emoji' | 'color' | 'kind'>;
+
+export type RuleMatch = { matchText: string; accountId: number | null; amountCents: number | null };
+export type NewRule = RuleMatch & {
+  origin: 'user' | 'learned';
+  categoryId: number | null;
+  flow: Flow | null;
 };
 
 export type CategoryDto = {
@@ -110,6 +145,22 @@ export interface Repo {
   existingCsvKeys(accountId: number, keys: string[]): Promise<Set<string>>;
   updateAccountSettings(id: number, patch: AccountSettingsPatch): Promise<AccountDto | null>;
   listTransactions(accountId: number, month: string): Promise<TransactionDto[]>;
+  /** Rows dated `from` to `to` inclusive, newest first. */
+  queryTransactions(filter: TransactionFilter): Promise<TransactionDto[]>;
+  getTransaction(id: number): Promise<TransactionDto | null>;
+  /** Applies the owner's edits (category and flow become 'user' sourced); null when the row does not exist. */
+  patchTransaction(id: number, patch: TransactionPatch): Promise<TransactionDto | null>;
+  /** Replaces the row's splits (none clears them); null when the row does not exist. */
+  setSplits(id: number, splits: { categoryId: number; amountCents: Cents }[]): Promise<TransactionDto | null>;
+  /** Null when the name is taken. */
+  createCategory(c: NewCategory): Promise<CategoryDto | null>;
+  /** Every rule with how many transactions it matches. */
+  listRulesWithMatches(): Promise<(Rule & { matches: number })[]>;
+  /** Rows the rule would change: not user-categorised, and not already in `categoryId`. */
+  previewRule(m: RuleMatch, categoryId: number | null): Promise<number>;
+  /** Creates the rule; with `applyToPast`, also applies it to matching rows the owner has not set. */
+  createRule(r: NewRule, applyToPast: boolean): Promise<{ rule: Rule; updated: number }>;
+  deleteRule(id: number): Promise<boolean>;
   transactionsNear(accountId: number, from: string, to: string): Promise<ImportedRow[]>;
   startSync(now: Date): Promise<number | null>;
   finishSync(
@@ -179,7 +230,92 @@ const toAccountDto = (r: AccountSql): AccountDto => ({
   isOffset: r.is_offset,
 });
 
+type TransactionSql = {
+  id: string | number;
+  account_id: number;
+  date: string;
+  amount_cents: string | number;
+  description_raw: string;
+  merchant: string;
+  status: string;
+  source: 'pocketsmith' | 'csv';
+  category_id: number | null;
+  category_source: CategorySource | null;
+  flow: Flow;
+  flow_source: 'auto' | 'user' | 'rule';
+  note: string | null;
+  memo: string | null;
+  feed_created_at: string | null;
+};
+
+const TRANSACTION_COLS = `t.id, t.account_id, to_char(t.date, 'YYYY-MM-DD') as date, t.amount_cents::text as amount_cents,
+  t.description_raw, t.merchant, t.status, t.source, t.category_id, t.category_source, t.flow, t.flow_source, t.note,
+  t.memo, to_char(t.feed_created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as feed_created_at`;
+
+/** SQL for "transaction `t` matches the rule whose text, account and amount are $1, $2, $3"; mirrors core ruleMatches. */
+const RULE_MATCH_SQL = `(strpos(upper(t.description_raw), upper($1)) > 0 or strpos(upper(t.merchant), upper($1)) > 0)
+  and ($2::int is null or t.account_id = $2::int) and ($3::bigint is null or t.amount_cents = $3::bigint)`;
+
+type RuleSql = {
+  id: number;
+  origin: 'user' | 'learned';
+  match_text: string;
+  account_id: number | null;
+  amount_cents: string | null;
+  category_id: number | null;
+  flow: Flow | null;
+  created_at: string;
+};
+
+const RULE_COLS = `id, origin, match_text, account_id, amount_cents::text as amount_cents, category_id, flow,
+  to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_at`;
+
+const toRule = (r: RuleSql): Rule => ({
+  id: Number(r.id),
+  origin: r.origin,
+  matchText: r.match_text,
+  accountId: r.account_id === null ? null : Number(r.account_id),
+  amountCents: r.amount_cents === null ? null : Number(r.amount_cents),
+  categoryId: r.category_id === null ? null : Number(r.category_id),
+  flow: r.flow,
+  createdAt: r.created_at,
+});
+
 const asDate = (v: unknown): Date => (v instanceof Date ? v : new Date(String(v)));
+
+/** Maps rows to DTOs, loading all their splits in one query. */
+async function toTransactionDtos(db: Db, rows: TransactionSql[]): Promise<TransactionDto[]> {
+  if (!rows.length) return [];
+  const splits = await db.query<{ transaction_id: string | number; category_id: number; amount_cents: string | number }>(
+    `select transaction_id, category_id, amount_cents::text as amount_cents from transaction_split
+     where transaction_id = any($1::bigint[]) order by id`,
+    [rows.map((r) => Number(r.id))],
+  );
+  const by = new Map<number, TransactionDto['splits']>();
+  for (const sp of splits) {
+    const list = by.get(Number(sp.transaction_id)) ?? [];
+    list.push({ categoryId: Number(sp.category_id), amountCents: Number(sp.amount_cents) });
+    by.set(Number(sp.transaction_id), list);
+  }
+  return rows.map((r) => ({
+    id: Number(r.id),
+    accountId: Number(r.account_id),
+    date: r.date,
+    amountCents: Number(r.amount_cents),
+    description: r.description_raw,
+    merchant: r.merchant,
+    status: r.status === 'pending' ? 'pending' : 'posted',
+    source: r.source,
+    categoryId: r.category_id === null ? null : Number(r.category_id),
+    categorySource: r.category_source,
+    flow: r.flow,
+    flowSource: r.flow_source,
+    note: r.note,
+    memo: r.memo,
+    feedCreatedAt: r.feed_created_at,
+    splits: by.get(Number(r.id)) ?? [],
+  }));
+}
 
 function chunks<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -387,31 +523,130 @@ export function makeRepo(db: Db): Repo {
 
     async listTransactions(accountId, month) {
       // `date` holds Sydney local dates, so compare local calendar strings, never UTC instants.
-      const startLocal = `${month}-01`;
-      const endLocal = `${addMonths(month, 1)}-01`;
-      const rows = await db.query<{
-        id: string | number;
-        date: string;
-        amount_cents: string | number;
-        description_raw: string;
-        status: string;
-        source: 'pocketsmith' | 'csv';
-      }>(
-        `select id, to_char(date, 'YYYY-MM-DD') as date, amount_cents::text as amount_cents,
-                description_raw, status, source
-         from transaction
-         where account_id = $1 and date >= $2::date and date < $3::date
-         order by date desc, id desc`,
-        [accountId, startLocal, endLocal],
+      const { from, to } = monthPeriod(month);
+      return this.queryTransactions({ from, to, accountIds: [accountId] });
+    },
+
+    async queryTransactions(f) {
+      const params: unknown[] = [f.from, f.to];
+      const where = ['t.date >= $1::date', 't.date <= $2::date'];
+      if (f.accountIds) {
+        params.push(f.accountIds);
+        where.push(`t.account_id = any($${params.length}::int[])`);
+      }
+      if (f.categoryId === 'none') where.push('t.category_id is null');
+      else if (f.categoryId !== undefined) {
+        params.push(f.categoryId);
+        where.push(`t.category_id = $${params.length}::int`);
+      }
+      const rows = await db.query<TransactionSql>(
+        `select ${TRANSACTION_COLS} from transaction t where ${where.join(' and ')} order by t.date desc, t.id desc`,
+        params,
       );
-      return rows.map((r) => ({
-        id: Number(r.id),
-        date: r.date,
-        amountCents: Number(r.amount_cents),
-        description: r.description_raw,
-        status: r.status === 'pending' ? 'pending' : 'posted',
-        source: r.source,
-      }));
+      return toTransactionDtos(db, rows);
+    },
+
+    async getTransaction(id) {
+      const rows = await db.query<TransactionSql>(`select ${TRANSACTION_COLS} from transaction t where t.id = $1`, [id]);
+      return (await toTransactionDtos(db, rows))[0] ?? null;
+    },
+
+    async patchTransaction(id, patch) {
+      const sets: string[] = [];
+      const params: unknown[] = [id];
+      if (patch.categoryId !== undefined) {
+        params.push(patch.categoryId);
+        sets.push(`category_id = $${params.length}::int`, `category_source = 'user'`, 'categorised = true');
+      }
+      if (patch.flow !== undefined) {
+        params.push(patch.flow);
+        sets.push(`flow = $${params.length}::text`, `flow_source = 'user'`, 'pair_id = null');
+      }
+      if (patch.note !== undefined) {
+        params.push(patch.note);
+        sets.push(`note = $${params.length}::text`);
+      }
+      if (sets.length) {
+        const done = await db.query(`update transaction set ${sets.join(', ')} where id = $1 returning id`, params);
+        if (!done.length) return null;
+      }
+      return this.getTransaction(id);
+    },
+
+    async setSplits(id, splits) {
+      if (!(await this.getTransaction(id))) return null;
+      await db.query('delete from transaction_split where transaction_id = $1', [id]);
+      if (splits.length) {
+        await db.query(
+          `insert into transaction_split (transaction_id, category_id, amount_cents)
+           select $1, v.category_id, v.amount_cents
+           from unnest($2::int[], $3::bigint[]) with ordinality as v(category_id, amount_cents, n)
+           order by v.n`,
+          [id, splits.map((p) => p.categoryId), splits.map((p) => p.amountCents)],
+        );
+      }
+      return this.getTransaction(id);
+    },
+
+    async createCategory(c) {
+      const rows = await db.query<CategoryDto>(
+        `insert into category (name, emoji, color, kind, sort)
+         select $1, $2, $3, $4, coalesce(max(sort), 0) + 1 from category
+         on conflict (name) do nothing
+         returning id, name, emoji, color, kind, sort`,
+        [c.name, c.emoji, c.color, c.kind],
+      );
+      return rows[0] ? { ...rows[0], id: Number(rows[0].id), sort: Number(rows[0].sort) } : null;
+    },
+
+    async listRulesWithMatches() {
+      const counts = await db.query<{ id: number; matches: string | number }>(
+        `select r.id, count(t.id) as matches from rule r
+         left join transaction t on (strpos(upper(t.description_raw), upper(r.match_text)) > 0
+             or strpos(upper(t.merchant), upper(r.match_text)) > 0)
+           and (r.account_id is null or t.account_id = r.account_id)
+           and (r.amount_cents is null or t.amount_cents = r.amount_cents)
+         group by r.id`,
+      );
+      const byId = new Map(counts.map((c) => [Number(c.id), Number(c.matches)]));
+      return (await this.listRules()).map((r) => ({ ...r, matches: byId.get(r.id) ?? 0 }));
+    },
+
+    async previewRule(m, categoryId) {
+      const rows = await db.query<{ n: string | number }>(
+        `select count(*) as n from transaction t
+         where ${RULE_MATCH_SQL} and t.category_source is distinct from 'user'
+           and ($4::int is null or t.category_id is distinct from $4::int)`,
+        [m.matchText, m.accountId, m.amountCents, categoryId],
+      );
+      return Number(rows[0]!.n);
+    },
+
+    async createRule(r, applyToPast) {
+      const created = await db.query<RuleSql>(
+        `insert into rule (origin, match_text, account_id, amount_cents, category_id, flow)
+         values ($1, $2, $3, $4, $5, $6) returning ${RULE_COLS}`,
+        [r.origin, r.matchText, r.accountId, r.amountCents, r.categoryId, r.flow],
+      );
+      const rule = toRule(created[0]!);
+      if (!applyToPast) return { rule, updated: 0 };
+      // Rows the owner categorised are skipped entirely; a row whose flow the owner set keeps that flow.
+      const rows = await db.query(
+        `update transaction t set
+           category_id = case when $4::int is not null then $4::int else t.category_id end,
+           category_source = case when $4::int is not null then $5::text else t.category_source end,
+           flow = case when $6::text is not null and t.flow_source <> 'user' then $6::text else t.flow end,
+           pair_id = case when $6::text is not null and t.flow_source <> 'user' then null else t.pair_id end,
+           flow_source = case when $6::text is not null and t.flow_source <> 'user' then 'rule' else t.flow_source end
+         where ${RULE_MATCH_SQL} and t.category_source is distinct from 'user'
+         returning t.id`,
+        [r.matchText, r.accountId, r.amountCents, r.categoryId, r.origin === 'learned' ? 'learned' : 'rule', r.flow],
+      );
+      return { rule, updated: rows.length };
+    },
+
+    async deleteRule(id) {
+      return (await db.query('delete from rule where id = $1 returning id', [id])).length > 0;
     },
 
     async transactionsNear(accountId, from, to) {
@@ -478,30 +713,8 @@ export function makeRepo(db: Db): Repo {
     },
 
     async listRules() {
-      const rows = await db.query<{
-        id: number;
-        origin: 'user' | 'learned';
-        match_text: string;
-        account_id: number | null;
-        amount_cents: string | null;
-        category_id: number | null;
-        flow: Flow | null;
-        created_at: string;
-      }>(
-        `select id, origin, match_text, account_id, amount_cents::text as amount_cents, category_id, flow,
-           to_char(created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_at
-         from rule order by id`,
-      );
-      return rows.map((r) => ({
-        id: Number(r.id),
-        origin: r.origin,
-        matchText: r.match_text,
-        accountId: r.account_id === null ? null : Number(r.account_id),
-        amountCents: r.amount_cents === null ? null : Number(r.amount_cents),
-        categoryId: r.category_id === null ? null : Number(r.category_id),
-        flow: r.flow,
-        createdAt: r.created_at,
-      }));
+      const rows = await db.query<RuleSql>(`select ${RULE_COLS} from rule order by id`);
+      return rows.map(toRule);
     },
 
     async pastByMerchant() {
