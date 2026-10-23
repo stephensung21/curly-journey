@@ -16,12 +16,10 @@ export function syncRoutes(deps: Deps) {
 
   r.get('/sync/status', async (c) => {
     const last = await makeRepo(deps.db).lastSuccessfulSync();
-    const rows = await deps.db.query<{ status: 'ok' | 'failed' | 'running' }>(
-      'select status from sync_log order by started_at desc, id desc limit 1',
-    );
+    const lastStatus = await makeRepo(deps.db).lastSyncStatus();
     return c.json({
       lastSuccessAt: last ? last.finishedAt.toISOString() : null,
-      lastStatus: rows[0]?.status ?? null,
+      lastStatus,
       stale: isStale(last?.finishedAt ?? null, deps.now()),
     });
   });

@@ -123,4 +123,15 @@ describe('sync log', () => {
     expect(last!.startedAt.getTime()).toBe(t0.getTime());
     expect(last!.finishedAt.getTime()).toBe(t0.getTime() + 1000);
   });
+
+  it('lastSyncStatus returns latest row status', async () => {
+    expect(await repo.lastSyncStatus()).toBeNull();
+    const a = (await repo.startSync(t0))!;
+    expect(await repo.lastSyncStatus()).toBe('running');
+    await repo.finishSync(a, { status: 'ok' }, new Date(t0.getTime() + 1000));
+    expect(await repo.lastSyncStatus()).toBe('ok');
+    const b = (await repo.startSync(new Date(t0.getTime() + 3_600_000)))!;
+    await repo.finishSync(b, { status: 'failed', error: 'x' }, new Date(t0.getTime() + 3_601_000));
+    expect(await repo.lastSyncStatus()).toBe('failed');
+  });
 });

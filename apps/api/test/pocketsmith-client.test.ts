@@ -33,4 +33,31 @@ describe('pocketSmithClient', () => {
     expect((err as Error).message).toContain('403');
     expect((err as Error).message).not.toContain('secret-key');
   });
+
+  it('throws on a repeated next URL', async () => {
+    const u = 'https://api.pocketsmith.com/v2/transaction_accounts/9/transactions?page=2';
+    let n = 0;
+    const fetchImpl = (async () => {
+      n++;
+      return new Response('[]', { headers: { Link: `<${u}>; rel="next"` } });
+    }) as unknown as typeof fetch;
+    const c = pocketSmithClient('secret-key', fetchImpl);
+    const err = await c.transactions(9, {}).catch((e: Error) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).not.toContain('secret-key');
+    expect(n).toBeLessThanOrEqual(3);
+  });
+
+  it('refuses a next URL on another origin and never sends the key there', async () => {
+    const urls: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      urls.push(url);
+      return new Response('[]', { headers: { Link: '<https://evil.example.com/x?page=2>; rel="next"' } });
+    }) as unknown as typeof fetch;
+    const c = pocketSmithClient('secret-key', fetchImpl);
+    const err = await c.transactions(9, {}).catch((e: Error) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).not.toContain('secret-key');
+    expect(urls).toHaveLength(1);
+  });
 });

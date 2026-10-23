@@ -52,6 +52,7 @@ export interface Repo {
     now: Date,
   ): Promise<void>;
   lastSuccessfulSync(): Promise<{ startedAt: Date; finishedAt: Date } | null>;
+  lastSyncStatus(): Promise<'ok' | 'failed' | 'running' | null>;
 }
 
 const SYNC_LOCK_MS = 10 * 60 * 1000;
@@ -258,6 +259,13 @@ export function makeRepo(db: Db): Repo {
       );
       const r = rows[0];
       return r ? { startedAt: asDate(r.started_at), finishedAt: asDate(r.finished_at) } : null;
+    },
+
+    async lastSyncStatus() {
+      const rows = await db.query<{ status: 'ok' | 'failed' | 'running' }>(
+        'select status from sync_log order by started_at desc, id desc limit 1',
+      );
+      return rows[0]?.status ?? null;
     },
   };
 }

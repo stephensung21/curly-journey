@@ -1,7 +1,8 @@
 import type { PsTransaction, PsTransactionAccount } from '@curly/core';
 import type { PocketSmithClient } from './index';
 
-const BASE = 'https://api.pocketsmith.com/v2';
+const ORIGIN = 'https://api.pocketsmith.com';
+const BASE = `${ORIGIN}/v2`;
 
 function nextUrl(link: string | null): string | null {
   if (!link) return null;
@@ -21,8 +22,18 @@ export function pocketSmithClient(key: string, fetchImpl: typeof fetch = fetch):
 
   async function getAll<T>(first: string): Promise<T[]> {
     const out: T[] = [];
+    const seen = new Set<string>();
     let url: string | null = first;
     while (url) {
+      let origin: string;
+      try {
+        origin = new URL(url).origin;
+      } catch {
+        throw new Error('PocketSmith pagination returned an invalid next URL');
+      }
+      if (origin !== ORIGIN) throw new Error('PocketSmith pagination returned a next URL on an unexpected origin');
+      if (seen.has(url)) throw new Error('PocketSmith pagination loop detected');
+      seen.add(url);
       const res = await get(url);
       out.push(...((await res.json()) as T[]));
       url = nextUrl(res.headers.get('Link'));
