@@ -58,7 +58,13 @@ const PREFIXES = ['SQ *', 'SMP*', 'PAYPAL *', 'ZLR*', 'LS ', 'EFTPOS ', 'VISA DE
 function findByAlias(upper: string): Merchant | null {
   // Trailing space lets aliases like "BP " match a bare "BP".
   const padded = upper + ' ';
-  for (const { alias, merchant } of ALIASES) if (padded.startsWith(alias)) return merchant;
+  for (const { alias, merchant } of ALIASES) {
+    if (!padded.startsWith(alias)) continue;
+    // Aliases ending in a letter/digit must end at a word boundary ("ATO" must not match "ATOMIC").
+    const next = padded.charAt(alias.length);
+    if (/[A-Z0-9]$/.test(alias) && /[A-Z0-9]/.test(next)) continue;
+    return merchant;
+  }
   return null;
 }
 

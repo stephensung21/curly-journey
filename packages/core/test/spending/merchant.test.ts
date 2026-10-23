@@ -17,6 +17,13 @@ it('cleans known merchants to canonical names', () => {
   expect(cleanMerchant('BP 2345 NEWTOWN NSW')).toBe('BP');
 });
 
+it('aliases match only at a word boundary', () => {
+  expect(cleanMerchant('ATOMIC CAFE NSW')).toBe('Atomic Cafe');
+  expect(cleanMerchant('ATOMIC CAFE SYDNEY')).toBe('Atomic Cafe Sydney');
+  expect(merchantCategory('Atomic Cafe')).toBeNull();
+  expect(cleanMerchant('IGA X-PRESS 123')).toBe('IGA');
+});
+
 it('falls back to first 3 words in Title Case', () => {
   expect(cleanMerchant('SQ *CAFE ABC SURRY HILLS NSW')).toBe('Cafe Abc Surry');
 });
