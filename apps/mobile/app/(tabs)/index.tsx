@@ -51,7 +51,9 @@ export default function AccountsScreen() {
     statusQ.data?.lastStatus === 'failed'
       ? 'Sync failed ·'
       : firstStale
-        ? `${firstStale.institution} hasn't updated since ${sydneyWeekday(lastSuccessAt)}`
+        ? lastSuccessAt
+          ? `${firstStale.institution} hasn't updated since ${sydneyWeekday(lastSuccessAt)}`
+          : `${firstStale.institution} hasn't updated recently`
         : null;
 
   return (

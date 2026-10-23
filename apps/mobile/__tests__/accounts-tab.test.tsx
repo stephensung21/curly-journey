@@ -120,3 +120,17 @@ it('shows inline error when sync fails', async () => {
   await pull();
   expect(await screen.findByText('Sync failed. Try again soon.')).toBeTruthy();
 });
+
+it('uses singular for one day', async () => {
+  status = { ...status, lastSuccessAt: new Date(Date.now() - 86400000).toISOString() };
+  accounts[0] = acct(1, 'Up', { stale: true });
+  await renderScreen(<AccountsScreen />);
+  expect(screen.getByText('synced 1 day ago')).toBeTruthy();
+});
+
+it('banner falls back to "recently" when there is no last success', async () => {
+  status = { lastSuccessAt: null, lastStatus: 'ok', stale: true };
+  accounts[0] = acct(1, 'Up', { stale: true });
+  await renderScreen(<AccountsScreen />);
+  expect(screen.getByText("Up hasn't updated recently")).toBeTruthy();
+});

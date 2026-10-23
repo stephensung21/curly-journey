@@ -34,7 +34,7 @@ export function AccountRow({ account, lastSuccessAt }: { account: Account; lastS
               Offset · home loan
             </AppText>
           ) : null}
-          {account.stale ? <Pill tone="warn">{days === null ? 'never synced' : `synced ${days} days ago`}</Pill> : null}
+          {account.stale ? <Pill tone="warn">{days === null ? 'never synced' : `synced ${days} ${days === 1 ? 'day' : 'days'} ago`}</Pill> : null}
         </View>
         <Amount cents={account.balanceCents} decimals="never" />
       </Pressable>
