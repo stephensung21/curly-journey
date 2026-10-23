@@ -1,5 +1,6 @@
-import { View } from 'react-native';
-import { useConnection } from '../src/api/hooks';
+import { useRouter } from 'expo-router';
+import { Pressable, View } from 'react-native';
+import { useCategorisationStats, useConnection } from '../src/api/hooks';
 import { AppText } from '../src/components/AppText';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
@@ -10,6 +11,8 @@ import { useSettings } from '../src/settings/store';
 
 export default function SettingsScreen() {
   const { clear } = useConnection();
+  const router = useRouter();
+  const autoPercent = useCategorisationStats().data?.autoPercent ?? null;
   const { themeMode, hideBalances, homeChart, setThemeMode, setHideBalances, setHomeChart } = useSettings();
 
   return (
@@ -50,6 +53,12 @@ export default function SettingsScreen() {
         value={homeChart}
         onChange={setHomeChart}
       />
+
+      <Pressable accessibilityRole="button" onPress={() => router.push('/rules')}>
+        <Card>
+          <AppText>{autoPercent === null ? 'Rules' : `Rules · ${autoPercent}% auto-sorted`}</AppText>
+        </Card>
+      </Pressable>
 
       <Card>
         <Button kind="secondary" label="Disconnect from API" onPress={() => void clear()} />

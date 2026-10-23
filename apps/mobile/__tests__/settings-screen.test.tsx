@@ -5,10 +5,18 @@ import SettingsScreen from '../app/settings';
 import { useSettings } from '../src/settings/store';
 
 const mockClear = jest.fn();
-jest.mock('../src/api/hooks', () => ({ useConnection: () => ({ conn: null, loading: false, set: jest.fn(), clear: mockClear }) }));
+const mockPush = jest.fn();
+let mockStats: { autoPercent: number | null; sample: number } | undefined;
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: jest.fn() }) }));
+jest.mock('../src/api/hooks', () => ({
+  useConnection: () => ({ conn: null, loading: false, set: jest.fn(), clear: mockClear }),
+  useCategorisationStats: () => ({ data: mockStats }),
+}));
 
 beforeEach(() => {
   mockClear.mockClear();
+  mockPush.mockClear();
+  mockStats = { autoPercent: 92, sample: 50 };
   useSettings.setState({ themeMode: 'system', hideBalances: false, homeChart: 'sixMonths' });
 });
 
@@ -42,4 +50,16 @@ it('Disconnect from API clears the connection', async () => {
   await renderScreen(<SettingsScreen />);
   await fireEvent.press(screen.getByText('Disconnect from API'));
   expect(mockClear).toHaveBeenCalledTimes(1);
+});
+
+it('Rules row shows the auto-sorted percent and opens the rules screen', async () => {
+  await renderScreen(<SettingsScreen />);
+  await fireEvent.press(screen.getByText('Rules · 92% auto-sorted'));
+  expect(mockPush).toHaveBeenCalledWith('/rules');
+});
+
+it('Rules row is just Rules when there is no percent', async () => {
+  mockStats = { autoPercent: null, sample: 0 };
+  await renderScreen(<SettingsScreen />);
+  expect(screen.getByText('Rules')).toBeTruthy();
 });

@@ -30,6 +30,7 @@ function AppStack() {
           <Stack.Screen name="transaction/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="category/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="inbox" options={{ headerShown: false }} />
+          <Stack.Screen name="rules" options={{ headerShown: false }} />
           <Stack.Screen name="import" options={{ headerShown: false }} />
           <Stack.Screen name="design-system" options={{ headerShown: false }} />
         </Stack.Protected>
