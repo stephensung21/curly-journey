@@ -75,15 +75,6 @@ export function useAccounts() {
   });
 }
 
-export function useTransactions(accountId: number, month: string) {
-  const conn = useConn();
-  return useQuery({
-    queryKey: ['transactions', accountId, month],
-    enabled: !!conn.url,
-    queryFn: () => apiFetch<TransactionsResponse>(conn, `/accounts/${accountId}/transactions?month=${month}`),
-  });
-}
-
 export function useSyncStatus() {
   const conn = useConn();
   return useQuery({

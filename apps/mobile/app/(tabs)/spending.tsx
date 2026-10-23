@@ -9,7 +9,7 @@ import { AppText } from '../../src/components/AppText';
 import { Card } from '../../src/components/Card';
 import { CategoryBar } from '../../src/components/CategoryBar';
 import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
-import { HandNote } from '../../src/components/doodles/HandNote';
+import { MoreLessNote } from '../../src/components/MoreLessNote';
 import { MonthSwitcher } from '../../src/components/MonthSwitcher';
 import { Screen } from '../../src/components/Screen';
 import { now } from '../../src/lib/now';
@@ -18,17 +18,11 @@ import { accents } from '../../src/theme/tokens';
 import { useTheme } from '../../src/theme/useTheme';
 
 const INSTITUTIONS = ['CommBank', 'Amex', 'Up'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const NOT_COUNTED = {
   transfer: 'Transfers',
   mortgage: 'Mortgage repayments',
   not_spending: 'Not spending',
 } as const;
-
-function prevMonthShort(month: string): string {
-  const m = Number(month.slice(5, 7));
-  return MONTHS[(m + 10) % 12]!;
-}
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const t = useTheme();
@@ -74,8 +68,6 @@ export default function SpendingScreen() {
   const s = spendingQ.data;
   const byId = new Map(categories.map(c => [c.id, c]));
   const max = s ? Math.max(1, ...s.byCategory.map(c => c.cents)) : 1;
-  const diff = s ? s.totalCents - s.prevTotalCents : 0;
-  const prev = prevMonthShort(month);
   const drill = (id: number | null) =>
     router.push(`/category/${id ?? 'none'}?month=${month}${institution ? `&institution=${institution}` : ''}` as never);
   const notCounted = (s?.notCounted ?? []).filter(n => n.count > 0);
@@ -99,11 +91,7 @@ export default function SpendingScreen() {
           <View style={{ gap: 2 }}>
             <Amount cents={s.totalCents} variant="hero" />
             <CrayonUnderline width={150} color={accents.orange} />
-            {s.prevTotalCents > 0 && diff !== 0 ? (
-              <HandNote tone={diff > 0 ? 'pink' : 'lime'}>
-                <Amount cents={Math.abs(diff)} decimals="never" inline /> {diff > 0 ? 'more' : 'less'} than {prev}
-              </HandNote>
-            ) : null}
+            <MoreLessNote month={month} totalCents={s.totalCents} prevTotalCents={s.prevTotalCents} />
           </View>
 
           {s.byInstitution.length > 0 ? (

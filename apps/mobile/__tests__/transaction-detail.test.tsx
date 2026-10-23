@@ -280,7 +280,8 @@ describe('split editor', () => {
 });
 
 it('account detail rows open the transaction', async () => {
-  (mocked.useTransactions as jest.Mock).mockReturnValue({ data: { transactions: [{ ...base, merchant: 'Coffee' }] }, isLoading: false });
+  (mocked.useTransactionsQuery as jest.Mock).mockReturnValue({ data: { transactions: [{ ...base, merchant: 'Coffee' }] }, isLoading: false });
+  (mocked.useSpending as jest.Mock).mockReturnValue({ data: undefined, isLoading: true });
   await renderScreen(<AccountDetail />);
   await fireEvent.press(screen.getByText('Coffee'));
   expect(mockPush).toHaveBeenCalledWith('/transaction/5');
