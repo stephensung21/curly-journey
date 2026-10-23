@@ -111,7 +111,8 @@ export default function AccountDetailScreen() {
 
       <MonthSwitcher value={month} onChange={setMonth} />
 
-      {groups.length === 0 && !txQ.isLoading ? <AppText tone="muted">No transactions this month.</AppText> : null}
+      {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
+      {groups.length === 0 && !txQ.isLoading && !txQ.isError ? <AppText tone="muted">No transactions this month.</AppText> : null}
       {groups.map(([date, rows]) => (
         <Card key={date}>
           <AppText variant="label" tone="muted">

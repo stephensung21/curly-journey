@@ -81,3 +81,10 @@ it('account row on the Accounts tab links to detail', async () => {
   await fireEvent.press(screen.getByText('Everyday'));
   expect(mockPush).toHaveBeenCalledWith({ pathname: '/account/[id]', params: { id: '7' } });
 });
+
+it('shows a load error instead of the empty state when transactions fail', async () => {
+  (mocked.useTransactions as jest.Mock).mockImplementation(() => ({ data: undefined, isLoading: false, isError: true }));
+  await renderScreen(<AccountDetail />);
+  expect(screen.getByText("Couldn't load transactions. Pull to try again.")).toBeTruthy();
+  expect(screen.queryByText('No transactions this month.')).toBeNull();
+});
