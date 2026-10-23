@@ -6,3 +6,5 @@ export * from './import/csv';
 export * from './import/commbank';
 export * from './import/amex';
 export * from './import/dedupe';
+export * from './sync/pocketsmith';
+export * from './sync/staleness';
