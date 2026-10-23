@@ -87,6 +87,7 @@ it('settings button navigates to settings', async () => {
 it('account row on the Accounts tab links to detail', async () => {
   (mocked.useSyncStatus as jest.Mock).mockReturnValue({ data: { lastSuccessAt: null, lastStatus: 'ok', stale: false }, refetch: jest.fn() });
   (mocked.useSyncNow as jest.Mock).mockReturnValue({ mutateAsync: jest.fn() });
+(mocked.useSpending as jest.Mock).mockReturnValue({ data: { totalCents: 0 } });  (mocked.useInOut as jest.Mock).mockReturnValue({ data: [] });  (mocked.useDaily as jest.Mock).mockReturnValue({ data: [] });
   await renderScreen(<AccountsScreen />);
   await fireEvent.press(screen.getByText('Everyday'));
   expect(mockPush).toHaveBeenCalledWith({ pathname: '/account/[id]', params: { id: '7' } });

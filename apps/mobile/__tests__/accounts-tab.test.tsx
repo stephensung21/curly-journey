@@ -1,10 +1,11 @@
-import { act, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
 import { renderScreen } from '../test-utils/renderScreen';
 import AccountsScreen from '../app/(tabs)/index';
 import { useSettings } from '../src/settings/store';
 import * as hooks from '../src/api/hooks';
 
 jest.mock('expo-router', () => ({ Link: ({ children }: { children: unknown }) => children }));
+jest.mock('../src/lib/now', () => ({ now: () => new Date('2026-10-22T02:00:00Z') }));
 jest.mock('../src/api/hooks');
 
 const mocked = hooks as jest.Mocked<typeof hooks>;
@@ -22,7 +23,7 @@ const mutateAsync = jest.fn();
 
 beforeEach(() => {
   jest.clearAllMocks();
-  useSettings.setState({ hideBalances: false });
+  useSettings.setState({ hideBalances: false, homeChart: 'sixMonths' });
   accounts = [
     acct(1, 'Up'),
     acct(2, 'Zed'),
@@ -36,6 +37,11 @@ beforeEach(() => {
     (mocked.useAccounts as jest.Mock).mockImplementation(() => ({ data: { accounts, lastSuccessAt: (status as any).lastSuccessAt }, refetch: refetchAccounts, isLoading: false }));
     (mocked.useSyncStatus as jest.Mock).mockImplementation(() => ({ data: status, refetch: refetchStatus }));
     (mocked.useSyncNow as jest.Mock).mockReturnValue({ mutateAsync });
+    (mocked.useSpending as jest.Mock).mockReturnValue({ data: { totalCents: 248050 } });
+    (mocked.useInOut as jest.Mock).mockReturnValue({
+      data: ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10'].map(month => ({ month, inCents: 520000, mortgageCents: 310000, spendingCents: 248000 })),
+    });
+    (mocked.useDaily as jest.Mock).mockReturnValue({ data: [{ day: 1, inCents: 0, mortgageCents: 0, spendingCents: 1000 }] });
   };
   setup();
 });
@@ -89,7 +95,8 @@ it('shows offset subline and displayName', async () => {
 it('hides every balance when Hide balances is on', async () => {
   useSettings.setState({ hideBalances: true });
   await renderScreen(<AccountsScreen />);
-  expect(screen.getAllByText('$•••')).toHaveLength(5);
+  // 5 accounts + hero total + 5 chart y labels
+  expect(screen.getAllByText('$•••')).toHaveLength(11);
   expect(screen.queryByText(/1,234/)).toBeNull();
 });
 
@@ -133,4 +140,42 @@ it('banner falls back to "recently" when there is no last success', async () => 
   accounts[0] = acct(1, 'Up', { stale: true });
   await renderScreen(<AccountsScreen />);
   expect(screen.getByText("Up hasn't updated recently")).toBeTruthy();
+});
+
+it('shows the hero spending total for this month', async () => {
+  await renderScreen(<AccountsScreen />);
+  expect(screen.getByText("You've spent this month")).toBeTruthy();
+  expect(screen.getByText('$2,480.50')).toBeTruthy();
+  expect(mocked.useSpending).toHaveBeenCalledWith({ month: '2026-10' });
+  expect(mocked.useInOut).toHaveBeenCalledWith('2026-10', 6);
+});
+
+it('uses the daily chart when homeChart is thisMonth', async () => {
+  useSettings.setState({ homeChart: 'thisMonth' });
+  await renderScreen(<AccountsScreen />);
+  expect(mocked.useDaily).toHaveBeenCalledWith('2026-10');
+  expect(screen.getByText('31')).toBeTruthy();
+});
+
+it('Refresh button syncs once, shows Syncing…, ignores a second press', async () => {
+  let resolve!: (v: object) => void;
+  mutateAsync.mockReturnValue(new Promise(r => (resolve = r)));
+  await renderScreen(<AccountsScreen />);
+  await fireEvent.press(screen.getByLabelText('Refresh'));
+  expect(mutateAsync).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('Syncing…')).toBeTruthy();
+  await fireEvent.press(screen.getByLabelText('Refresh'));
+  expect(mutateAsync).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    resolve({});
+  });
+  expect(refetchAccounts).toHaveBeenCalled();
+  expect(screen.queryByText('Syncing…')).toBeNull();
+});
+
+it('Refresh button shows the error when sync rejects', async () => {
+  mutateAsync.mockRejectedValue(new Error('502'));
+  await renderScreen(<AccountsScreen />);
+  await fireEvent.press(screen.getByLabelText('Refresh'));
+  expect(await screen.findByText('Sync failed. Try again soon.')).toBeTruthy();
 });
