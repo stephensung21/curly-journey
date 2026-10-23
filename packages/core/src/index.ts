@@ -12,3 +12,5 @@ export * from './spending/categories';
 export * from './spending/merchant';
 export * from './spending/pocketsmithCategory';
 export * from './spending/categorise';
+export * from './spending/flows';
+export * from './spending/summarise';
