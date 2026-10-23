@@ -1,2 +1,8 @@
 .superpowers/
 node_modules/
+
+# Worker / local secrets
+.dev.vars
+.env
+.env.*
+*.local
