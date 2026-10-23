@@ -15,6 +15,7 @@ export type AccountDto = {
   institution: string;
   name: string;
   displayName: string | null;
+  source: 'pocketsmith' | 'manual';
   kind: AccountKind;
   balanceCents: Cents;
   balanceDate: string | null;
@@ -42,6 +43,8 @@ export interface Repo {
   upsertTransactions(accountId: number, rows: TransactionRow[]): Promise<number>;
   insertCsvRows(accountId: number, rows: { row: ImportedRow; fingerprint: string }[]): Promise<number>;
   listAccounts(): Promise<AccountDto[]>;
+  getAccount(id: number): Promise<AccountDto | null>;
+  existingCsvKeys(accountId: number, keys: string[]): Promise<Set<string>>;
   updateAccountSettings(id: number, patch: AccountSettingsPatch): Promise<AccountDto | null>;
   listTransactions(accountId: number, month: string): Promise<TransactionDto[]>;
   transactionsNear(accountId: number, from: string, to: string): Promise<ImportedRow[]>;
@@ -59,11 +62,12 @@ const SYNC_LOCK_MS = 10 * 60 * 1000;
 const CHUNK = 100;
 
 // Dates are cast to text in SQL and bigints to numbers here, so PGlite and Neon return identical shapes.
-const ACCOUNT_COLS = `id, institution, name, display_name, kind, balance_cents::text as balance_cents,
+const ACCOUNT_COLS = `id, source, institution, name, display_name, kind, balance_cents::text as balance_cents,
   to_char(balance_date, 'YYYY-MM-DD') as balance_date, counts_spending, counts_net_worth, projections, is_offset`;
 
 type AccountSql = {
   id: number;
+  source: 'pocketsmith' | 'manual';
   institution: string;
   name: string;
   display_name: string | null;
@@ -78,6 +82,7 @@ type AccountSql = {
 
 const toAccountDto = (r: AccountSql): AccountDto => ({
   id: Number(r.id),
+  source: r.source,
   institution: r.institution,
   name: r.name,
   displayName: r.display_name,
@@ -167,6 +172,24 @@ export function makeRepo(db: Db): Repo {
     async listAccounts() {
       const rows = await db.query<AccountSql>(`select ${ACCOUNT_COLS} from account order by id`);
       return rows.map(toAccountDto);
+    },
+
+    async getAccount(id) {
+      const rows = await db.query<AccountSql>(`select ${ACCOUNT_COLS} from account where id = $1`, [id]);
+      return rows[0] ? toAccountDto(rows[0]) : null;
+    },
+
+    async existingCsvKeys(accountId, keys) {
+      if (!keys.length) return new Set();
+      const found = new Set<string>();
+      for (const part of chunks(keys, CHUNK)) {
+        const rows = await db.query<{ external_id: string }>(
+          `select external_id from transaction where account_id = $1 and source = 'csv' and external_id = any($2::text[])`,
+          [accountId, part],
+        );
+        for (const r of rows) found.add(r.external_id);
+      }
+      return found;
     },
 
     async updateAccountSettings(id, patch) {

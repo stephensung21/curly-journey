@@ -56,6 +56,21 @@ describe('accounts', () => {
     expect(a).toMatchObject({ countsSpending: false, countsNetWorth: true, projections: 'mortgage' });
   });
 
+  it('getAccount returns dto with source, null if unknown', async () => {
+    const id = await repo.upsertAccount(acct());
+    expect(await repo.getAccount(id)).toMatchObject({ id, source: 'pocketsmith', name: 'Everyday' });
+    expect(await repo.getAccount(999)).toBeNull();
+  });
+
+  it('existingCsvKeys finds only csv keys for that account', async () => {
+    const a = await repo.upsertAccount(acct());
+    const b = await repo.upsertAccount(acct({ externalId: '2' }));
+    await repo.insertCsvRows(a, [{ row: { date: '2026-10-01', amountCents: -1, description: 'X' }, fingerprint: 'k1' }]);
+    expect([...(await repo.existingCsvKeys(a, ['k1', 'k2']))]).toEqual(['k1']);
+    expect((await repo.existingCsvKeys(b, ['k1'])).size).toBe(0);
+    expect((await repo.existingCsvKeys(a, [])).size).toBe(0);
+  });
+
   it('updateAccountSettings returns null for unknown id', async () => {
     expect(await repo.updateAccountSettings(999, { isOffset: true })).toBeNull();
   });

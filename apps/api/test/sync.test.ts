@@ -27,7 +27,7 @@ describe('runSync', () => {
     const { deps, app, auth } = await setup();
     expect(await runSync(deps)).toEqual({ status: 'ok', accounts: 2, transactions: 3 });
     const res = await app.request('/accounts', { headers: auth });
-    expect(((await res.json()) as unknown[]).length).toBe(2);
+    expect(((await res.json()) as { accounts: unknown[] }).accounts.length).toBe(2);
   });
 
   it('incremental uses last start minus 1h', async () => {
