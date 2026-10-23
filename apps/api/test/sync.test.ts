@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { PsTransaction, PsTransactionAccount } from '@curly/core';
 import { createApp } from '../src/app';
 import { makeRepo } from '../src/db/repo';
+import { PocketSmithError, type TransactionQuery } from '../src/pocketsmith';
 import { runSync, syncDue } from '../src/sync/runSync';
 import { fakePocketSmith, pgliteDb, seedToken } from './helpers';
 
@@ -96,11 +97,11 @@ describe('runSync', () => {
     await runSync(deps);
     const [a] = await makeRepo(db).listAccounts();
     await makeRepo(db).insertCsvRows(a!.id, [{ row: { date: '2026-10-21', amountCents: -5, description: 'CSV ROW' }, fingerprint: 'c1' }]);
-    data.transactions[1] = [];
+    data.transactions[1] = [tx(3, 1, '2026-10-21')];
     now = new Date('2026-10-23T04:00:00Z');
     await runSync(deps);
     const rows = await db.query<{ external_id: string }>('select external_id from transaction order by external_id');
-    expect(rows.map((r) => r.external_id)).toEqual(['1', 'c1']);
+    expect(rows.map((r) => r.external_id)).toEqual(['1', '3', 'c1']);
   });
 
   it('stores merchant, PocketSmith category, memo and feed time, and a re-sync never touches the category', async () => {
@@ -234,6 +235,83 @@ describe('runSync', () => {
     const hist = await db.query<{ history_done: boolean; history_cursor: string | null }>('select history_done, history_cursor from account');
     expect(hist).toHaveLength(12);
     expect(hist.every((h) => h.history_done && h.history_cursor === null)).toBe(true);
+  });
+
+  it('keeps the window when the reconcile fetch returns nothing', async () => {
+    const data = { accounts: [acct(1, 10)], transactions: { 1: [tx(1, 1, '2026-10-20'), tx(2, 1, '2026-10-21')] } };
+    const ps = fakePocketSmith(data);
+    const { db } = await setup(ps);
+    await runSync({ db, pocketsmith: ps, now: () => T0 });
+    data.transactions[1] = [];
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await runSync({ db, pocketsmith: ps, now: () => new Date('2026-10-23T04:00:00Z') })).toMatchObject({ status: 'ok' });
+    expect(error).toHaveBeenCalledWith('reconcile delete skipped', 2);
+    error.mockRestore();
+    const rows = await db.query<{ external_id: string }>('select external_id from transaction order by external_id');
+    expect(rows.map((r) => r.external_id)).toEqual(['1', '2']);
+  });
+
+  it('keeps the window when the reconcile would delete over 30% of it and more than 3 rows', async () => {
+    const days = Array.from({ length: 10 }, (_, i) => `2026-10-${String(11 + i).padStart(2, '0')}`);
+    const data = { accounts: [acct(1, 10)], transactions: { 1: days.map((d, i) => tx(i + 1, 1, d)) } };
+    const ps = fakePocketSmith(data);
+    const { db } = await setup(ps);
+    await runSync({ db, pocketsmith: ps, now: () => T0 });
+    const count = async () => Number((await db.query<{ n: string }>('select count(*)::text as n from transaction'))[0]!.n);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // 4 of 10 missing: skipped.
+    data.transactions[1] = data.transactions[1]!.slice(4);
+    expect(await runSync({ db, pocketsmith: ps, now: () => new Date('2026-10-23T04:00:00Z') })).toMatchObject({ status: 'ok' });
+    expect(error).toHaveBeenCalledWith('reconcile delete skipped', 4);
+    expect(await count()).toBe(10);
+    // 3 of 10 missing: deleted as usual.
+    error.mockClear();
+    data.transactions[1] = (await db.query<{ external_id: string }>('select external_id from transaction order by date'))
+      .slice(3)
+      .map((r) => tx(Number(r.external_id), 1, days[Number(r.external_id) - 1]!));
+    expect(await runSync({ db, pocketsmith: ps, now: () => new Date('2026-10-23T08:00:00Z') })).toMatchObject({ status: 'ok' });
+    expect(error).not.toHaveBeenCalled();
+    expect(await count()).toBe(7);
+    error.mockRestore();
+  });
+
+  it('restarts a history window when its saved page is rejected with a 4xx', async () => {
+    const txs = { 1: Array.from({ length: 6 }, (_, i) => tx(i + 1, 1, `2026-10-1${i}`)) };
+    const fake = fakePocketSmith({ accounts: [acct(1, 1)], transactions: txs, pageSize: 1 });
+    let stale = false;
+    const ps = {
+      ...fake,
+      transactionsPage: (id: number, q: TransactionQuery, url?: string) => {
+        if (stale && url) {
+          stale = false;
+          fake.calls.push('rejected');
+          return Promise.reject(new PocketSmithError(404));
+        }
+        return fake.transactionsPage(id, q, url);
+      },
+    };
+    const { db } = await setup(ps);
+    expect(await runSync({ db, pocketsmith: ps, now: () => T0 }, { maxCalls: 12 })).toMatchObject({ status: 'ok', more: true });
+    const saved = await db.query<{ history_cursor: string | null }>('select history_cursor from account');
+    expect(saved[0]!.history_cursor).not.toBeNull();
+    // The saved page is now rejected (say it expired): the window restarts instead of failing every run.
+    stale = true;
+    fake.calls.length = 0;
+    const r = await runSync({ db, pocketsmith: ps, now: () => new Date(T0.getTime() + 15 * 60_000) });
+    expect(r).toMatchObject({ status: 'ok' });
+    expect(fake.calls.filter((c) => c === 'rejected' || c.startsWith('transactions:')).slice(0, 2)).toEqual([
+      'rejected',
+      'transactions:1::2026-07-26:2026-10-23:1',
+    ]);
+    const rows = await db.query<{ n: string }>('select count(*)::text as n from transaction');
+    expect(Number(rows[0]!.n)).toBe(6);
+  });
+
+  it('still fails when a page without a saved cursor is rejected', async () => {
+    const fake = fakePocketSmith({ accounts: [acct(1, 1)] });
+    const ps = { ...fake, transactionsPage: () => Promise.reject(new PocketSmithError(404)) };
+    const { db } = await setup(ps);
+    expect(await runSync({ db, pocketsmith: ps, now: () => T0 })).toMatchObject({ status: 'failed' });
   });
 
   it('fails on a pagination loop instead of spinning', async () => {

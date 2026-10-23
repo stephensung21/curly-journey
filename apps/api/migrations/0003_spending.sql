@@ -68,3 +68,23 @@ create index if not exists transaction_date on transaction (date);
 
 -- Next page of a history window that ran out of budget mid-way, so the next run resumes instead of restarting.
 alter table account add column if not exists history_cursor text;
+
+-- The owner's edits on feed rows that reconciliation deleted (a pending row replaced by its posted row under a new ID),
+-- kept until the replacement arrives or 7 days pass.
+create table if not exists carried_edit (
+  id bigserial primary key,
+  account_id int not null references account(id) on delete cascade,
+  amount_cents bigint not null,
+  date date not null,
+  category_id int references category(id) on delete set null,
+  category_source text,
+  flow text not null,
+  flow_source text not null,
+  note text,
+  created_at timestamptz not null
+);
+
+-- Rows synced before this migration have no merchant, PocketSmith category, memo or feed time. Refetch every feed
+-- account's history so the upsert backfills them; the pipeline waits for each account's history before categorising
+-- its feed rows, so none is categorised without its PocketSmith category.
+update account set history_from = null, history_done = false, history_cursor = null where source = 'pocketsmith';

@@ -120,7 +120,7 @@ export function importRoutes(deps: Deps) {
     if (inserted && MAX_CALLS - used >= PIPELINE_CALLS) {
       const since = p.new.map((row) => row.date).sort()[0]!;
       try {
-        await runPipeline(counted, { since });
+        await runPipeline(counted, { since, now: deps.now() });
       } catch (e) {
         // The rows are in and stay uncategorised; the next sync's pipeline picks them up.
         console.error('pipeline after import failed', e);

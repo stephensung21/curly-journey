@@ -1,7 +1,8 @@
 import { mapAccount, mapTransaction, type PsTransaction } from '@curly/core';
 import type { Deps } from '../app';
 import type { Db } from '../db/db';
-import { makeRepo, type CarriedEdit, type HistoryState } from '../db/repo';
+import { makeRepo, type HistoryState } from '../db/repo';
+import { PocketSmithError } from '../pocketsmith';
 import { PIPELINE_CALLS, runPipeline } from '../spending/pipeline';
 
 export type SyncResult = {
@@ -20,8 +21,9 @@ const HOUR_MS = 60 * 60 * 1000;
 /**
  * Workers Free allows 50 outbound requests per invocation, and every Neon query and PocketSmith page is one.
  * Stay under it with room to spare. A run costs: 4 fixed (sync log start, me, accounts, one upsert of every account),
- * then reconciliation (2 per page of recent rows across all accounts, plus one delete), then history with whatever
- * is left (2 per page plus one query per window or resume cursor), then the categorisation pipeline when at least
+ * then reconciliation (2 per page of recent rows across all accounts, plus one delete that also saves the owner's
+ * edits), then history with whatever is left (2 per page plus one query per window or resume cursor, plus one to
+ * clear a rejected cursor), then the categorisation pipeline when at least
  * PIPELINE_CALLS are left (otherwise `more`), then the sync log finish from the reserve.
  */
 export const MAX_CALLS = 45;
@@ -38,6 +40,12 @@ const DUE_AFTER_MS = 4 * HOUR_MS - 10 * 60 * 1000;
 class BudgetExhausted extends Error {
   constructor() {
     super('call budget exhausted');
+  }
+}
+
+class StaleCursor extends Error {
+  constructor() {
+    super('saved history page rejected');
   }
 }
 
@@ -78,19 +86,13 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
   let accounts = 0;
   let transactions = 0;
   let since: string | null = null;
-  /** The owner's edits on rows reconciliation deleted; they exist only here until carried to the replacement rows. */
-  let carried: CarriedEdit[] = [];
-  async function carry() {
-    if (!carried.length) return;
-    await repo.carryEdits(carried);
-    carried = [];
-  }
 
   /**
    * Fetches pages from `cursor` (or the first page) until the last one, upserting each page in one query. A page is
    * only fetched with at least 3 calls left (the page, its upsert, and the caller's follow-up query), so the caller
    * can always record what happened. Running out of budget is allowed during history, where the window resumes from
-   * `next` on a later run, but a hard failure for reconciliation.
+   * `next` on a later run, but a hard failure for reconciliation. A saved cursor PocketSmith rejects with a 4xx (it
+   * may have expired) throws StaleCursor, so the caller can restart the window.
    */
   async function fetchAll(
     getPage: (pageUrl?: string) => Promise<{ items: PsTransaction[]; next: string | null }>,
@@ -107,7 +109,15 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
         return { complete: false, ids, next, pages };
       }
       used++;
-      const page = await getPage(next);
+      let page: { items: PsTransaction[]; next: string | null };
+      try {
+        page = await getPage(next);
+      } catch (e) {
+        if (pages === 0 && opts.cursor && e instanceof PocketSmithError && e.status >= 400 && e.status < 500) {
+          throw new StaleCursor();
+        }
+        throw e;
+      }
       pages++;
       const rows = [];
       for (const t of page.items) {
@@ -146,7 +156,9 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
       const from = addDays(today, -RECONCILE_DAYS);
       const query = { startDate: from, endDate: today };
       const { ids } = await fetchAll((u) => ps.userTransactionsPage(userId, query, u), (a) => localByPs.get(a), { mustFinish: true });
-      ({ edits: carried } = await repo.deleteMissingFeedRows(started, from, today, ids));
+      // The owner's edits on deleted rows are saved in the same query; the pipeline carries them to the replacements.
+      const { skipped } = await repo.deleteMissingFeedRows(started, from, today, ids, deps.now());
+      if (skipped) console.error('reconcile delete skipped', skipped);
     }
 
     // History, one window per account per pass, so every account gets its recent months before anyone's old ones.
@@ -165,10 +177,18 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
         const endDate = s.historyFrom ? addDays(s.historyFrom, -1) : today;
         const startDate = addDays(endDate, -(WINDOW_DAYS - 1));
         const query = { startDate, endDate };
-        const res = await fetchAll((u) => ps.transactionsPage(s.psId, query, u), () => s.id, {
-          mustFinish: false,
-          cursor: s.historyCursor,
-        });
+        const fetchWindow = () =>
+          fetchAll((u) => ps.transactionsPage(s.psId, query, u), () => s.id, { mustFinish: false, cursor: s.historyCursor });
+        let res: Awaited<ReturnType<typeof fetchAll>>;
+        try {
+          res = await fetchWindow();
+        } catch (e) {
+          if (!(e instanceof StaleCursor)) throw e;
+          // Otherwise every run would fail on the same page: restart the window instead.
+          await repo.setHistoryCursor(s.id, null);
+          s.historyCursor = null;
+          res = await fetchWindow();
+        }
         if (!res.complete) {
           if (res.pages && res.next) await repo.setHistoryCursor(s.id, res.next);
           more = true;
@@ -182,13 +202,10 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
       }
     }
 
-    // Carry the owner's edits first, so the pipeline treats them as the owner's. Then categorise and detect transfers
-    // with what is left (the carry counts within PIPELINE_CALLS), or leave that to the next run. Short of budget, the
-    // carry may use one call of the reserve, which still leaves one to record the result.
-    const room = left() >= PIPELINE_CALLS;
-    await carry();
-    if (room) {
-      if ((await runPipeline(repo, { since })).more) more = true;
+    // Categorise and detect transfers with what is left, or leave that to the next run. Edits carried from deleted rows
+    // wait in the database until the pipeline runs.
+    if (left() >= PIPELINE_CALLS) {
+      if ((await runPipeline(repo, { since, now: deps.now() })).more) more = true;
     } else {
       more = true;
     }
@@ -197,12 +214,6 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
     return { status: 'ok', accounts, transactions, more, since };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
-    try {
-      // Best effort: otherwise the owner's edits on deleted rows are lost. May use one call of the reserve.
-      await carry();
-    } catch {
-      // The edits are lost; the sync is already failing.
-    }
     try {
       await repo.finishSync(id, { status: 'failed', error, accounts, transactions }, deps.now());
     } catch {

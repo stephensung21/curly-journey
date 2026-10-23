@@ -86,22 +86,12 @@ export type CategoryDto = {
   sort: number;
 };
 
-/** The owner's edits on a feed row that reconciliation deleted, to carry over to the row that replaced it. */
-export type CarriedEdit = {
-  accountId: number;
-  amountCents: Cents;
-  date: string;
-  categoryId: number | null;
-  categorySource: string | null;
-  flow: Flow;
-  flowSource: 'auto' | 'user' | 'rule';
-  note: string | null;
-};
-
 export type UncategorisedRow = CategoriseInput & { id: number; date: string };
 
 export type CategorisationUpdate = {
   id: number;
+  /** The merchant categorised by; stored, since rows synced before merchants existed have none. */
+  merchant: string;
   categoryId: number | null;
   source: string | null;
   flow: Flow | null;
@@ -130,21 +120,26 @@ export interface Repo {
   upsertAccountStates(rows: AccountRow[]): Promise<HistoryState[]>;
   /** Records a completed history window and clears the resume cursor. */
   setHistory(id: number, from: string, done: boolean): Promise<void>;
-  setHistoryCursor(id: number, cursor: string): Promise<void>;
+  /** Saves (or with null clears) the next page of the history window in progress. */
+  setHistoryCursor(id: number, cursor: string | null): Promise<void>;
   upsertTransactions(accountId: number, rows: TransactionRow[]): Promise<number>;
   /** Like upsertTransactions, for rows of several accounts at once (one query per 100 rows). */
   upsertFeedTransactions(rows: { accountId: number; row: TransactionRow }[]): Promise<number>;
   insertCsvRows(accountId: number, rows: { row: ImportedRow; fingerprint: string }[]): Promise<number>;
   /**
-   * Deletes these accounts' feed rows dated `from` to `to` whose external ID is not in `keep`. CSV rows are never
-   * touched. Returns how many were deleted and the owner's edits on them (rows with a user category or flow).
+   * Deletes these accounts' feed rows dated `from` to `to` whose external ID is not in `keep`, and saves the owner's
+   * edits on them (a user category or flow, or a note) as carried edits created at `now`, in one query. CSV rows are
+   * never touched. A short or empty fetch must not wipe the window, so nothing is deleted when `keep` is empty and the
+   * window has rows, or when more than 3 rows and over 30% of the window would go; `skipped` is then how many would
+   * have, otherwise 0.
    */
   deleteMissingFeedRows(
     accountIds: number[],
     from: string,
     to: string,
     keep: string[],
-  ): Promise<{ deleted: number; edits: CarriedEdit[] }>;
+    now: Date,
+  ): Promise<{ deleted: number; carried: number; skipped: number }>;
   listAccounts(): Promise<AccountDto[]>;
   /** Sets sort_order to each id's 1-based position; false (nothing written) if an id is unknown or repeated. */
   setAccountOrder(ids: number[]): Promise<boolean>;
@@ -196,13 +191,18 @@ export interface Repo {
   listRules(): Promise<Rule[]>;
   /** merchant -> category of the latest row the owner categorised. */
   pastByMerchant(): Promise<Map<string, number>>;
-  /** Up to `limit` rows with categorised = false, oldest first. */
+  /**
+   * Up to `limit` rows with categorised = false, oldest first: CSV rows, and feed rows of accounts whose history is
+   * fully loaded (until then a refetch may still fill in their PocketSmith category).
+   */
   uncategorisedForPipeline(limit: number): Promise<UncategorisedRow[]>;
   /**
-   * Copies each edit onto one matching new row (same account and amount, dated within 3 days, not yet categorised,
-   * not itself user-set; closest date, then lowest id), in one query. Returns how many rows were updated.
+   * In one query: drops carried edits older than 7 days at `now`, and copies each other one onto one row that replaced
+   * the deleted row (same account and amount, dated within 3 days, received by PocketSmith no earlier than a day before
+   * the edit was saved, its category and flow not set by the owner; closest date, then lowest id; one edit per row),
+   * deleting the edits applied. The rest wait for a later run. Returns how many were applied and dropped.
    */
-  carryEdits(edits: CarriedEdit[]): Promise<number>;
+  applyCarriedEdits(now: Date): Promise<{ applied: number; expired: number }>;
   /** Writes pipeline results and marks the rows categorised; user-set categories and flows are kept. */
   applyCategorisation(rows: CategorisationUpdate[]): Promise<void>;
   /** Every account's rows dated `from` or later, with only what detectFlows needs. */
@@ -468,38 +468,35 @@ export function makeRepo(db: Db): Repo {
       return inserted;
     },
 
-    async deleteMissingFeedRows(accountIds, from, to, keep) {
-      if (!accountIds.length) return { deleted: 0, edits: [] };
-      const rows = await db.query<{
-        account_id: number;
-        amount_cents: string | number;
-        date: string;
-        category_id: number | null;
-        category_source: string | null;
-        flow: Flow;
-        flow_source: 'auto' | 'user' | 'rule';
-        note: string | null;
-      }>(
-        `delete from transaction
-         where account_id = any($1::int[]) and source = 'pocketsmith' and date >= $2::date and date <= $3::date
-           and external_id <> all($4::text[])
-         returning account_id, amount_cents::text as amount_cents, to_char(date, 'YYYY-MM-DD') as date, category_id,
-           category_source, flow, flow_source, note`,
-        [accountIds, from, to, keep],
+    async deleteMissingFeedRows(accountIds, from, to, keep, now) {
+      if (!accountIds.length) return { deleted: 0, carried: 0, skipped: 0 };
+      const rows = await db.query<{ deleted: string | number; carried: string | number; skipped: string | number }>(
+        `with w as (
+           select id, external_id <> all($4::text[]) as missing from transaction
+           where account_id = any($1::int[]) and source = 'pocketsmith' and date >= $2::date and date <= $3::date
+         ), s as (
+           select count(*) as total, count(*) filter (where missing) as missing from w
+         ), ok as (
+           select s.missing,
+             not ((cardinality($4::text[]) = 0 and s.total > 0) or (s.missing > 3 and s.missing * 10 > s.total * 3)) as go
+           from s
+         ), d as (
+           delete from transaction t using w, ok
+           where t.id = w.id and w.missing and ok.go
+           returning t.account_id, t.amount_cents, t.date, t.category_id, t.category_source, t.flow, t.flow_source, t.note
+         ), c as (
+           insert into carried_edit (account_id, amount_cents, date, category_id, category_source, flow, flow_source, note,
+             created_at)
+           select account_id, amount_cents, date, category_id, category_source, flow, flow_source, note, $5::timestamptz
+           from d where category_source = 'user' or flow_source = 'user' or note is not null
+           returning id
+         )
+         select (select count(*) from d) as deleted, (select count(*) from c) as carried,
+           (select case when go then 0 else missing end from ok) as skipped`,
+        [accountIds, from, to, keep, now.toISOString()],
       );
-      const edits = rows
-        .filter((r) => r.category_source === 'user' || r.flow_source === 'user')
-        .map((r) => ({
-          accountId: Number(r.account_id),
-          amountCents: Number(r.amount_cents),
-          date: r.date,
-          categoryId: r.category_id === null ? null : Number(r.category_id),
-          categorySource: r.category_source,
-          flow: r.flow,
-          flowSource: r.flow_source,
-          note: r.note,
-        }));
-      return { deleted: rows.length, edits };
+      const r = rows[0]!;
+      return { deleted: Number(r.deleted), carried: Number(r.carried), skipped: Number(r.skipped) };
     },
 
     async listAccounts() {
@@ -872,7 +869,7 @@ export function makeRepo(db: Db): Repo {
         `select t.id, t.account_id, to_char(t.date, 'YYYY-MM-DD') as date, t.amount_cents::text as amount_cents,
            t.description_raw, t.merchant, t.ps_category, a.kind = 'credit_card' as is_credit_card
          from transaction t join account a on a.id = t.account_id
-         where not t.categorised
+         where not t.categorised and (t.source = 'csv' or a.history_done)
          order by t.date, t.id
          limit $1`,
         [limit],
@@ -889,46 +886,43 @@ export function makeRepo(db: Db): Repo {
       }));
     },
 
-    async carryEdits(edits) {
-      if (!edits.length) return 0;
+    async applyCarriedEdits(now) {
       // Each edit takes its closest candidate, then each candidate keeps its closest edit, so every edit lands at most
-      // once and no row receives two.
-      const rows = await db.query(
-        `with e as (
-           select * from unnest($1::int[], $2::bigint[], $3::date[], $4::int[], $5::boolean[], $6::text[], $7::boolean[],
-             $8::text[]) with ordinality as e(account_id, amount_cents, date, category_id, user_category, flow, user_flow,
-             note, idx)
+      // once and no row receives two. All CTEs see the same snapshot, so `e` still holds the expired edits: filter them.
+      const rows = await db.query<{ applied: string | number; expired: string | number }>(
+        `with expired as (
+           delete from carried_edit where created_at < $1::timestamptz - interval '7 days' returning id
+         ), e as (
+           select id as edit_id, account_id, amount_cents, date, category_id, category_source = 'user' as user_category,
+             flow, flow_source = 'user' as user_flow, note, created_at
+           from carried_edit where created_at >= $1::timestamptz - interval '7 days'
          ), c as (
            select e.*, t.id as target, abs(t.date - e.date) as gap,
-             row_number() over (partition by e.idx order by abs(t.date - e.date), t.id) as edit_rank
+             row_number() over (partition by e.edit_id order by abs(t.date - e.date), t.id) as edit_rank
            from e join transaction t on t.account_id = e.account_id and t.amount_cents = e.amount_cents
-             and abs(t.date - e.date) <= 3 and not t.categorised
+             and abs(t.date - e.date) <= 3
              and t.category_source is distinct from 'user' and t.flow_source <> 'user'
+             and (t.feed_created_at is null or t.feed_created_at >= e.created_at - interval '1 day')
          ), best as (
-           select *, row_number() over (partition by target order by gap, idx) as target_rank from c where edit_rank = 1
+           select *, row_number() over (partition by target order by gap, edit_id) as target_rank from c where edit_rank = 1
+         ), upd as (
+           update transaction t set
+             category_id = case when b.user_category then b.category_id else t.category_id end,
+             category_source = case when b.user_category then 'user' else t.category_source end,
+             flow = case when b.user_flow then b.flow else t.flow end,
+             flow_source = case when b.user_flow then 'user' else t.flow_source end,
+             pair_id = case when b.user_flow then null else t.pair_id end,
+             note = coalesce(b.note, t.note)
+           from best b
+           where b.target_rank = 1 and t.id = b.target
+           returning b.edit_id
+         ), done as (
+           delete from carried_edit where id in (select edit_id from upd)
          )
-         update transaction t set
-           category_id = case when b.user_category then b.category_id else t.category_id end,
-           category_source = case when b.user_category then 'user' else t.category_source end,
-           flow = case when b.user_flow then b.flow else t.flow end,
-           flow_source = case when b.user_flow then 'user' else t.flow_source end,
-           pair_id = case when b.user_flow then null else t.pair_id end,
-           note = coalesce(b.note, t.note)
-         from best b
-         where b.target_rank = 1 and t.id = b.target
-         returning t.id`,
-        [
-          edits.map((e) => e.accountId),
-          edits.map((e) => e.amountCents),
-          edits.map((e) => e.date),
-          edits.map((e) => e.categoryId),
-          edits.map((e) => e.categorySource === 'user'),
-          edits.map((e) => e.flow),
-          edits.map((e) => e.flowSource === 'user'),
-          edits.map((e) => e.note),
-        ],
+         select (select count(*) from upd) as applied, (select count(*) from expired) as expired`,
+        [now.toISOString()],
       );
-      return rows.length;
+      return { applied: Number(rows[0]!.applied), expired: Number(rows[0]!.expired) };
     },
 
     async applyCategorisation(rows) {
@@ -943,10 +937,17 @@ export function makeRepo(db: Db): Repo {
              categorised = true,
              flow = case when v.flow is not null and t.flow_source <> 'user' then v.flow else t.flow end,
              pair_id = case when v.flow is not null and t.flow_source <> 'user' then null else t.pair_id end,
-             flow_source = case when v.flow is not null and t.flow_source <> 'user' then 'rule' else t.flow_source end
-           from unnest($1::bigint[], $2::int[], $3::text[], $4::text[]) as v(id, category_id, source, flow)
+             flow_source = case when v.flow is not null and t.flow_source <> 'user' then 'rule' else t.flow_source end,
+             merchant = v.merchant
+           from unnest($1::bigint[], $2::int[], $3::text[], $4::text[], $5::text[]) as v(id, category_id, source, flow, merchant)
            where t.id = v.id`,
-          [part.map((r) => r.id), part.map((r) => r.categoryId), part.map((r) => r.source), part.map((r) => r.flow)],
+          [
+            part.map((r) => r.id),
+            part.map((r) => r.categoryId),
+            part.map((r) => r.source),
+            part.map((r) => r.flow),
+            part.map((r) => r.merchant),
+          ],
         );
       }
     },

@@ -1,5 +1,5 @@
 import type { PsTransaction, PsTransactionAccount } from '@curly/core';
-import type { PocketSmithClient, TransactionQuery } from './index';
+import { PocketSmithError, type PocketSmithClient, type TransactionQuery } from './index';
 
 const ORIGIN = 'https://api.pocketsmith.com';
 const BASE = `${ORIGIN}/v2`;
@@ -24,7 +24,7 @@ function params(query: TransactionQuery): URLSearchParams {
 export function pocketSmithClient(key: string, fetchImpl: typeof fetch = fetch): PocketSmithClient {
   async function get(url: string): Promise<Response> {
     const res = await fetchImpl(url, { headers: { 'X-Developer-Key': key, Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`PocketSmith request failed with status ${res.status}`);
+    if (!res.ok) throw new PocketSmithError(res.status);
     return res;
   }
 

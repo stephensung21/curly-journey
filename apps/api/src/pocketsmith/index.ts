@@ -1,5 +1,12 @@
 import type { PsTransaction, PsTransactionAccount } from '@curly/core';
 
+/** A PocketSmith response that was not 2xx. */
+export class PocketSmithError extends Error {
+  constructor(readonly status: number) {
+    super(`PocketSmith request failed with status ${status}`);
+  }
+}
+
 export type TransactionQuery = { updatedSince?: string; startDate?: string; endDate?: string };
 
 export interface PocketSmithClient {

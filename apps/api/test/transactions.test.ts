@@ -116,7 +116,7 @@ describe('PATCH /transactions/:id', () => {
     const id = await add(bank, row('a', '2026-10-05', -1000, 'WOOLWORTHS'));
     const res = await call('PATCH', `/transactions/${id}`, { flow: 'not_spending' });
     expect(await res.json()).toMatchObject({ flow: 'not_spending', flowSource: 'user' });
-    await runPipeline(repo, { since: null });
+    await runPipeline(repo, { since: null, now: T0 });
     expect(await (await call('GET', `/transactions/${id}`)).json()).toMatchObject({ flow: 'not_spending', flowSource: 'user' });
   });
 

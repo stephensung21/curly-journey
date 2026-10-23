@@ -1,13 +1,13 @@
-import { categorise, detectFlows, type Flow } from '@curly/core';
+import { categorise, cleanMerchant, detectFlows, type Flow } from '@curly/core';
 import type { Repo } from '../db/repo';
 
 /**
- * Calls the pipeline makes in a normal run, plus runSync's carry of the owner's edits, with room for extra flow
- * chunks. Callers only start it with at least this many left.
+ * Calls the pipeline makes in a normal run (8), with room for extra flow chunks. Callers only start it with at least
+ * this many left.
  */
 export const PIPELINE_CALLS = 12;
 /** Rows categorised per run, oldest first; the rest wait for the next run. */
-const BATCH = 1000;
+const BATCH = 500;
 const PAIR_DAYS = 3;
 
 function addDays(iso: string, n: number): string {
@@ -16,15 +16,17 @@ function addDays(iso: string, n: number): string {
 }
 
 /**
- * Categorises rows not yet categorised, then re-detects transfers from the earlier of `since` and the oldest row
- * categorised now; with neither, flows are left alone. Uses a fixed number of queries: three reads for the rules, one
- * read and one write for categorisation, one read and usually one write for flows. `more` is true when uncategorised
- * rows remain. Carry the owner's edits from replaced rows (`repo.carryEdits`) before calling this.
+ * Carries the owner's edits from replaced rows onto their replacements, categorises rows not yet categorised, then
+ * re-detects transfers from the earlier of `since` and the oldest row categorised now; with neither, flows are left
+ * alone. Uses a fixed number of queries: one for the carried edits, three reads for the rules, one read and one write
+ * for categorisation, one read and usually one write for flows. `more` is true when uncategorised rows remain.
  */
 export async function runPipeline(
   repo: Repo,
-  opts: { since: string | null },
+  opts: { since: string | null; now: Date },
 ): Promise<{ categorised: number; flowsChanged: number; more: boolean }> {
+  // First, so the pipeline sees the carried categories and flows as the owner's.
+  await repo.applyCarriedEdits(opts.now);
   const categories = await repo.listCategories();
   const rules = await repo.listRules();
   const pastByMerchant = await repo.pastByMerchant();
@@ -33,7 +35,15 @@ export async function runPipeline(
   const more = batch.length > BATCH;
   const todo = batch.slice(0, BATCH);
   const ctx = { rules, pastByMerchant, categoryIdByName: new Map(categories.map((c) => [c.name, c.id])) };
-  if (todo.length) await repo.applyCategorisation(todo.map((t) => ({ id: t.id, ...categorise(t, ctx) })));
+  if (todo.length) {
+    await repo.applyCategorisation(
+      todo.map((t) => {
+        // Rows synced before merchants existed have none: clean one from the description, and store it.
+        const merchant = t.merchant || cleanMerchant(t.description);
+        return { id: t.id, merchant, ...categorise({ ...t, merchant }, ctx) };
+      }),
+    );
+  }
 
   // Rows categorised for the first time also need their flows, even if this sync did not touch them. With nothing
   // new at all, skip detection rather than scan all history.
