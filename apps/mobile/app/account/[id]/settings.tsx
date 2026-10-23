@@ -125,7 +125,7 @@ function Form({ account }: { account: Account }) {
                   return;
                 }
                 setConfirming(false);
-                router.replace('/');
+                router.dismissAll();
               }}
             />
             <Button kind="secondary" label="Cancel" onPress={() => setConfirming(false)} />

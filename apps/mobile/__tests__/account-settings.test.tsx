@@ -3,10 +3,10 @@ import { renderScreen } from '../test-utils/renderScreen';
 import AccountSettings from '../app/account/[id]/settings';
 import * as hooks from '../src/api/hooks';
 
-const mockReplace = jest.fn();
+const mockDismissAll = jest.fn();
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: '7' }),
-  useRouter: () => ({ back: jest.fn(), replace: mockReplace }),
+  useRouter: () => ({ back: jest.fn(), dismissAll: mockDismissAll }),
 }));
 jest.mock('../src/api/hooks');
 
@@ -132,7 +132,7 @@ it('deletes a manual account after confirming, then returns to Accounts', async 
   expect(del).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByText('Delete'));
   expect(del).toHaveBeenCalledWith(7);
-  expect(mockReplace).toHaveBeenCalledWith('/');
+  expect(mockDismissAll).toHaveBeenCalled();
 });
 
 it('Cancel keeps the account', async () => {

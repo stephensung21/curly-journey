@@ -26,7 +26,7 @@ const mutateAsync = jest.fn();
 
 beforeEach(() => {
   jest.clearAllMocks();
-  useSettings.setState({ hideBalances: false, homeChart: 'sixMonths' });
+  useSettings.setState({ hideBalances: false, homeChart: 'sixMonths', bankOrder: [] });
   accounts = [
     acct(1, 'Up'),
     acct(2, 'Zed'),
@@ -254,4 +254,33 @@ it('puts CoinSpot and Manual last, flags manual accounts needing an update, and 
   expect(screen.getAllByText('update?')).toHaveLength(1);
   await fireEvent.press(screen.getByText('+ Add super or home value'));
   expect(mockPush).toHaveBeenCalledWith('/account/new');
+});
+
+it('lists banks in the saved bankOrder first, then the rest', async () => {
+  accounts = [acct(1, 'Up'), acct(2, 'American Express', { kind: 'credit_card' }), acct(3, 'CommBank (Commonwealth Bank)'), acct(4, 'Zed')];
+  useSettings.setState({ bankOrder: ['Up', 'American Express'] });
+  await renderScreen(<AccountsScreen />);
+  const texts: string[] = [];
+  const walk = (n: any): void => {
+    if (typeof n === 'string') texts.push(n);
+    else if (n) (Array.isArray(n) ? n : (n.children ?? [])).forEach(walk);
+  };
+  walk(screen.toJSON());
+  const positions = ['Up', 'American Express', 'CommBank (Commonwealth Bank)', 'Zed'].map(n => texts.indexOf(n));
+  expect(positions.every(p => p >= 0)).toBe(true);
+  expect([...positions].sort((x, y) => x - y)).toEqual(positions);
+});
+
+it('shows a bank logo in the CommBank header', async () => {
+  accounts = [acct(5, 'CommBank (Commonwealth Bank)')];
+  await renderScreen(<AccountsScreen />);
+  const found: string[] = [];
+  const walk = (n: any): void => {
+    if (!n || typeof n === 'string') return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (n.type === 'Image' && n.props.accessibilityElementsHidden) found.push(n.type);
+    (n.children ?? []).forEach(walk);
+  };
+  walk(screen.toJSON());
+  expect(found).toHaveLength(1);
 });
