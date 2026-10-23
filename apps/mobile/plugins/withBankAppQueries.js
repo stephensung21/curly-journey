@@ -8,7 +8,7 @@ function addBankAppQueries(modResults) {
   const manifest = modResults.manifest;
   if (!manifest.queries) manifest.queries = [];
   const existing = new Set(
-    manifest.queries.flatMap(q => (q.package ?? []).map(p => p.$['android:name'])),
+    manifest.queries.flatMap(q => (q.package ?? []).map(p => p.$?.['android:name'])),
   );
   const missing = BANK_PACKAGES.filter(p => !existing.has(p));
   if (missing.length === 0) return modResults;

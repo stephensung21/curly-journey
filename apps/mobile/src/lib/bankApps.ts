@@ -26,6 +26,10 @@ export async function openBankApp(app: BankApp): Promise<void> {
   try {
     await Linking.openURL(`market://details?id=${app.androidPackage}`);
   } catch {
-    await Linking.openURL(`https://play.google.com/store/apps/details?id=${app.androidPackage}`);
+    try {
+      await Linking.openURL(`https://play.google.com/store/apps/details?id=${app.androidPackage}`);
+    } catch {
+      // nothing left to try; fail quietly
+    }
   }
 }

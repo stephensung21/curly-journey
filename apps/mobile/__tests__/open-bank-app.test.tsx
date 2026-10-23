@@ -74,6 +74,14 @@ describe('openBankApp', () => {
   });
 });
 
+describe('openBankApp total failure', () => {
+  it('resolves quietly when every route rejects', async () => {
+    open.mockRejectedValue(new Error('x'));
+    (Linking.openURL as jest.Mock).mockRejectedValue(new Error('y'));
+    await expect(openBankApp(BANK_APPS.CommBank)).resolves.toBeUndefined();
+  });
+});
+
 describe('account detail', () => {
   it('opens the bank app', async () => {
     await renderScreen(<AccountDetail />);
@@ -114,6 +122,11 @@ describe('withBankAppQueries', () => {
     expect(pkgs(m)).toHaveLength(4);
     expect(pkgs(m)).toContain('x.y');
     expect(m.manifest.queries[0].intent).toBeDefined();
+  });
+  it('tolerates an existing package entry without $', () => {
+    const m: any = { manifest: { queries: [{ package: [{}] }] } };
+    expect(() => withBankAppQueries.addBankAppQueries(m)).not.toThrow();
+    expect(m.manifest.queries[0].package).toHaveLength(4);
   });
   it('keeps its package list in sync with bankApps.ts', () => {
     expect([...withBankAppQueries.BANK_PACKAGES].sort()).toEqual(Object.values(BANK_APPS).map(b => b.androidPackage).sort());
