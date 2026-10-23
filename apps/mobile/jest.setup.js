@@ -30,6 +30,7 @@ jest.mock('./src/api/connection', () => ({
 }));
 
 // Native modules behind the drag-to-reorder list don't exist in Jest.
+// Extend this Reanimated mock when new Reanimated APIs are used.
 jest.mock('react-native-reanimated', () => {
   const { View } = require('react-native');
   return {
