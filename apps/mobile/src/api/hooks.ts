@@ -102,7 +102,21 @@ export function useUpdateAccount() {
   return useMutation({
     mutationFn: ({ id, settings }: { id: number; settings: AccountSettings }) =>
       apiFetch<Account>(conn, `/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(settings) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
+    onMutate: async ({ id, settings }) => {
+      await qc.cancelQueries({ queryKey: ['accounts'] });
+      const prev = qc.getQueryData<AccountsResponse>(['accounts']);
+      if (prev) {
+        qc.setQueryData<AccountsResponse>(['accounts'], {
+          ...prev,
+          accounts: prev.accounts.map(a => (a.id === id ? { ...a, ...settings } : a)),
+        });
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['accounts'], ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
   });
 }
 

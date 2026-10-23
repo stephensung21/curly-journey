@@ -24,6 +24,8 @@ function AppStack() {
         <Stack.Protected guard={!!conn}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
+          <Stack.Screen name="account/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="account/[id]/settings" options={{ headerShown: false }} />
           <Stack.Screen name="design-system" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Protected guard={!conn}>
