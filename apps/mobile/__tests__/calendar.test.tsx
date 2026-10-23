@@ -6,11 +6,12 @@ import * as hooks from '../src/api/hooks';
 const mockPush = jest.fn();
 const mockBack = jest.fn();
 let mockParams: Record<string, string> = {};
+let mockNow = new Date('2026-10-24T02:00:00Z'); // 24 Oct, Sydney
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, back: mockBack }),
   useLocalSearchParams: () => mockParams,
 }));
-jest.mock('../src/lib/now', () => ({ now: () => new Date('2026-10-24T02:00:00Z') })); // 24 Oct, Sydney
+jest.mock('../src/lib/now', () => ({ now: () => mockNow }));
 jest.mock('../src/api/hooks');
 
 const mocked = hooks as jest.Mocked<typeof hooks>;
@@ -42,6 +43,8 @@ const setOcc = jest.fn();
 beforeEach(() => {
   jest.clearAllMocks();
   mockParams = {};
+  mockNow = new Date('2026-10-24T02:00:00Z');
+  setOcc.mockImplementation((_v: unknown, o: { onSuccess: () => void }) => o.onSuccess());
   (mocked.useOccurrences as jest.Mock).mockReturnValue({ data });
   (mocked.useSetOccurrence as jest.Mock).mockReturnValue({ mutate: setOcc });
 });
@@ -74,7 +77,7 @@ it('tapping a PAID? row and Yes marks it paid', async () => {
   expect(screen.getByText('Rent · due Tue 20 Oct')).toBeTruthy();
   expect(screen.queryByText('Mark as not paid')).toBeNull();
   await fireEvent.press(screen.getByText("Yes, it's paid"));
-  expect(setOcc).toHaveBeenCalledWith({ eventId: 4, date: '2026-10-20', status: 'paid' });
+  expect(setOcc).toHaveBeenCalledWith({ eventId: 4, date: '2026-10-20', status: 'paid' }, expect.anything());
 });
 
 it('Skip this one skips; Not yet only closes', async () => {
@@ -84,14 +87,14 @@ it('Skip this one skips; Not yet only closes', async () => {
   expect(setOcc).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByText('Rent'));
   await fireEvent.press(screen.getByText('Skip this one'));
-  expect(setOcc).toHaveBeenCalledWith({ eventId: 4, date: '2026-10-20', status: 'skipped' });
+  expect(setOcc).toHaveBeenCalledWith({ eventId: 4, date: '2026-10-20', status: 'skipped' }, expect.anything());
 });
 
 it('a paid row offers Mark as not paid', async () => {
   await renderScreen(<CalendarScreen />);
   await fireEvent.press(screen.getByText('Netflix'));
   await fireEvent.press(screen.getByText('Mark as not paid'));
-  expect(setOcc).toHaveBeenCalledWith({ eventId: 3, date: '2026-10-14', status: null });
+  expect(setOcc).toHaveBeenCalledWith({ eventId: 3, date: '2026-10-14', status: null }, expect.anything());
 });
 
 it('?ask opens the sheet for that occurrence', async () => {
@@ -113,4 +116,28 @@ it('other rows open the event; the add button goes to new', async () => {
 it('requests the viewed month plus 14 days ahead for the current month', async () => {
   await renderScreen(<CalendarScreen />);
   expect(mocked.useOccurrences).toHaveBeenCalledWith('2026-10-01', '2026-11-07');
+});
+
+it('?ask for an earlier month fetches that month and opens the sheet', async () => {
+  mockNow = new Date('2026-11-02T02:00:00Z');
+  mockParams = { ask: '1:2026-10-28' };
+  (mocked.useOccurrences as jest.Mock).mockReturnValue({ data: { events: [ev(1, 'Internet', { amountCents: 8900 })], occurrences: [occ(1, '2026-10-28')] } });
+  await renderScreen(<CalendarScreen />);
+  expect(mocked.useOccurrences).toHaveBeenCalledWith('2026-10-01', '2026-10-31');
+  expect(screen.getByText('Internet · due Wed 28 Oct')).toBeTruthy();
+});
+
+it('a skipped row offers Mark as not paid', async () => {
+  await renderScreen(<CalendarScreen />);
+  await fireEvent.press(screen.getByText('Gym'));
+  expect(screen.getByText('Mark as not paid')).toBeTruthy();
+});
+
+it('keeps the sheet open and says so when saving fails', async () => {
+  setOcc.mockImplementation((_v: unknown, o: { onError: () => void }) => o.onError());
+  await renderScreen(<CalendarScreen />);
+  await fireEvent.press(screen.getByText('Rent'));
+  await fireEvent.press(screen.getByText("Yes, it's paid"));
+  expect(screen.getByText("Couldn't save. Try again.")).toBeTruthy();
+  expect(screen.getByText('Did this get paid?')).toBeTruthy();
 });

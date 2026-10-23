@@ -32,8 +32,9 @@ export default function CalendarScreen() {
   const router = useRouter();
   const today = sydneyDate(now());
   const currentMonth = monthKey(now());
-  const [month, setMonth] = useState(currentMonth);
   const { ask } = useLocalSearchParams<{ ask?: string }>();
+  // An ask can be for an earlier month than today, so start on the month it falls in.
+  const [month, setMonth] = useState(() => ask?.split(':')[1]?.slice(0, 7) ?? currentMonth);
   const [asked, setAsked] = useState<PaidTarget | null>(null);
   const [handledAsk, setHandledAsk] = useState<string | undefined>(undefined);
 
@@ -48,7 +49,7 @@ export default function CalendarScreen() {
   if (ask && ask !== handledAsk && data) {
     const [id, date] = ask.split(':');
     const occurrence = all.find(o => String(o.eventId) === id && o.date === date);
-    setHandledAsk(ask);
+    if (occurrence) setHandledAsk(ask);
     if (occurrence) setAsked({ event: byId.get(occurrence.eventId) as CalendarEventDef, occurrence });
   }
 
