@@ -19,6 +19,7 @@ async function setup() {
   await repo.upsertTransactions(accountId, [{
     source: 'pocketsmith', externalId: 'f1', accountExternalId: '1', date: '2026-10-21', amountCents: -8420,
     descriptionRaw: 'WOOLWORTHS 1234 SYDNEY', payee: 'Woolies', status: 'posted',
+    merchant: 'Woolworths', psCategory: null, memo: null, feedCreatedAt: '2026-10-21T01:00:00Z',
   }]);
   const post = (path: string, body: unknown, extra: Record<string, string> = {}) =>
     app.request(path, { method: 'POST', headers: { ...auth, ...extra }, body: typeof body === 'string' ? body : JSON.stringify(body) });
@@ -96,6 +97,7 @@ describe('fuzzy duplicate matching', () => {
     await repo.upsertTransactions(accountId, [{
       source: 'pocketsmith', externalId: 'f2', accountExternalId: '1', date: '2026-10-20', amountCents: -450,
       descriptionRaw: 'CAFE ABC', payee: 'Cafe', status: 'posted',
+      merchant: 'Cafe Abc', psCategory: null, memo: null, feedCreatedAt: '2026-10-20T01:00:00Z',
     }]);
     const text = commbank([['20/10/2026', '-4.50', 'CAFE ABC'], ['20/10/2026', '-4.50', 'CAFE ABC']]);
     const b = (await (await post('/imports/preview', { accountId, format: 'commbank', csv: text })).json()) as Preview;

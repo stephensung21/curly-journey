@@ -9,9 +9,10 @@ const acct = (id: number, bal: number): PsTransactionAccount => ({
   id, name: `Acct ${id}`, number: null, type: 'bank', currency_code: 'aud',
   current_balance: bal, current_balance_date: '2026-10-22', institution: { id: 1, title: 'Bank' },
 });
-const tx = (id: number, accountId: number, date = '2026-10-20'): PsTransaction => ({
+const tx = (id: number, accountId: number, date = '2026-10-20', over: Partial<PsTransaction> = {}): PsTransaction => ({
   id, payee: `P${id}`, original_payee: null, date, amount: -10, status: 'posted',
   updated_at: '2026-10-20T00:00:00Z', transaction_account: { id: accountId },
+  category: null, memo: null, created_at: '2026-10-20T01:00:00Z', ...over,
 });
 const T0 = new Date('2026-10-23T00:00:00Z');
 
@@ -25,7 +26,7 @@ async function setup(ps = fakePocketSmith({ accounts: [acct(1, 10), acct(2, 20)]
 describe('runSync', () => {
   it('full sync', async () => {
     const { deps, app, auth } = await setup();
-    expect(await runSync(deps)).toEqual({ status: 'ok', accounts: 2, transactions: 3, more: false });
+    expect(await runSync(deps)).toEqual({ status: 'ok', accounts: 2, transactions: 3, more: false, since: '2026-10-20' });
     const res = await app.request('/accounts', { headers: auth });
     expect(((await res.json()) as { accounts: unknown[] }).accounts.length).toBe(2);
   });
@@ -46,8 +47,8 @@ describe('runSync', () => {
   it('loads the newest window of every account before older history', async () => {
     const ps = fakePocketSmith({ accounts: [acct(1, 1), acct(2, 2), acct(3, 3)] });
     const { db } = await setup(ps);
-    // Overhead 4 + 3 account upserts, then 2 calls per empty window: room for 4 windows.
-    const r = await runSync({ db, pocketsmith: ps, now: () => T0 }, { maxCalls: 17 });
+    // Overhead 4 (one query upserts every account), then 2 calls per empty window: room for 4 windows.
+    const r = await runSync({ db, pocketsmith: ps, now: () => T0 }, { maxCalls: 15 });
     expect(r.more).toBe(true);
     expect(ps.calls.filter((c) => c.startsWith('transactions:'))).toEqual([
       'transactions:1::2026-07-26:2026-10-23:1',
@@ -57,15 +58,74 @@ describe('runSync', () => {
     ]);
   });
 
-  it('incremental uses last start minus 1h once history has started', async () => {
+  it('reconciles the last 14 days of every account whose history has started', async () => {
     const ps = fakePocketSmith({ accounts: [acct(1, 10)] });
     const { db } = await setup(ps);
     let now = T0;
     const deps = { db, pocketsmith: ps, now: () => now };
     await runSync(deps);
+    expect(ps.calls).not.toContain('transactions:1::2026-10-09:2026-10-23:1');
+    now = new Date('2026-10-23T04:00:00Z');
+    ps.calls.length = 0;
+    await runSync(deps);
+    expect(ps.calls.filter((c) => c.startsWith('transactions:'))[0]).toBe('transactions:1::2026-10-09:2026-10-23:1');
+    expect(ps.calls.some((c) => /^transactions:1:[^:]/.test(c))).toBe(false);
+  });
+
+  it('replaces a pending row that posts under a new ID', async () => {
+    const data = { accounts: [acct(1, 10)], transactions: { 1: [tx(100, 1, '2026-10-20', { amount: -20, status: 'pending' })] } };
+    const ps = fakePocketSmith(data);
+    const { db } = await setup(ps);
+    let now = T0;
+    const deps = { db, pocketsmith: ps, now: () => now };
+    await runSync(deps);
+    data.transactions[1] = [tx(101, 1, '2026-10-20', { amount: -20, status: 'posted' })];
+    now = new Date('2026-10-23T04:00:00Z');
+    const r = await runSync(deps);
+    expect(r).toMatchObject({ status: 'ok', since: '2026-10-20' });
+    const rows = await db.query<{ external_id: string; status: string }>('select external_id, status from transaction');
+    expect(rows).toEqual([{ external_id: '101', status: 'posted' }]);
+  });
+
+  it('keeps feed rows older than the window and CSV rows inside it', async () => {
+    const data = { accounts: [acct(1, 10)], transactions: { 1: [tx(1, 1, '2026-09-23'), tx(2, 1, '2026-10-20')] } };
+    const ps = fakePocketSmith(data);
+    const { db } = await setup(ps);
+    let now = T0;
+    const deps = { db, pocketsmith: ps, now: () => now };
+    await runSync(deps);
+    const [a] = await makeRepo(db).listAccounts();
+    await makeRepo(db).insertCsvRows(a!.id, [{ row: { date: '2026-10-21', amountCents: -5, description: 'CSV ROW' }, fingerprint: 'c1' }]);
+    data.transactions[1] = [];
     now = new Date('2026-10-23T04:00:00Z');
     await runSync(deps);
-    expect(ps.calls).toContain(`transactions:1:${new Date('2026-10-22T23:00:00Z').toISOString()}:::1`);
+    const rows = await db.query<{ external_id: string }>('select external_id from transaction order by external_id');
+    expect(rows.map((r) => r.external_id)).toEqual(['1', 'c1']);
+  });
+
+  it('stores merchant, PocketSmith category, memo and feed time, and never touches the category', async () => {
+    const data = {
+      accounts: [acct(1, 10)],
+      transactions: {
+        1: [tx(1, 1, '2026-10-20', { payee: 'WOOLWORTHS 1234 SYDNEY', category: { title: 'Groceries' }, memo: 'weekly shop', created_at: '2026-10-20T03:04:05Z' })],
+      },
+    };
+    const ps = fakePocketSmith(data);
+    const { db } = await setup(ps);
+    let now = T0;
+    const deps = { db, pocketsmith: ps, now: () => now };
+    await runSync(deps);
+    const q = () =>
+      db.query<{ merchant: string; ps_category: string | null; memo: string | null; feed: string; category_id: number | null }>(
+        `select merchant, ps_category, memo, to_char(feed_created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS') as feed, category_id from transaction`,
+      );
+    expect(await q()).toEqual([{ merchant: 'Woolworths', ps_category: 'Groceries', memo: 'weekly shop', feed: '2026-10-20T03:04:05', category_id: null }]);
+    const cat = await db.query<{ id: number }>("select id from category where name = 'Dining out'");
+    await db.query('update transaction set category_id = $1', [cat[0]!.id]);
+    data.transactions[1] = [tx(1, 1, '2026-10-20', { payee: 'WOOLWORTHS 1234 SYDNEY', category: { title: 'Shopping' }, memo: 'edited' })];
+    now = new Date('2026-10-23T04:00:00Z');
+    await runSync(deps);
+    expect(await q()).toEqual([{ merchant: 'Woolworths', ps_category: 'Shopping', memo: 'edited', feed: '2026-10-20T03:04:05', category_id: cat[0]!.id }]);
   });
 
   it('spreads a long history over several runs, each within the call budget', async () => {
@@ -88,8 +148,8 @@ describe('runSync', () => {
     for (let i = 0; i < 30; i++) {
       dbCalls = 0;
       const psBefore = ps.calls.length;
-      const r = await runSync({ db: counting, pocketsmith: ps, now: () => new Date(now) }, { maxCalls: 20 });
-      expect(dbCalls + ps.calls.length - psBefore).toBeLessThanOrEqual(20);
+      const r = await runSync({ db: counting, pocketsmith: ps, now: () => new Date(now) }, { maxCalls: 30 });
+      expect(dbCalls + ps.calls.length - psBefore).toBeLessThanOrEqual(30);
       results.push(r);
       now += 15 * 60_000;
       if (!r.more) break;
@@ -102,7 +162,7 @@ describe('runSync', () => {
     expect(hist.every((h) => h.history_done)).toBe(true);
   });
 
-  it('fails without moving the incremental boundary when the budget runs out mid-incremental', async () => {
+  it('fails when the budget runs out mid-reconcile', async () => {
     const ps = fakePocketSmith({ accounts: [acct(1, 1), acct(2, 2)] });
     const { db } = await setup(ps);
     await runSync({ db, pocketsmith: ps, now: () => T0 });

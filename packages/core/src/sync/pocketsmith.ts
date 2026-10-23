@@ -1,4 +1,5 @@
 import type { Cents } from '../money';
+import { cleanMerchant } from '../spending/merchant';
 
 export type AccountKind = 'transaction' | 'savings' | 'credit_card' | 'mortgage' | 'brokerage' | 'manual_asset';
 export type ProjectionsRole = 'off' | 'etf' | 'mortgage';
@@ -24,6 +25,10 @@ export type PsTransaction = {
   status: 'posted' | 'pending';
   updated_at: string;
   transaction_account: { id: number };
+  category: { title: string } | null;
+  memo: string | null;
+  /** When PocketSmith first received the row. */
+  created_at: string;
 };
 
 export type AccountRow = {
@@ -45,6 +50,10 @@ export type TransactionRow = {
   descriptionRaw: string;
   payee: string;
   status: 'posted' | 'pending';
+  merchant: string;
+  psCategory: string | null;
+  memo: string | null;
+  feedCreatedAt: string;
 };
 
 function toCents(amount: number): Cents {
@@ -103,5 +112,9 @@ export function mapTransaction(t: PsTransaction): TransactionRow {
     descriptionRaw: t.original_payee ?? t.payee,
     payee: t.payee,
     status: t.status,
+    merchant: cleanMerchant(t.payee || t.original_payee || ''),
+    psCategory: t.category?.title ?? null,
+    memo: t.memo ?? null,
+    feedCreatedAt: t.created_at,
   };
 }

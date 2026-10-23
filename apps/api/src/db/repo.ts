@@ -1,5 +1,6 @@
 import {
   addMonths,
+  cleanMerchant,
   defaultCounts,
   type AccountKind,
   type AccountRow,
@@ -44,9 +45,13 @@ export interface Repo {
   upsertAccount(row: AccountRow): Promise<number>;
   /** Upsert, returning how far back this account's history has been fetched. */
   upsertAccountState(row: AccountRow): Promise<HistoryState>;
+  /** Upserts every account in one query; results are in input order. */
+  upsertAccountStates(rows: AccountRow[]): Promise<HistoryState[]>;
   setHistory(id: number, from: string, done: boolean): Promise<void>;
   upsertTransactions(accountId: number, rows: TransactionRow[]): Promise<number>;
   insertCsvRows(accountId: number, rows: { row: ImportedRow; fingerprint: string }[]): Promise<number>;
+  /** Deletes this account's feed rows dated `from` or later whose external ID is not in `keep`. CSV rows are never touched. */
+  deleteMissingFeedRows(accountId: number, from: string, keep: string[]): Promise<number>;
   listAccounts(): Promise<AccountDto[]>;
   getAccount(id: number): Promise<AccountDto | null>;
   existingCsvKeys(accountId: number, keys: string[]): Promise<Set<string>>;
@@ -121,22 +126,39 @@ export function makeRepo(db: Db): Repo {
     },
 
     async upsertAccountState(row) {
-      const counts = defaultCounts(row.kind);
-      const rows = await db.query<{ id: number; history_from: string | null; history_done: boolean }>(
+      return (await this.upsertAccountStates([row]))[0]!;
+    },
+
+    async upsertAccountStates(rows) {
+      if (!rows.length) return [];
+      // Postgres rejects a conflict target hit twice in one statement, so send each account once.
+      const unique = [...new Map(rows.map((r) => [`${r.source}|${r.externalId}`, r])).values()];
+      const params: unknown[] = [];
+      const values = unique.map((row) => {
+        const counts = defaultCounts(row.kind);
+        const i = params.length;
+        params.push(
+          row.source, row.externalId, row.institution, row.name, row.kind, row.balanceCents, row.balanceDate,
+          counts.countsSpending, counts.countsNetWorth, counts.projections,
+        );
+        return `(${Array.from({ length: 10 }, (_, k) => `$${i + k + 1}`).join(', ')})`;
+      });
+      const res = await db.query<{ id: number; source: string; external_id: string; history_from: string | null; history_done: boolean }>(
         `insert into account (source, external_id, institution, name, kind, balance_cents, balance_date,
            counts_spending, counts_net_worth, projections)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         values ${values.join(', ')}
          on conflict (source, external_id) do update set
            institution = excluded.institution, name = excluded.name, kind = excluded.kind,
            balance_cents = excluded.balance_cents, balance_date = excluded.balance_date
-         returning id, to_char(history_from, 'YYYY-MM-DD') as history_from, history_done`,
-        [
-          row.source, row.externalId, row.institution, row.name, row.kind, row.balanceCents, row.balanceDate,
-          counts.countsSpending, counts.countsNetWorth, counts.projections,
-        ],
+         returning id, source, external_id, to_char(history_from, 'YYYY-MM-DD') as history_from, history_done`,
+        params,
       );
-      const r = rows[0]!;
-      return { id: Number(r.id), historyFrom: r.history_from, historyDone: r.history_done };
+      // RETURNING order is not guaranteed, so match rows back by key.
+      const byKey = new Map(res.map((r) => [`${r.source}|${r.external_id}`, r]));
+      return rows.map((row) => {
+        const r = byKey.get(`${row.source}|${row.externalId}`)!;
+        return { id: Number(r.id), historyFrom: r.history_from, historyDone: r.history_done };
+      });
     },
 
     async upsertTransactions(accountId, rows) {
@@ -147,15 +169,22 @@ export function makeRepo(db: Db): Repo {
         const params: unknown[] = [];
         const values = part.map((r) => {
           const i = params.length;
-          params.push(accountId, r.source, r.externalId, r.date, r.amountCents, r.descriptionRaw, r.payee, r.status);
-          return `($${i + 1}, $${i + 2}, $${i + 3}, $${i + 4}, $${i + 5}, $${i + 6}, $${i + 7}, $${i + 8})`;
+          params.push(
+            accountId, r.source, r.externalId, r.date, r.amountCents, r.descriptionRaw, r.payee, r.status,
+            r.merchant, r.psCategory, r.memo, r.feedCreatedAt,
+          );
+          return `(${Array.from({ length: 12 }, (_, k) => `$${i + k + 1}`).join(', ')})`;
         });
+        // Category and flow columns belong to the pipeline and the owner; sync never writes them.
         const res = await db.query(
-          `insert into transaction (account_id, source, external_id, date, amount_cents, description_raw, payee, status)
+          `insert into transaction (account_id, source, external_id, date, amount_cents, description_raw, payee, status,
+             merchant, ps_category, memo, feed_created_at)
            values ${values.join(', ')}
            on conflict (source, external_id) do update set
              date = excluded.date, amount_cents = excluded.amount_cents,
-             payee = excluded.payee, status = excluded.status
+             payee = excluded.payee, status = excluded.status,
+             merchant = excluded.merchant, ps_category = excluded.ps_category, memo = excluded.memo,
+             feed_created_at = coalesce(transaction.feed_created_at, excluded.feed_created_at)
            returning id`,
           params,
         );
@@ -170,11 +199,11 @@ export function makeRepo(db: Db): Repo {
         const params: unknown[] = [];
         const values = part.map(({ row, fingerprint }) => {
           const i = params.length;
-          params.push(accountId, fingerprint, row.date, row.amountCents, row.description);
-          return `($${i + 1}, 'csv', $${i + 2}, $${i + 3}, $${i + 4}, $${i + 5})`;
+          params.push(accountId, fingerprint, row.date, row.amountCents, row.description, cleanMerchant(row.description));
+          return `($${i + 1}, 'csv', $${i + 2}, $${i + 3}, $${i + 4}, $${i + 5}, $${i + 6})`;
         });
         const res = await db.query(
-          `insert into transaction (account_id, source, external_id, date, amount_cents, description_raw)
+          `insert into transaction (account_id, source, external_id, date, amount_cents, description_raw, merchant)
            values ${values.join(', ')}
            on conflict (source, external_id) do nothing
            returning id`,
@@ -183,6 +212,16 @@ export function makeRepo(db: Db): Repo {
         inserted += res.length;
       }
       return inserted;
+    },
+
+    async deleteMissingFeedRows(accountId, from, keep) {
+      const rows = await db.query(
+        `delete from transaction
+         where account_id = $1 and source = 'pocketsmith' and date >= $2::date and external_id <> all($3::text[])
+         returning id`,
+        [accountId, from, keep],
+      );
+      return rows.length;
     },
 
     async listAccounts() {
