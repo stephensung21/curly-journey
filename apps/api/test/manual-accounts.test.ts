@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
+import { makeManualRepo } from '../src/db/manual';
 import { makeRepo } from '../src/db/repo';
 import { fakePocketSmith, pgliteDb, seedToken } from './helpers';
 
@@ -110,14 +111,20 @@ describe('manual accounts', () => {
     expect((await send('GET', '/accounts/999/holdings')).status).toBe(404);
   });
 
-  it('CoinSpot account synced 2 days ago lists stale; a fresh one does not', async () => {
-    const { db, send } = await setup();
-    const id = Number((await db.query<{ id: number }>("insert into account (source, external_id, institution, name, kind, counts_spending, counts_net_worth, synced_at) values ('coinspot', 'coinspot', 'CoinSpot', 'CoinSpot', 'crypto', false, true, $1) returning id", [new Date(NOW.getTime() - 2 * 86400_000)]))[0]!.id);
-    const get = async () => ((await (await send('GET', '/accounts')).json()) as { accounts: Acct[] }).accounts.find((x) => x.id === id)!;
-    const a = await get();
-    expect(a.stale).toBe(true);
-    expect(a.syncedAt).toBe('2026-10-22T02:00:00.000Z');
-    await db.query('update account set synced_at = $1 where id = $2', [new Date(NOW.getTime() - 3600_000), id]);
-    expect((await get()).stale).toBe(false);
+  it('PUT value: 400 bad_manual on an invalid body or a future asOf, and nothing is written', async () => {
+    const { send, db } = await setup();
+    const a = (await (await send('POST', '/accounts/manual', amp)).json()) as Acct;
+    for (const body of [{ valueCents: 1, asOf: '2026-10-25' }, { valueCents: 1.5, asOf: '2026-10-24' }, { asOf: '2026-10-24' }, [1]]) {
+      const res = await send('PUT', `/accounts/${a.id}/value`, body);
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({ error: 'bad_manual' });
+    }
+    expect(await db.query('select 1 from account_value where account_id = $1', [a.id])).toHaveLength(1);
+  });
+
+  it('setValue writes nothing for a non-manual account', async () => {
+    const { db, ps } = await setup();
+    expect(await makeManualRepo(db).setValue(ps, 5, '2026-10-24')).toBeNull();
+    expect(await db.query('select 1 from account_value where account_id = $1', [ps])).toHaveLength(0);
   });
 });

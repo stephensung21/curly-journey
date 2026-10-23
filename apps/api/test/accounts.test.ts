@@ -35,6 +35,40 @@ describe('GET /accounts', () => {
   });
 });
 
+describe('GET /accounts stale and needsUpdate', () => {
+  type Row = Acct & { needsUpdate: boolean; syncedAt: string | null };
+  const list = async (app: ReturnType<typeof createApp>, auth: Record<string, string>) =>
+    ((await (await app.request('/accounts', { headers: auth })).json()) as { accounts: Row[] }).accounts;
+
+  it('PocketSmith stale follows the global last-successful-sync rule; manual is never stale', async () => {
+    const { app, auth, repo, ps, manual } = await setup();
+    const old = await repo.startSync(new Date('2026-10-10T00:00:00Z'));
+    await repo.finishSync(old!, { status: 'ok' }, new Date('2026-10-10T00:01:00Z'));
+    let rows = await list(app, auth);
+    expect(rows.find((a) => a.id === ps)!.stale).toBe(true);
+    expect(rows.find((a) => a.id === manual)!.stale).toBe(false);
+    expect(rows.find((a) => a.id === ps)!.needsUpdate).toBe(false);
+    const fresh = await repo.startSync(new Date('2026-10-22T23:00:00Z'));
+    await repo.finishSync(fresh!, { status: 'ok' }, new Date('2026-10-22T23:01:00Z'));
+    rows = await list(app, auth);
+    expect(rows.find((a) => a.id === ps)!.stale).toBe(false);
+    expect(rows.find((a) => a.id === manual)!.stale).toBe(false);
+  });
+
+  it('CoinSpot stale follows its own synced_at, not the global sync', async () => {
+    const { app, auth, db, repo } = await setup();
+    const fresh = await repo.startSync(new Date('2026-10-22T23:00:00Z'));
+    await repo.finishSync(fresh!, { status: 'ok' }, new Date('2026-10-22T23:01:00Z'));
+    const id = Number((await db.query<{ id: number }>("insert into account (source, external_id, institution, name, kind, counts_spending, counts_net_worth, synced_at) values ('coinspot', 'coinspot', 'CoinSpot', 'CoinSpot', 'crypto', false, true, $1) returning id", [new Date(T0.getTime() - 2 * 86400_000)]))[0]!.id);
+    let a = (await list(app, auth)).find((x) => x.id === id)!;
+    expect(a.stale).toBe(true);
+    expect(a.syncedAt).toBe('2026-10-21T00:00:00.000Z');
+    await db.query('update account set synced_at = $1 where id = $2', [new Date(T0.getTime() - 3600_000), id]);
+    a = (await list(app, auth)).find((x) => x.id === id)!;
+    expect(a.stale).toBe(false);
+  });
+});
+
 describe('PATCH /accounts/:id', () => {
   it('persists isOffset', async () => {
     const { app, auth, ps } = await setup();

@@ -34,11 +34,15 @@ export function makeManualRepo(db: Db): ManualRepo {
     },
 
     async setValue(accountId, valueCents, asOf) {
-      await db.query(
-        `insert into account_value (account_id, as_of, value_cents) values ($1, $2::date, $3)
-         on conflict (account_id, as_of) do update set value_cents = excluded.value_cents`,
+      // Writes nothing unless the account exists and is manual.
+      const written = await db.query<{ account_id: number }>(
+        `insert into account_value (account_id, as_of, value_cents)
+         select id, $2::date, $3 from account where id = $1 and source = 'manual'
+         on conflict (account_id, as_of) do update set value_cents = excluded.value_cents
+         returning account_id`,
         [accountId, asOf, valueCents],
       );
+      if (!written[0]) return null;
       const done = await db.query<{ id: number }>(
         `update account a set balance_cents = v.value_cents, balance_date = v.as_of
          from (select value_cents, as_of from account_value where account_id = $1 order by as_of desc limit 1) v

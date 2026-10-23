@@ -122,7 +122,7 @@ export function accountRoutes(deps: Deps) {
     if (id === null) return c.json({ error: 'bad_id' }, 400);
     const body = await readJson(c);
     const v = isObject(body) ? parseValue(body, sydneyDate(deps.now())) : null;
-    if (!v) return c.json({ error: 'bad_value' }, 400);
+    if (!v) return c.json({ error: 'bad_manual' }, 400);
     const account = await repo.getAccount(id);
     if (!account) return c.json({ error: 'account_not_found' }, 404);
     if (account.source !== 'manual') return c.json({ error: 'not_manual' }, 400);
