@@ -12,6 +12,7 @@ import {
   type ImportedRow,
   type ProjectionsRole,
   type Rule,
+  type SpendLine,
   type TransactionRow,
 } from '@curly/core';
 import type { Db } from './db';
@@ -117,6 +118,8 @@ export type HistoryState = {
   historyCursor: string | null;
 };
 
+export type InboxPage = { items: (TransactionDto & { psCategory: string | null })[]; total: number };
+
 export interface Repo {
   upsertAccount(row: AccountRow): Promise<number>;
   /** Upsert, returning how far back this account's history has been fetched. */
@@ -150,6 +153,19 @@ export interface Repo {
   getTransaction(id: number): Promise<TransactionDto | null>;
   /** Applies the owner's edits (category and flow become 'user' sourced); null when the row does not exist. */
   patchTransaction(id: number, patch: TransactionPatch): Promise<TransactionDto | null>;
+  /**
+   * One line per split part, or per row without splits, dated `from` to `to`. With `accountIds`, exactly those
+   * accounts; otherwise every account that counts towards spending.
+   */
+  spendLines(f: { from: string; to: string; accountIds?: number[] }): Promise<SpendLine[]>;
+  /** Newest `limit` uncategorised outflows with flow 'normal' on spending accounts, and how many there are in all. */
+  inbox(limit: number): Promise<InboxPage>;
+  /** merchant -> category of the latest row the owner categorised, for just these merchants. */
+  userCategoryByMerchant(merchants: string[]): Promise<Map<string, number>>;
+  /** Spending categories with the most rows dated `since` or later, most used first. */
+  topCategoriesSince(since: string, limit: number): Promise<number[]>;
+  /** Rows created at or after `since` that the pipeline categorised, and how many it categorised by itself. */
+  categorisationSince(since: Date): Promise<{ total: number; auto: number }>;
   /** Replaces the row's splits (none clears them); null when the row does not exist. */
   setSplits(id: number, splits: { categoryId: number; amountCents: Cents }[]): Promise<TransactionDto | null>;
   /** Null when the name is taken. */
@@ -544,6 +560,88 @@ export function makeRepo(db: Db): Repo {
         params,
       );
       return toTransactionDtos(db, rows);
+    },
+
+    async spendLines(f) {
+      const params: unknown[] = [f.from, f.to];
+      let scope = 'a.counts_spending';
+      if (f.accountIds) {
+        params.push(f.accountIds);
+        scope = 't.account_id = any($3::int[])';
+      }
+      const rows = await db.query<{
+        id: string | number;
+        account_id: number;
+        institution: string;
+        date: string;
+        amount_cents: string | number;
+        category_id: number | null;
+        kind: 'spending' | 'income' | null;
+        flow: Flow;
+      }>(
+        `select t.id, t.account_id, a.institution, to_char(t.date, 'YYYY-MM-DD') as date,
+           coalesce(sp.amount_cents, t.amount_cents)::text as amount_cents,
+           c.id as category_id, c.kind, t.flow
+         from transaction t
+         join account a on a.id = t.account_id
+         left join transaction_split sp on sp.transaction_id = t.id
+         left join category c on c.id = coalesce(sp.category_id, t.category_id)
+         where t.date >= $1::date and t.date <= $2::date and ${scope}`,
+        params,
+      );
+      return rows.map((r) => ({
+        txnId: Number(r.id),
+        accountId: Number(r.account_id),
+        institution: r.institution,
+        date: r.date,
+        amountCents: Number(r.amount_cents),
+        categoryId: r.category_id === null ? null : Number(r.category_id),
+        categoryKind: r.kind,
+        flow: r.flow,
+      }));
+    },
+
+    async inbox(limit) {
+      const rows = await db.query<TransactionSql & { total: string | number; ps_category: string | null }>(
+        `select ${TRANSACTION_COLS}, t.ps_category, count(*) over () as total
+         from transaction t join account a on a.id = t.account_id
+         where t.category_id is null and t.flow = 'normal' and t.amount_cents < 0 and a.counts_spending
+         order by t.date desc, t.id desc
+         limit $1`,
+        [limit],
+      );
+      const dtos = await toTransactionDtos(db, rows);
+      return { items: dtos.map((d, i) => ({ ...d, psCategory: rows[i]!.ps_category })), total: rows[0] ? Number(rows[0].total) : 0 };
+    },
+
+    async userCategoryByMerchant(merchants) {
+      if (!merchants.length) return new Map();
+      const rows = await db.query<{ merchant: string; category_id: number }>(
+        `select distinct on (merchant) merchant, category_id from transaction
+         where category_source = 'user' and category_id is not null and merchant = any($1::text[])
+         order by merchant, date desc, id desc`,
+        [merchants],
+      );
+      return new Map(rows.map((r) => [r.merchant, Number(r.category_id)]));
+    },
+
+    async topCategoriesSince(since, limit) {
+      const rows = await db.query<{ category_id: number }>(
+        `select t.category_id from transaction t join category c on c.id = t.category_id
+         where c.kind = 'spending' and t.date >= $1::date
+         group by t.category_id order by count(*) desc, t.category_id limit $2`,
+        [since, limit],
+      );
+      return rows.map((r) => Number(r.category_id));
+    },
+
+    async categorisationSince(since) {
+      const rows = await db.query<{ total: string | number; auto: string | number }>(
+        `select count(*) as total, count(initial_source) as auto from transaction
+         where categorised and created_at >= $1::timestamptz`,
+        [since.toISOString()],
+      );
+      return { total: Number(rows[0]!.total), auto: Number(rows[0]!.auto) };
     },
 
     async getTransaction(id) {

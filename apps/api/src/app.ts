@@ -7,6 +7,7 @@ import { accountRoutes } from './routes/accounts';
 import { categoryRoutes } from './routes/categories';
 import { importRoutes } from './routes/imports';
 import { ruleRoutes } from './routes/rules';
+import { spendingRoutes } from './routes/spending';
 import { syncRoutes } from './routes/sync';
 import { transactionRoutes } from './routes/transactions';
 
@@ -22,5 +23,6 @@ export function createApp(deps: Deps) {
   app.route('/', categoryRoutes(deps));
   app.route('/', transactionRoutes(deps));
   app.route('/', ruleRoutes(deps));
+  app.route('/', spendingRoutes(deps));
   return app;
 }
