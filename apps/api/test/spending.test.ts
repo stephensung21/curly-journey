@@ -219,6 +219,61 @@ describe('GET /inbox', () => {
   });
 });
 
+describe('drill-down matches the Spending bar', () => {
+  it('totals and lists Groceries, Home and none like /spending, split-aware, without excluded accounts', async () => {
+    const s = await setup();
+    const excluded = await s.repo.upsertAccount({ source: 'pocketsmith', externalId: '3', institution: 'CommBank', name: 'Joint', kind: 'transaction', balanceCents: 0, balanceDate: '2026-10-22' });
+    await s.db.query('update account set counts_spending = false where id = $1', [excluded]);
+    const plain = await s.add(s.bank, '2026-10-02', -5000, { cat: 'Groceries' });
+    const split = await s.add(s.bank, '2026-10-03', -3000, { cat: 'Groceries' });
+    await s.repo.setSplits(split, [{ categoryId: s.cat('Groceries'), amountCents: -1000 }, { categoryId: s.cat('Home'), amountCents: -2000 }]);
+    const unsortedSplit = await s.add(s.bank, '2026-10-04', -600);
+    await s.repo.setSplits(unsortedSplit, [{ categoryId: s.cat('Home'), amountCents: -100 }, { categoryId: s.cat('Groceries'), amountCents: -500 }]);
+    const none = await s.add(s.bank, '2026-10-05', -400);
+    await s.add(excluded, '2026-10-02', -700, { cat: 'Groceries' });
+    await s.add(excluded, '2026-10-02', -300);
+
+    type Txns = { transactions: { id: number }[]; totalCents: number };
+    for (const institution of ['', '&institution=CommBank']) {
+      const bars = (await s.get<Summary>(`/spending?month=2026-10${institution}`)).body.byCategory;
+      const bar = (id: number | null) => bars.find((b) => b.categoryId === id)!.cents;
+      const drill = async (id: number | 'none') => (await s.get<Txns>(`/transactions?month=2026-10&categoryId=${id}${institution}`)).body;
+
+      const groceries = await drill(s.cat('Groceries'));
+      expect(groceries.totalCents).toBe(bar(s.cat('Groceries')));
+      expect(groceries.totalCents).toBe(6500);
+      expect(groceries.transactions.map((t) => t.id).sort()).toEqual([plain, split, unsortedSplit].sort());
+
+      const home = await drill(s.cat('Home'));
+      expect(home.totalCents).toBe(bar(s.cat('Home')));
+      expect(home.transactions.map((t) => t.id).sort()).toEqual([split, unsortedSplit].sort());
+
+      const unc = await drill('none');
+      expect(unc.totalCents).toBe(bar(null));
+      expect(unc.transactions.map((t) => t.id)).toEqual([none]);
+    }
+  });
+
+  it('gives 0 for a category with no spending, and no total without a category', async () => {
+    const s = await setup();
+    const { body } = await s.get<{ totalCents?: number }>(`/transactions?month=2026-10&categoryId=${s.cat('Pets')}`);
+    expect(body.totalCents).toBe(0);
+    expect((await s.get<{ totalCents?: number }>('/transactions?month=2026-10')).body.totalCents).toBeUndefined();
+  });
+});
+
+describe('split rows', () => {
+  it('never appear in the inbox, even with no category of their own', async () => {
+    const s = await setup();
+    const split = await s.add(s.bank, '2026-10-02', -600, { merchant: 'Costco' });
+    await s.repo.setSplits(split, [{ categoryId: s.cat('Home'), amountCents: -100 }, { categoryId: s.cat('Groceries'), amountCents: -500 }]);
+    const plain = await s.add(s.bank, '2026-10-03', -500, { merchant: 'Unknownshop' });
+    const { body } = await s.get<Inbox>('/inbox');
+    expect(body.items.map((i) => i.id)).toEqual([plain]);
+    expect(body.total).toBe(1);
+  });
+});
+
 describe('GET /stats/categorisation', () => {
   it('is null with no sample', async () => {
     const s = await setup();

@@ -1,4 +1,4 @@
-import { institutionGroup, monthPeriod, statementPeriod, type Flow } from '@curly/core';
+import { institutionGroup, monthPeriod, statementPeriod, summarise, type Flow } from '@curly/core';
 import { Hono } from 'hono';
 import type { Deps } from '../app';
 import { makeRepo, type TransactionPatch } from '../db/repo';
@@ -33,14 +33,21 @@ export function transactionRoutes(deps: Deps) {
     let accountIds = accountId === undefined ? undefined : [accountId];
     const institution = c.req.query('institution');
     if (institution !== undefined) {
+      // Same scope as GET /spending, so a drill-down matches its bar.
       const matching = (await repo.listAccounts())
-        .filter((a) => institutionGroup(a.institution) === institution)
+        .filter((a) => institutionGroup(a.institution) === institution && (accountId !== undefined || a.countsSpending))
         .map((a) => a.id);
       accountIds = accountIds ? accountIds.filter((id) => matching.includes(id)) : matching;
     }
 
     const { from, to } = period === 'statement' ? statementPeriod(month) : monthPeriod(month);
-    return c.json({ transactions: await repo.queryTransactions({ from, to, accountIds, categoryId }) });
+    const transactions = await repo.queryTransactions({ from, to, accountIds, categoryId });
+    if (categoryId === undefined) return c.json({ transactions });
+    // The category's Spending bar, from the same lines and summary as GET /spending: split parts count separately.
+    const want = categoryId === 'none' ? null : categoryId;
+    const lines = await repo.spendLines({ from, to, accountIds });
+    const totalCents = summarise(lines).byCategory.find((b) => b.categoryId === want)?.cents ?? 0;
+    return c.json({ transactions, totalCents });
   });
 
   r.get('/transactions/:id', async (c) => {

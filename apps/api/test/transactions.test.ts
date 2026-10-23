@@ -136,7 +136,7 @@ describe('PATCH /transactions/:id', () => {
 
 describe('PUT /transactions/:id/splits', () => {
   it('rejects bad totals, sign and count; stores, returns and clears good splits', async () => {
-    const { call, add, row, bank, cat } = await setup();
+    const { call, add, row, bank, cat, db } = await setup();
     const id = await add(bank, row('a', '2026-10-05', -1000, 'COSTCO'));
     const put = (splits: unknown) => call('PUT', `/transactions/${id}/splits`, { splits });
     const g = cat('Groceries');
@@ -156,6 +156,16 @@ describe('PUT /transactions/:id/splits', () => {
     expect(((await ok.json()) as TransactionDto).splits).toEqual([{ categoryId: g, amountCents: -600 }, { categoryId: h, amountCents: -400 }]);
 
     const cleared = (await (await put([])).json()) as TransactionDto;
+    expect(cleared.splits).toEqual([]);
+    // The write is one statement: the existence check, delete and insert together, then the row is read back.
+    let calls = 0;
+    const counting = makeRepo({ query: (t, p) => (calls++, db.query(t, p)) });
+    expect((await counting.setSplits(id, [{ categoryId: g, amountCents: -600 }, { categoryId: h, amountCents: -400 }]))!.splits).toHaveLength(2);
+    expect(calls).toBe(3);
+    calls = 0;
+    expect(await counting.setSplits(99999, [])).toBeNull();
+    expect(calls).toBe(1);
+    await counting.setSplits(id, []);
     expect(cleared.splits).toEqual([]);
     expect((await call('PUT', '/transactions/99999/splits', { splits: [] })).status).toBe(404);
   });

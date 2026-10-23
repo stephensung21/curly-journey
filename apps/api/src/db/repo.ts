@@ -276,6 +276,9 @@ const TRANSACTION_COLS = `t.id, t.account_id, to_char(t.date, 'YYYY-MM-DD') as d
   t.description_raw, t.merchant, t.status, t.source, t.category_id, t.category_source, t.flow, t.flow_source, t.note,
   t.memo, to_char(t.feed_created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as feed_created_at`;
 
+/** SQL for "transaction `t` has no split parts"; a split row's categories are its parts'. */
+const NO_SPLITS = 'not exists (select 1 from transaction_split where transaction_id = t.id)';
+
 /** SQL for "transaction `t` matches the rule whose text, account and amount are $1, $2, $3"; mirrors core ruleMatches. */
 const RULE_MATCH_SQL = `(strpos(upper(t.description_raw), upper($1)) > 0 or strpos(upper(t.merchant), upper($1)) > 0)
   and ($2::int is null or t.account_id = $2::int) and ($3::bigint is null or t.amount_cents = $3::bigint)`;
@@ -565,18 +568,26 @@ export function makeRepo(db: Db): Repo {
 
     async queryTransactions(f) {
       const params: unknown[] = [f.from, f.to];
+      // Scoped like spendLines, so a category's rows add up to its Spending bar.
       const where = ['t.date >= $1::date', 't.date <= $2::date'];
       if (f.accountIds) {
         params.push(f.accountIds);
         where.push(`t.account_id = any($${params.length}::int[])`);
+      } else {
+        where.push('a.counts_spending');
       }
-      if (f.categoryId === 'none') where.push('t.category_id is null');
+      if (f.categoryId === 'none') where.push(`t.category_id is null and ${NO_SPLITS}`);
       else if (f.categoryId !== undefined) {
         params.push(f.categoryId);
-        where.push(`t.category_id = $${params.length}::int`);
+        const n = `$${params.length}::int`;
+        where.push(
+          `(exists (select 1 from transaction_split s where s.transaction_id = t.id and s.category_id = ${n})
+            or (${NO_SPLITS} and t.category_id = ${n}))`,
+        );
       }
       const rows = await db.query<TransactionSql>(
-        `select ${TRANSACTION_COLS} from transaction t where ${where.join(' and ')} order by t.date desc, t.id desc`,
+        `select ${TRANSACTION_COLS} from transaction t join account a on a.id = t.account_id
+         where ${where.join(' and ')} order by t.date desc, t.id desc`,
         params,
       );
       return toTransactionDtos(db, rows);
@@ -625,7 +636,7 @@ export function makeRepo(db: Db): Repo {
       const rows = await db.query<TransactionSql & { total: string | number; ps_category: string | null }>(
         `select ${TRANSACTION_COLS}, t.ps_category, count(*) over () as total
          from transaction t join account a on a.id = t.account_id
-         where t.category_id is null and t.flow = 'normal' and t.amount_cents < 0 and a.counts_spending
+         where t.category_id is null and ${NO_SPLITS} and t.flow = 'normal' and t.amount_cents < 0 and a.counts_spending
          order by t.date desc, t.id desc
          limit $1`,
         [limit],
@@ -692,17 +703,20 @@ export function makeRepo(db: Db): Repo {
     },
 
     async setSplits(id, splits) {
-      if (!(await this.getTransaction(id))) return null;
-      await db.query('delete from transaction_split where transaction_id = $1', [id]);
-      if (splits.length) {
-        await db.query(
-          `insert into transaction_split (transaction_id, category_id, amount_cents)
-           select $1, v.category_id, v.amount_cents
-           from unnest($2::int[], $3::bigint[]) with ordinality as v(category_id, amount_cents, n)
-           order by v.n`,
-          [id, splits.map((p) => p.categoryId), splits.map((p) => p.amountCents)],
-        );
-      }
+      // One statement: the delete and insert see the same snapshot, so the new parts are never deleted.
+      const found = await db.query<{ n: string | number }>(
+        `with t as (select id from transaction where id = $1),
+         del as (delete from transaction_split where transaction_id in (select id from t)),
+         ins as (
+           insert into transaction_split (transaction_id, category_id, amount_cents)
+           select t.id, v.category_id, v.amount_cents
+           from t, unnest($2::int[], $3::bigint[]) with ordinality as v(category_id, amount_cents, n)
+           order by v.n
+         )
+         select count(*) as n from t`,
+        [id, splits.map((p) => p.categoryId), splits.map((p) => p.amountCents)],
+      );
+      if (!Number(found[0]!.n)) return null;
       return this.getTransaction(id);
     },
 
