@@ -1,8 +1,9 @@
+import { runAlerts } from './alerts/runAlerts';
 import { createApp, type Deps } from './app';
 import { coinSpotClient } from './coinspot/client';
 import { neonDb } from './db/db';
 import { pocketSmithClient } from './pocketsmith/client';
-import { expoPush } from './push/expo';
+import { expoPush, PushError } from './push/expo';
 import { runSync, syncDue } from './sync/runSync';
 
 type Env = {
@@ -12,6 +13,9 @@ type Env = {
   COINSPOT_SECRET?: string;
   EXPO_ACCESS_TOKEN?: string;
 };
+
+/** Hourly, at 7 past: bill auto-ticks and push notifications. Must match wrangler.toml. */
+const ALERTS_CRON = '7 * * * *';
 
 function depsFor(env: Env): Deps {
   return {
@@ -27,8 +31,17 @@ export default {
   fetch(request: Request, env: Env): Response | Promise<Response> {
     return createApp(depsFor(env)).fetch(request);
   },
-  scheduled(_event: unknown, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }): void {
+  scheduled(event: { cron?: string }, env: Env, ctx: { waitUntil(p: Promise<unknown>): void }): void {
     const deps = depsFor(env);
+    if (event.cron === ALERTS_CRON) {
+      ctx.waitUntil(
+        runAlerts(deps).catch((e: unknown) => {
+          // Status only: the error text could echo connection details.
+          console.error('alerts failed', e instanceof PushError ? e.status : 'error');
+        }),
+      );
+      return;
+    }
     ctx.waitUntil(
       (async () => {
         // Cron fires every 15 minutes so history can load quickly; a full sync only runs when due.

@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '@curly/core';
+import type { CalendarEvent, PaymentCandidate } from '@curly/core';
 import type { Db } from './db';
 
 type EventRow = {
@@ -73,6 +73,8 @@ export interface EventsRepo {
   insertAutoPaid(matches: { eventId: number; date: string; transactionId: number }[]): Promise<number>;
   /** Transaction ids linked by any occurrence status with due_date in the range. */
   takenTransactionIds(from: string, to: string): Promise<Set<number>>;
+  /** Outflows dated in the range, across all accounts: what a bill payment could be. */
+  paymentCandidates(from: string, to: string): Promise<PaymentCandidate[]>;
 }
 
 export function makeEventsRepo(db: Db): EventsRepo {
@@ -163,6 +165,29 @@ export function makeEventsRepo(db: Db): EventsRepo {
         [from, to],
       );
       return new Set(rows.map((r) => Number(r.transaction_id)));
+    },
+
+    async paymentCandidates(from, to) {
+      const rows = await db.query<{
+        id: string;
+        account_id: number;
+        date: string;
+        amount_cents: string;
+        merchant: string;
+        description_raw: string;
+      }>(
+        `select id::text as id, account_id, date::text as date, amount_cents::text as amount_cents, merchant, description_raw
+           from transaction where amount_cents < 0 and date between $1 and $2 order by date, id`,
+        [from, to],
+      );
+      return rows.map((r) => ({
+        id: Number(r.id),
+        accountId: r.account_id,
+        date: r.date,
+        amountCents: Number(r.amount_cents),
+        merchant: r.merchant,
+        description: r.description_raw,
+      }));
     },
   };
 }
