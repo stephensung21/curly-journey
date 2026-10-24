@@ -11,6 +11,7 @@ import { Card } from '../src/components/Card';
 import { Screen } from '../src/components/Screen';
 import { Segmented } from '../src/components/Segmented';
 import { useInputStyle } from '../src/components/ValueSheet';
+import { termLeft } from '../src/projections/shared';
 import { accents } from '../src/theme/tokens';
 import { useTheme } from '../src/theme/useTheme';
 
@@ -57,7 +58,8 @@ function Form({ profile, prefill }: { profile: ProjectionProfile; prefill: Proje
   const input = useInputStyle();
   const update = useUpdateProfile();
 
-  const term = profile.termMonths;
+  // Pre-fill what is left today, not the term as it was when saved.
+  const term = termLeft(profile, prefill.today);
   const [rate, setRate] = useState(profile.mortgageRateBps === null ? '' : (profile.mortgageRateBps / 100).toFixed(2));
   const [repayment, setRepayment] = useState(profile.repaymentCents === null ? '' : dollars(profile.repaymentCents));
   const [freq, setFreq] = useState<RepaymentFrequency>(profile.repaymentFrequency);

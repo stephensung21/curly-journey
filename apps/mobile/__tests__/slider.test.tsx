@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act as rtlAct, fireEvent, render, screen } from '@testing-library/react-native';
 import { Text } from 'react-native';
 import { Slider } from '../src/components/Slider';
 import { Amount } from '../src/components/Amount';
@@ -54,8 +54,57 @@ it('renders any node from format', async () => {
 });
 
 const layout = (w: number) => fireEvent(screen.getByLabelText('Spare cash'), 'layout', { nativeEvent: { layout: { width: w, height: 36, x: 0, y: 0 } } });
-const press = (x: number) =>
-  fireEvent(screen.getByLabelText('Spare cash'), 'responderGrant', { nativeEvent: { locationX: x }, touchHistory: { touchBank: [{ touchActive: true, currentPageX: 0, currentPageY: 0, previousPageX: 0, previousPageY: 0, currentTimeStamp: 0, previousTimeStamp: 0, startPageX: 0, startPageY: 0, startTimeStamp: 0 }], numberActiveTouches: 1, indexOfSingleActiveTouch: 0, mostRecentTimeStamp: 0 } });
+// A tap on the track, measured against the outer view (the track fills it).
+const press = (x: number) => fireEvent.press(screen.getByTestId('slider-track'), { nativeEvent: { locationX: x } });
+/** A responder event whose single touch moved by (dx, dy) since it started at (x, 0). */
+const touch = (x: number, dx: number, dy: number, ts: number) => ({
+  nativeEvent: { locationX: x + dx },
+  touchHistory: {
+    touchBank: [{ touchActive: true, startPageX: x, startPageY: 0, startTimeStamp: 0, previousPageX: x, previousPageY: 0, previousTimeStamp: 0, currentPageX: x + dx, currentPageY: dy, currentTimeStamp: ts }],
+    numberActiveTouches: 1, indexOfSingleActiveTouch: 0, mostRecentTimeStamp: ts,
+  },
+});
+const handlers = () => screen.getByTestId('slider-pan').props;
+/** As the responder system does: the capture pass updates the gesture, then the bubble pass decides. */
+const moveClaims = (e: ReturnType<typeof touch>) => {
+  handlers().onMoveShouldSetResponderCapture(e);
+  return handlers().onMoveShouldSetResponder(e);
+};
+
+it('does not claim a touch on start, so a parent can scroll', async () => {
+  await setup(50);
+  expect(handlers().onStartShouldSetResponder(touch(0, 0, 0, 0))).toBe(false);
+});
+
+it('leaves vertical moves to the parent', async () => {
+  await setup(50);
+  expect(moveClaims(touch(100, 3, 30, 1))).toBe(false);
+});
+
+it('claims horizontal moves', async () => {
+  await setup(50);
+  expect(moveClaims(touch(100, 30, 3, 1))).toBe(true);
+});
+
+it('ignores tiny horizontal jitter', async () => {
+  await setup(50);
+  expect(moveClaims(touch(100, 3, 0, 1))).toBe(false);
+});
+
+it('puts the thumb under the finger when it claims a drag, then follows it', async () => {
+  const onChange = await setup(0);
+  await layout(222);
+  // Finger went down at x = 111 and is at x = 161 (150 of 200 usable) when the slider claims it.
+  await rtlAct(() => handlers().onResponderGrant(touch(111, 50, 0, 1)));
+  expect(onChange).toHaveBeenLastCalledWith(75);
+});
+
+it('jumps to a tapped point', async () => {
+  const onChange = await setup(0);
+  await layout(222);
+  await press(161); // 150 of 200 usable
+  expect(onChange).toHaveBeenLastCalledWith(75);
+});
 
 it('maps a press on the outer view to a value over the usable width', async () => {
   const onChange = await setup(0);

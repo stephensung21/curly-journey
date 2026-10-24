@@ -1,5 +1,7 @@
 import { addMonthsLabel, compareOffset, crossoverMonth, formatAud, monthsUntilAge, offsetVsInvest, projectEtf } from '@curly/core';
 import { fireEvent, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
+import { accents } from '../src/theme/tokens';
 import { renderScreen } from '../test-utils/renderScreen';
 import Projections from '../app/(tabs)/projections';
 import * as hooks from '../src/api/hooks';
@@ -27,6 +29,10 @@ const mortgage = (over: Record<string, number> = {}) => ({
 const plural = (n: number, u: string) => `${n} ${u}${n === 1 ? '' : 's'}`;
 const spanText = (n: number) => [Math.floor(n / 12) ? plural(Math.floor(n / 12), 'year') : '', n % 12 ? plural(n % 12, 'month') : ''].filter(Boolean).join(' ');
 const aud = (c: number) => formatAud(c, { decimals: 'never' });
+const gain = (c: number) => formatAud(c, { decimals: 'never', signed: true });
+const offRow = (r: { offsetGainCents: number }, tail: string) => `Into offsets → ${gain(r.offsetGainCents)} better off at 60 · ${tail}`;
+const etfRow = (r: { etfGainCents: number }) => `Into ETFs → ${gain(r.etfGainCents)} better off at 60 (after tax on distributions)`;
+const colorOf = (text: string) => StyleSheet.flatten(screen.getByText(text).props.style).color;
 const bump = (label: string, name: 'increment' | 'decrement') =>
   fireEvent(screen.getByLabelText(label), 'accessibilityAction', { nativeEvent: { actionName: name } });
 const open = async () => {
@@ -101,8 +107,8 @@ it('spare cash slider is $0-$3,000, default $500, and changes both rows', async 
   await open();
   expect(screen.getByLabelText('Spare cash').props.accessibilityValue).toEqual({ min: 0, max: 300_000, now: 50_000 });
   const rows = (r: ReturnType<typeof vs>) => ({
-    off: `Into offsets → mortgage-free ${spanText(r.monthsSooner!)} sooner`,
-    inv: `Into ETFs → +${aud(r.extraEtfCents)} at 60`,
+    off: offRow(r, `mortgage-free ${spanText(r.monthsSooner!)} sooner`),
+    inv: etfRow(r),
   });
   const r1 = vs(50_000);
   expect(r1.monthsSooner).toBeGreaterThan(0);
@@ -132,7 +138,9 @@ it('says neither pays it off within 50 years when both loans stay unpaid', async
   profile.offsetGrowthCents = 0;
   await open();
   await bump('Spare cash', 'decrement');
-  expect(screen.getByText('Neither pays it off within 50 years')).toBeTruthy();
+  const spare = screen.getByLabelText('Spare cash').props.accessibilityValue.now;
+  const r = vs(spare, { monthlyRepaymentCents: 100_000, offsetCents: 0, offsetGrowthCents: 0 });
+  expect(screen.getByText(offRow(r, 'neither pays it off within 50 years'))).toBeTruthy();
   expect(screen.queryByText(/sooner/)).toBeNull();
 });
 
@@ -142,9 +150,32 @@ it('says pays it off within 50 years when only the boosted loan clears', async (
   profile.offsetGrowthCents = 0;
   await open();
   for (let i = 0; i < 30; i++) await bump('Spare cash', 'increment');
-  const r = vs(300_000, { monthlyRepaymentCents: 200_000, offsetCents: 0, offsetGrowthCents: 0 });
+  const spare = screen.getByLabelText('Spare cash').props.accessibilityValue.now;
+  const r = vs(spare, { monthlyRepaymentCents: 200_000, offsetCents: 0, offsetGrowthCents: 0 });
   expect(r.monthsSooner).toBeNull();
-  expect(screen.getByText('Into offsets → pays it off within 50 years')).toBeTruthy();
+  expect(screen.getByText(offRow(r, 'pays it off within 50 years'))).toBeTruthy();
+});
+
+it('distributions slider is 0-8% in 0.25% steps, changes the ETF row and is saved', async () => {
+  const mutate = jest.fn();
+  mocked.useUpdateProfile.mockImplementation((() => ({ mutate, mutateAsync: mutate, isPending: false })) as any);
+  jest.useFakeTimers();
+  try {
+    await open();
+    expect(screen.getByLabelText('Distributions').props.accessibilityValue).toEqual({ min: 0, max: 800, now: 300 });
+    await bump('Distributions', 'increment');
+    const r = offsetVsInvest({
+      mortgage: mortgage(),
+      etf: { startCents: 20_000_000, monthlyCents: 300_000, returnBps: 700, months: 0 },
+      spareCents: 50_000, distributionYieldBps: 325, taxRateBps: 3000, atMonth: ageMonth(),
+    });
+    expect(screen.getByText(etfRow(r))).toBeTruthy();
+    expect(screen.getByText('7% return · 2.5% inflation · 3.25% distributions taxed at 30%')).toBeTruthy();
+    await jest.advanceTimersByTimeAsync(1100);
+    expect(mutate).toHaveBeenCalledWith(expect.objectContaining({ distributionYieldBps: 325 }));
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 it('shows the assumptions line', async () => {
@@ -164,7 +195,38 @@ it('uses a zero tax rate when unset', async () => {
   profile.taxRateBps = null;
   await open();
   const r = vs(50_000, {}, 0);
-  expect(screen.getByText(`Into ETFs → +${aud(r.extraEtfCents)} at 60`)).toBeTruthy();
+  expect(screen.getByText(etfRow(r))).toBeTruthy();
+});
+
+it('highlights the offsets row when it leaves you better off', async () => {
+  profile.taxRateBps = 4500;
+  profile.targetAge = 45;
+  await open();
+  const r = offsetVsInvest({
+    mortgage: mortgage(),
+    etf: { startCents: 20_000_000, monthlyCents: 300_000, returnBps: 700, months: 0 },
+    spareCents: 50_000, distributionYieldBps: 300, taxRateBps: 4500, atMonth: monthsUntilAge('1990-06-15', '2026-10-25', 45),
+  });
+  expect(r.offsetGainCents).toBeGreaterThan(r.etfGainCents);
+  const off = `Into offsets → ${gain(r.offsetGainCents)} better off at 45 · mortgage-free ${spanText(r.monthsSooner!)} sooner`;
+  const inv = `Into ETFs → ${gain(r.etfGainCents)} better off at 45 (after tax on distributions)`;
+  expect(colorOf(off)).toBe(accents.lime);
+  expect(colorOf(inv)).not.toBe(accents.lime);
+});
+
+it('highlights the ETFs row when it leaves you better off', async () => {
+  profile.taxRateBps = 0;
+  profile.distributionYieldBps = 0;
+  profile.returnBps = 1000;
+  await open();
+  const r = offsetVsInvest({
+    mortgage: mortgage(),
+    etf: { startCents: 20_000_000, monthlyCents: 300_000, returnBps: 1000, months: 0 },
+    spareCents: 50_000, distributionYieldBps: 0, taxRateBps: 0, atMonth: ageMonth(),
+  });
+  expect(r.etfGainCents).toBeGreaterThan(r.offsetGainCents);
+  expect(colorOf(etfRow(r))).toBe(accents.lime);
+  expect(colorOf(offRow(r, `mortgage-free ${spanText(r.monthsSooner!)} sooner`))).not.toBe(accents.lime);
 });
 
 it('shows the setup card without a home loan', async () => {

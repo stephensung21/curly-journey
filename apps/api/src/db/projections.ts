@@ -18,6 +18,9 @@ export type ProjectionProfile = {
   todaysDollars: boolean;
 };
 
+/** The profile as returned: the editable fields plus the server-set date the term was last saved (Sydney). */
+export type StoredProfile = ProjectionProfile & { termSetOn: string | null };
+
 export type Prefill = { etfStartCents: number; mortgageBalanceCents: number; offsetCents: number };
 export type TradeFlow = { date: string; side: 'buy' | 'sell'; totalCents: number };
 
@@ -42,16 +45,17 @@ type ProfileRow = {
   birth_date: string | null; tax_rate_bps: number | null; mortgage_rate_bps: number | null;
   repayment_cents: string | null; repayment_frequency: Frequency; term_months: number | null;
   offset_growth_cents: string; return_bps: number; inflation_bps: number; distribution_yield_bps: number;
-  target_cents: string; target_age: number; todays_dollars: boolean;
+  target_cents: string; target_age: number; todays_dollars: boolean; term_set_on: string | null;
 };
 
 const PROFILE_SELECT = `to_char(birth_date, 'YYYY-MM-DD') as birth_date, tax_rate_bps, mortgage_rate_bps,
   repayment_cents::text as repayment_cents, repayment_frequency, term_months, offset_growth_cents::text as offset_growth_cents,
-  return_bps, inflation_bps, distribution_yield_bps, target_cents::text as target_cents, target_age, todays_dollars`;
+  return_bps, inflation_bps, distribution_yield_bps, target_cents::text as target_cents, target_age, todays_dollars,
+  to_char(term_set_on, 'YYYY-MM-DD') as term_set_on`;
 
 const num = (v: string | number | null): number | null => (v === null ? null : Number(v));
 
-const toProfile = (r: ProfileRow): ProjectionProfile => ({
+const toProfile = (r: ProfileRow): StoredProfile => ({
   birthDate: r.birth_date,
   taxRateBps: num(r.tax_rate_bps),
   mortgageRateBps: num(r.mortgage_rate_bps),
@@ -65,17 +69,18 @@ const toProfile = (r: ProfileRow): ProjectionProfile => ({
   targetCents: Number(r.target_cents),
   targetAge: Number(r.target_age),
   todaysDollars: r.todays_dollars,
+  termSetOn: r.term_set_on,
 });
 
 export type ProjectionsRepo = {
   /** One query. */
-  profile(): Promise<ProjectionProfile>;
+  profile(): Promise<StoredProfile>;
   /** One query: balance sums for the projection pre-fill. */
   prefill(): Promise<Prefill>;
   /** One query: CommSec trades, newest first. */
   commsecTrades(): Promise<TradeFlow[]>;
   /** One query. Applies the given fields and returns the updated profile. */
-  update(patch: Partial<ProjectionProfile>): Promise<ProjectionProfile>;
+  update(patch: Partial<StoredProfile>): Promise<StoredProfile>;
 };
 
 export function makeProjectionsRepo(db: Db): ProjectionsRepo {
@@ -111,9 +116,10 @@ export function makeProjectionsRepo(db: Db): ProjectionsRepo {
     async update(patch) {
       const sets: string[] = [];
       const params: unknown[] = [];
-      for (const [k, v] of Object.entries(patch) as [keyof ProjectionProfile, unknown][]) {
+      const columns: Record<keyof StoredProfile, string> = { ...PROFILE_COLUMNS, termSetOn: 'term_set_on' };
+      for (const [k, v] of Object.entries(patch) as [keyof StoredProfile, unknown][]) {
         params.push(v);
-        sets.push(`${PROFILE_COLUMNS[k]} = $${params.length}`);
+        sets.push(`${columns[k]} = $${params.length}`);
       }
       sets.push('updated_at = now()');
       const rows = await db.query<ProfileRow>(

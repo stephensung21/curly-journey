@@ -39,7 +39,7 @@ describe('GET /projections', () => {
     expect(b.profile).toMatchObject({
       birthDate: null, taxRateBps: null, mortgageRateBps: null, repaymentCents: null, repaymentFrequency: 'monthly',
       termMonths: null, offsetGrowthCents: 0, returnBps: 700, inflationBps: 250, distributionYieldBps: 300,
-      targetCents: 100_000_000, targetAge: 60, todaysDollars: false,
+      targetCents: 100_000_000, targetAge: 60, todaysDollars: false, termSetOn: null,
     });
     expect(b.prefill).toEqual({ etfStartCents: 0, etfMonthlyCents: 0, mortgageBalanceCents: 0, offsetCents: 0, today: '2026-10-24' });
   });
@@ -121,6 +121,19 @@ describe('PUT /projections/profile', () => {
     const r = await put(body);
     expect(r.status).toBe(400);
     expect(await r.json()).toEqual({ error: 'bad_profile' });
+  });
+
+  it('stamps termSetOn with the Sydney date when termMonths is set, and clears it with null', async () => {
+    const { put, get } = await setup();
+    expect(await (await put({ termMonths: 300 })).json()).toMatchObject({ termMonths: 300, termSetOn: '2026-10-24' });
+    expect(((await (await get()).json()) as Body).profile).toMatchObject({ termMonths: 300, termSetOn: '2026-10-24' });
+    expect(await (await put({ taxRateBps: 3000 })).json()).toMatchObject({ termSetOn: '2026-10-24' });
+    expect(await (await put({ termMonths: null })).json()).toMatchObject({ termMonths: null, termSetOn: null });
+  });
+
+  it('does not accept termSetOn from the client', async () => {
+    const { put } = await setup();
+    expect((await put({ termSetOn: '2026-01-01' })).status).toBe(400);
   });
 
   it('accepts today as birth date', async () => {

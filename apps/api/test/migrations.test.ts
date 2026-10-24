@@ -41,10 +41,12 @@ describe('migration 0007', () => {
   it('creates a default profile and is idempotent', async () => {
     const db = await pgliteDb();
     const sql = readFileSync(join(__dirname, '..', 'migrations', '0007_projections.sql'), 'utf8');
-    for (const stmt of sql.split(';').filter((x) => x.trim())) await db.query(stmt);
+    // pgliteDb already applied every migration once; apply 0007 twice more.
+    for (let i = 0; i < 2; i++) for (const stmt of sql.split(';').filter((x) => x.trim())) await db.query(stmt);
     const rows = await db.query<{ n: string }>('select count(*)::text as n from projection_profile');
     expect(rows[0]!.n).toBe('1');
     await expect(db.query('insert into projection_profile (id) values (2)')).rejects.toThrow();
     await expect(db.query('update projection_profile set tax_rate_bps = 6001')).rejects.toThrow();
+    await db.query(`update projection_profile set term_set_on = '2026-10-24'`);
   });
 });

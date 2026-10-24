@@ -53,15 +53,15 @@ function EtfMode({ profile, prefill, p }: { profile: ProjectionProfile; prefill:
       p.todaysDollars
         ? {
             month: pt.month,
-            contributionsCents: todaysDollars(pt.contributionsCents, pt.month, profile.inflationBps),
-            valueCents: todaysDollars(pt.valueCents, pt.month, profile.inflationBps),
+            contributionsCents: todaysDollars(pt.contributionsCents, pt.month, p.inflationBps),
+            valueCents: todaysDollars(pt.valueCents, pt.month, p.inflationBps),
           }
         : pt,
     );
     const hit = targetMonth(full, p.targetCents);
     const horizon = Math.min(MAX_MONTHS, Math.max(monthsToAge + YEARS_AFTER_TARGET * 12, hit ?? 0));
     return { points: full.slice(0, horizon + 1), hitMonth: hit };
-  }, [p.startCents, p.monthlyCents, p.returnBps, p.todaysDollars, p.targetCents, profile.inflationBps, monthsToAge]);
+  }, [p.startCents, p.monthlyCents, p.returnBps, p.todaysDollars, p.targetCents, p.inflationBps, monthsToAge]);
 
   const headlineValue = (points[headlineMonth] ?? points[points.length - 1]!).valueCents;
   const targetShort = formatAudShort(p.targetCents, { hidden });
@@ -146,6 +146,7 @@ function EtfMode({ profile, prefill, p }: { profile: ProjectionProfile; prefill:
           <AppText>Show in today's dollars</AppText>
           <Toggle value={p.todaysDollars} onChange={p.setTodaysDollars} accessibilityLabel="Show in today's dollars" />
         </View>
+        <Slider label="Inflation" accessibilityLabel="Inflation" value={p.inflationBps} min={0} max={500} step={25} onChange={p.setInflationBps} format={v => <AppText variant="bodyStrong">{`${v / 100}%`}</AppText>} />
       </Card>
     </>
   );

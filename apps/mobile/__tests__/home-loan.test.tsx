@@ -18,7 +18,7 @@ beforeEach(() => {
   useSettings.setState({ hideBalances: false });
   save.mockResolvedValue({});
   profile = { mortgageRateBps: null, repaymentCents: null, repaymentFrequency: 'monthly', termMonths: null, offsetGrowthCents: 0 };
-  mocked.useProjections.mockImplementation((() => ({ data: { profile, prefill: { mortgageBalanceCents: 50_000_000, offsetCents: 0 } } })) as any);
+  mocked.useProjections.mockImplementation((() => ({ data: { profile, prefill: { mortgageBalanceCents: 50_000_000, offsetCents: 0, today: '2026-10-25' } } })) as any);
   mocked.useUpdateProfile.mockImplementation((() => ({ mutateAsync: save, isPending: false })) as any);
 });
 
@@ -83,6 +83,13 @@ it('starts from the saved loan and clears blanks to null', async () => {
   await fireEvent.changeText(screen.getByLabelText('Repayment'), '');
   await fireEvent.press(screen.getByText('Save'));
   await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ repaymentCents: null, termMonths: 300 })));
+});
+
+it('pre-fills the term left, counted down from the day it was saved', async () => {
+  profile = { mortgageRateBps: 599, repaymentCents: 250000, repaymentFrequency: 'weekly', termMonths: 300, termSetOn: '2026-07-25', offsetGrowthCents: 0 };
+  await renderScreen(<HomeLoan />);
+  expect(screen.getByLabelText('Years left').props.value).toBe('24');
+  expect(screen.getByLabelText('Months left').props.value).toBe('9');
 });
 
 it('shows an inline error when saving fails', async () => {

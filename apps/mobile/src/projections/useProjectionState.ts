@@ -4,10 +4,10 @@ import { useUpdateProfile } from '../api/hooks';
 import type { ProjectionPrefill, ProjectionProfile } from '../api/types';
 
 const SAVE_DELAY_MS = 1000;
-type Saved = Pick<ProjectionProfile, 'returnBps' | 'targetCents' | 'targetAge' | 'todaysDollars'>;
+type Saved = Pick<ProjectionProfile, 'returnBps' | 'targetCents' | 'targetAge' | 'todaysDollars' | 'inflationBps' | 'distributionYieldBps'>;
 
 /**
- * Start and monthly are session-only (reset when the tab loses focus); the other four are saved to the
+ * Start and monthly are session-only (reset when the tab loses focus); the assumptions are saved to the
  * profile, written once 1 s after the last change.
  */
 export function useProjectionState(profile: ProjectionProfile, prefill: ProjectionPrefill) {
@@ -23,6 +23,8 @@ export function useProjectionState(profile: ProjectionProfile, prefill: Projecti
     targetCents: profile.targetCents,
     targetAge: profile.targetAge,
     todaysDollars: profile.todaysDollars,
+    inflationBps: profile.inflationBps,
+    distributionYieldBps: profile.distributionYieldBps,
   });
 
   useFocusEffect(
@@ -83,6 +85,8 @@ export function useProjectionState(profile: ProjectionProfile, prefill: Projecti
     setTargetCents: (v: number) => change('targetCents', v),
     setTargetAge: (v: number) => change('targetAge', v),
     setTodaysDollars: (v: boolean) => change('todaysDollars', v),
+    setInflationBps: (v: number) => change('inflationBps', v),
+    setDistributionYieldBps: (v: number) => change('distributionYieldBps', v),
   };
 }
 

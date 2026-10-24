@@ -1,7 +1,7 @@
 import { avgMonthlyInvestmentCents, sydneyDate } from '@curly/core';
 import { Hono } from 'hono';
 import type { Deps } from '../app';
-import { makeProjectionsRepo, PROFILE_COLUMNS, type ProjectionProfile } from '../db/projections';
+import { makeProjectionsRepo, PROFILE_COLUMNS, type ProjectionProfile, type StoredProfile } from '../db/projections';
 import { isObject, readJson } from './http';
 
 const MAX = Number.MAX_SAFE_INTEGER;
@@ -55,7 +55,9 @@ export function projectionRoutes(deps: Deps) {
       if (v === null ? !rule.nullable : !rule.ok(v, today)) return c.json({ error: 'bad_profile' }, 400);
       patch[k] = v;
     }
-    return c.json(await repo.update(patch as Partial<ProjectionProfile>));
+    // The term counts down from the day it was saved, so stamp (or clear) that day with it.
+    if (Object.hasOwn(patch, 'termMonths')) patch.termSetOn = patch.termMonths === null ? null : today;
+    return c.json(await repo.update(patch as Partial<StoredProfile>));
   });
 
   return r;

@@ -6,6 +6,7 @@ create table if not exists projection_profile (
   repayment_cents bigint check (repayment_cents > 0),
   repayment_frequency text not null default 'monthly' check (repayment_frequency in ('weekly','fortnightly','monthly')),
   term_months int check (term_months between 1 and 600),
+  term_set_on date,
   offset_growth_cents bigint not null default 0,
   return_bps int not null default 700 check (return_bps between 0 and 2000),
   inflation_bps int not null default 250 check (inflation_bps between 0 and 1000),

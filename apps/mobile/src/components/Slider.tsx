@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { PanResponder, View } from 'react-native';
+import { PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import { accents } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AppText } from './AppText';
@@ -33,28 +33,51 @@ export function Slider({ label, value, min, max, step, onChange, format, accessi
   const latest = useRef({ value, min, max, step, onChange, width });
   latest.current = { value, min, max, step, onChange, width };
   const startValue = useRef(value);
+  const moved = useRef(false);
+
+  /** The unsnapped value under x, where x is measured against the outer view. */
+  const valueAt = (x: number) => {
+    const c = latest.current;
+    const usable = c.width - THUMB;
+    return usable <= 0 ? null : c.min + ((x - THUMB / 2) / usable) * (c.max - c.min);
+  };
+  const jumpTo = (x: number) => {
+    const c = latest.current;
+    const v = valueAt(x);
+    if (v === null) return;
+    const next = snap(v, c.min, c.max, c.step);
+    if (next !== c.value) c.onChange(next);
+  };
 
   const pan = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      // Claim the gesture so a parent ScrollView does not steal a horizontal drag.
-      onPanResponderTerminationRequest: () => false,
+      // Never claim on touch down, and only claim a clearly horizontal move, so vertical scrolls reach the
+      // parent ScrollView. Taps are handled by the Pressable track below.
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > Math.abs(g.dy) && Math.abs(g.dx) > 4,
+      // Once dragging, keep the gesture; before the first move, let a parent take it.
+      onPanResponderTerminationRequest: () => !moved.current,
       onPanResponderGrant: (e) => {
-        const c = latest.current;
-        const usable = c.width - THUMB;
-        if (usable <= 0) return;
-        // locationX is relative to the outer view because the inner views ignore touches.
-        const next = snap(c.min + ((e.nativeEvent.locationX - THUMB / 2) / usable) * (c.max - c.min), c.min, c.max, c.step);
-        startValue.current = next;
-        if (next !== c.value) c.onChange(next);
+        moved.current = false;
+        // The gesture restarts from here (dx is 0 at grant): put the thumb under the finger.
+        const v = valueAt(e.nativeEvent.locationX);
+        if (v === null) return;
+        startValue.current = v;
+        jumpTo(e.nativeEvent.locationX);
       },
       onPanResponderMove: (_e, g) => {
+        moved.current = true;
         const c = latest.current;
         const usable = c.width - THUMB;
         if (usable <= 0) return;
         const next = snap(startValue.current + (g.dx / usable) * (c.max - c.min), c.min, c.max, c.step);
         if (next !== c.value) c.onChange(next);
+      },
+      onPanResponderRelease: () => {
+        moved.current = false;
+      },
+      onPanResponderTerminate: () => {
+        moved.current = false;
       },
     }),
   ).current;
@@ -82,7 +105,6 @@ export function Slider({ label, value, min, max, step, onChange, format, accessi
         }}
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
         style={{ height: 36, justifyContent: 'center' }}
-        {...pan.panHandlers}
       >
         <View pointerEvents="none" style={{ height: 6, borderRadius: 3, backgroundColor: t.line, overflow: 'hidden' }}>
           <View style={{ width: `${frac * 100}%`, height: 6, backgroundColor: accents.lime }} />
@@ -100,6 +122,10 @@ export function Slider({ label, value, min, max, step, onChange, format, accessi
             borderColor: t.inkOnAccent,
           }}
         />
+        {/* Touch layer over the whole outer view, so locationX is measured against it. */}
+        <View testID="slider-pan" style={StyleSheet.absoluteFill} {...pan.panHandlers}>
+          <Pressable testID="slider-track" accessible={false} onPress={(e) => jumpTo(e.nativeEvent.locationX)} style={StyleSheet.absoluteFill} />
+        </View>
       </View>
     </View>
   );

@@ -100,7 +100,7 @@ Do this after the earlier setups. Run commands in your own PowerShell window. Ne
 1. **Migrate.** From the repo root, load the connection string for this window only: `$env:DATABASE_URL = Read-Host "Neon connection string"`. Then from `apps/api` run `node scripts/migrate.mjs`. Expect `applied 0007_projections.sql`. Then `Remove-Item Env:DATABASE_URL`.
 2. **Deploy the Worker.** From `apps/api`, run `npx wrangler deploy`.
 3. **New APK.** From `apps/mobile`, run `npx eas-cli build -p android --profile preview` and install it as in "Build and install the APK".
-4. **Fill in your details.** In the app, open More, then About you (birth date, tax rate, return, inflation, distributions). Then open More, then Home loan (balance, rate, repayment, term, offset growth).
+4. **Fill in your details.** In the app, open More, then About you (birth date and tax rate). Then open More, then Home loan (rate, repayment and frequency, term left, offset growth). The loan balance comes from the bank feed. Expected return and inflation are sliders on the Projections tab (ETFs mode), and the distribution yield is a slider in Both mode.
 
 Phone checks after you deploy:
 

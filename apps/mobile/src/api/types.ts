@@ -226,6 +226,8 @@ export type ProjectionProfile = {
   targetCents: number;
   targetAge: number;
   todaysDollars: boolean;
+  /** Sydney date the term was last saved (set by the server); the term counts down from it. */
+  termSetOn: string | null;
 };
 export type ProjectionPrefill = {
   etfStartCents: number;

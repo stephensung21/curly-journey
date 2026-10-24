@@ -19,7 +19,8 @@ const YEARS_AFTER = 10;
 export function BothMode({ profile, prefill, p }: { profile: ProjectionProfile; prefill: ProjectionPrefill; p: ProjectionState }) {
   const router = useRouter();
   const hidden = useSettings(s => s.hideBalances);
-  const { birthDate, taxRateBps, inflationBps, distributionYieldBps } = profile;
+  const { birthDate, taxRateBps } = profile;
+  const { inflationBps, distributionYieldBps } = p;
   const { today } = prefill;
   const { targetAge, headlineMonth } = ageTarget(profile, prefill, p);
   const years = p.yearsFromNow;
@@ -47,7 +48,7 @@ export function BothMode({ profile, prefill, p }: { profile: ProjectionProfile; 
     [loanKey, p.startCents, p.monthlyCents, p.returnBps, p.spareCents, distributionYieldBps, taxRateBps, headlineMonth], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  if (!cmp || !loan || !vs) return <SetupCard />;
+  if (!cmp || !loan || !vs) return <SetupCard profile={profile} prefill={prefill} />;
 
   const loanPoints = cmp.withOffset.points;
   const horizon = Math.min(MAX_MONTHS, Math.max(headlineMonth, cross ?? 0) + YEARS_AFTER * 12);
@@ -67,13 +68,16 @@ export function BothMode({ profile, prefill, p }: { profile: ProjectionProfile; 
           : `ETFs overtake your mortgage in ${addMonthsLabel(today, cross)}`;
 
   const neither = cmp.withOffset.payoffMonth === null && vs.monthsSooner === 0;
-  const offsetsText = neither
-    ? 'Neither pays it off within 50 years'
+  const payoffText = neither
+    ? 'neither pays it off within 50 years'
     : vs.monthsSooner === null
-      ? 'Into offsets → pays it off within 50 years'
+      ? 'pays it off within 50 years'
       : vs.monthsSooner === 0
-        ? 'Into offsets → no change to when you finish'
-        : `Into offsets → mortgage-free ${span(vs.monthsSooner)} sooner`;
+        ? 'no change to when you finish'
+        : `mortgage-free ${span(vs.monthsSooner)} sooner`;
+  // Both rows are net worth at the target: the spare cash plus what it earned or saved.
+  const winner = vs.offsetGainCents > vs.etfGainCents ? 'offset' : vs.etfGainCents > vs.offsetGainCents ? 'etf' : null;
+  const lime = (on: boolean) => (on ? { color: accents.lime } : undefined);
 
   const tile = (label: string, cents: number, color?: string) => (
     <View style={{ flex: 1 }}>
@@ -126,9 +130,11 @@ export function BothMode({ profile, prefill, p }: { profile: ProjectionProfile; 
         <AppText variant="bodyStrong">Spare cash each month</AppText>
         <Slider label="Amount" accessibilityLabel="Spare cash" value={p.spareCents} min={0} max={300_000} step={5_000} onChange={p.setSpareCents} format={money} />
         <View style={{ gap: 4 }}>
-          <AppText>{offsetsText}</AppText>
-          <AppText>
-            Into ETFs → +<Amount cents={vs.extraEtfCents} decimals="never" inline /> {at}
+          <AppText style={lime(winner === 'offset')}>
+            Into offsets → <Amount cents={vs.offsetGainCents} decimals="never" signed inline /> better off {at} · {payoffText}
+          </AppText>
+          <AppText style={lime(winner === 'etf')}>
+            Into ETFs → <Amount cents={vs.etfGainCents} decimals="never" signed inline /> better off {at} (after tax on distributions)
           </AppText>
         </View>
         {taxRateBps === null ? (
@@ -138,6 +144,16 @@ export function BothMode({ profile, prefill, p }: { profile: ProjectionProfile; 
             </AppText>
           </Pressable>
         ) : null}
+        <Slider
+          label="Distributions"
+          accessibilityLabel="Distributions"
+          value={distributionYieldBps}
+          min={0}
+          max={800}
+          step={25}
+          onChange={p.setDistributionYieldBps}
+          format={v => <AppText variant="bodyStrong">{pct(v)}</AppText>}
+        />
         <AppText variant="axis" tone="muted">
           {`${pct(p.returnBps)} return · ${pct(inflationBps)} inflation · ${pct(distributionYieldBps)} distributions${taxRateBps === null ? '' : ` taxed at ${pct(taxRateBps)}`}`}
         </AppText>

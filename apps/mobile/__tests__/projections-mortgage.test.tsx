@@ -135,10 +135,41 @@ it('shows the setup card when the term is missing', async () => {
   expect(screen.queryByText('Mortgage-free')).toBeNull();
 });
 
-it('shows the setup card when there is no mortgage balance', async () => {
+it('says the loan is paid off when terms are saved but the balance is 0', async () => {
   prefill.mortgageBalanceCents = 0;
   await open();
+  expect(screen.getByText('Your home loan is paid off 🎉')).toBeTruthy();
+  expect(screen.queryByText('Set up your home loan')).toBeNull();
+});
+
+it('shows the setup card when there is no balance and no terms', async () => {
+  prefill.mortgageBalanceCents = 0;
+  profile.termMonths = null;
+  await open();
   expect(screen.getByText('Set up your home loan')).toBeTruthy();
+});
+
+it('says how much later than the term when a rate rise pushes payoff past it', async () => {
+  profile.repaymentCents = null;
+  prefill.offsetCents = 0;
+  profile.offsetGrowthCents = 0;
+  await open();
+  for (let i = 0; i < 4; i++) await bump('Rate change', 'increment');
+  const pay = requiredRepayment(50_000_000, 600, 300);
+  const payoff = compareOffset(input({ monthlyRepaymentCents: pay, offsetCents: 0, offsetGrowthCents: 0, rateChangeBps: 100 })).withOffset.payoffMonth!;
+  expect(payoff).toBeGreaterThan(300);
+  expect(screen.getByText(`${spanText(payoff - 300)} later than your term`)).toBeTruthy();
+  expect(screen.queryByText('On track for your term')).toBeNull();
+});
+
+it('counts the term down from the day it was saved', async () => {
+  profile.termSetOn = '2026-07-25'; // three months before today
+  profile.repaymentCents = null;
+  await open();
+  const pay = requiredRepayment(50_000_000, 600, 297);
+  const payoff = compareOffset(input({ monthlyRepaymentCents: pay })).withOffset.payoffMonth!;
+  expect(screen.getByText(`${spanText(297 - payoff)} sooner than your term`)).toBeTruthy();
+  expect(screen.getByText(/24 years 9 months/)).toBeTruthy();
 });
 
 it('falls back to the minimum repayment when none is saved', async () => {

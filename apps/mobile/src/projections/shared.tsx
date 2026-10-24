@@ -19,10 +19,19 @@ export const span = (months: number) => {
   return [y ? plural(y, 'year') : '', m ? plural(m, 'month') : ''].filter(Boolean).join(' ');
 };
 
+/** The term left today: the saved term less the whole months since it was saved, at least 1. */
+export function termLeft(profile: Pick<ProjectionProfile, 'termMonths' | 'termSetOn'>, today: string): number | null {
+  const { termMonths, termSetOn } = profile;
+  if (termMonths === null) return null;
+  if (!termSetOn) return termMonths;
+  return Math.max(1, termMonths - Math.max(0, ageMonths(termSetOn, today)));
+}
+
 /** The loan as saved, or null when the home loan is not set up. Shared by Mortgage and Both modes. */
 export function loanInput(profile: ProjectionProfile, prefill: ProjectionPrefill, p: ProjectionState) {
   const { mortgageBalanceCents: balance, offsetCents: offset } = prefill;
-  const { mortgageRateBps: rate, termMonths: term, repaymentCents, repaymentFrequency, offsetGrowthCents } = profile;
+  const { mortgageRateBps: rate, repaymentCents, repaymentFrequency, offsetGrowthCents } = profile;
+  const term = termLeft(profile, prefill.today);
   const ready = balance > 0 && rate !== null && term !== null && term > 0;
   if (!ready) return null;
   const usingMinimum = repaymentCents === null;
@@ -50,8 +59,15 @@ export function ageTarget(profile: ProjectionProfile, prefill: ProjectionPrefill
   return { currentAge, maxAge, minAge, targetAge, monthsToAge, headlineMonth: Math.min(MAX_MONTHS, monthsToAge) };
 }
 
-export function SetupCard() {
+export function SetupCard({ profile, prefill }: { profile: ProjectionProfile; prefill: ProjectionPrefill }) {
   const router = useRouter();
+  if (prefill.mortgageBalanceCents <= 0 && profile.mortgageRateBps !== null && profile.termMonths !== null) {
+    return (
+      <Card style={{ gap: 4 }}>
+        <AppText variant="bodyStrong">Your home loan is paid off 🎉</AppText>
+      </Card>
+    );
+  }
   return (
     <Pressable accessibilityRole="button" onPress={() => router.push('/home-loan' as never)}>
       <Card style={{ gap: 4 }}>

@@ -136,6 +136,23 @@ it("today's dollars lowers the headline", async () => {
   expect(screen.getByText(formatAud(todaysDollars(nominal, months, 250), { decimals: 'never' }))).toBeTruthy();
 });
 
+it("inflation slider is 0-5% in 0.25% steps, drives today's dollars and is saved", async () => {
+  jest.useFakeTimers();
+  try {
+    await renderScreen(<Projections />);
+    expect(screen.getByLabelText('Inflation').props.accessibilityValue).toEqual({ min: 0, max: 500, now: 250 });
+    expect(screen.getByText('2.5%')).toBeTruthy();
+    await fireEvent(screen.getByLabelText("Show in today's dollars"), 'valueChange', true);
+    await bump('Inflation', 'increment');
+    const nominal = valueAt(5_000_000, 100_000, 700, months);
+    expect(screen.getByText(formatAud(todaysDollars(nominal, months, 275), { decimals: 'never' }))).toBeTruthy();
+    await jest.advanceTimersByTimeAsync(1100);
+    expect(mutate).toHaveBeenCalledWith(expect.objectContaining({ inflationBps: 275, todaysDollars: true }));
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 it('saves changed profile fields once, 1s after the last change', async () => {
   jest.useFakeTimers();
   try {

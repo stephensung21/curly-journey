@@ -29,12 +29,19 @@ export function MortgageMode({ profile, prefill, p }: { profile: ProjectionProfi
   const loanKey = loan ? JSON.stringify(loan.mortgage) : '';
   const cmp = useMemo(() => (loan ? compareOffset(loan.mortgage) : null), [loanKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!cmp || !loan) return <SetupCard />;
+  if (!cmp || !loan) return <SetupCard profile={profile} prefill={prefill} />;
   const { usingMinimum, monthlyPay, term, rate } = loan;
 
   const payoff = cmp.withOffset.payoffMonth;
   const sooner = payoff === null ? 0 : term - payoff;
-  const note = payoff === null ? 'Not paid off at this repayment' : sooner > 0 ? `${span(sooner)} sooner than your term` : 'On track for your term';
+  const note =
+    payoff === null
+      ? 'Not paid off at this repayment'
+      : sooner > 0
+        ? `${span(sooner)} sooner than your term`
+        : sooner < 0
+          ? `${span(-sooner)} later than your term`
+          : 'On track for your term';
   const withoutPayoff = cmp.withoutOffset.payoffMonth;
   const offsetsSave = payoff === null ? 0 : withoutPayoff === null ? 0 : withoutPayoff - payoff;
   const savedNote = payoff !== null && withoutPayoff === null ? 'Offsets help you pay it off within 50 years' : offsetsSave > 0 ? `Offsets save you ${span(offsetsSave)}` : null;
