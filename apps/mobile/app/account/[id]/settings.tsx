@@ -142,6 +142,7 @@ function Form({ account }: { account: Account }) {
             placeholderTextColor={t.inkFaded}
             style={{ backgroundColor: t.surface, color: t.ink, borderRadius: 12, padding: 12, fontFamily: 'BricolageGrotesque_500Medium', fontSize: 14 }}
           />
+          {update.isError ? <AppText tone="muted">Couldn't save. Try again.</AppText> : null}
           {growthError ? <AppText tone="muted">Enter -20 to 20, one decimal.</AppText> : null}
           <Button kind="secondary" label="Delete this account" onPress={() => setConfirming(true)} />
           <Sheet visible={confirming} onClose={() => setConfirming(false)}>

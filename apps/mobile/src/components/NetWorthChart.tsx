@@ -49,7 +49,11 @@ export function NetWorthChart({ history, hideBalances }: { history: Point[]; hid
   const area = `M${pts[0]!.x},${TOP + plotH} L${pts.map(p => `${p.x},${p.y}`).join(' L')} L${pts[pts.length - 1]!.x},${TOP + plotH} Z`;
 
   const labelDates = single ? [history[0]!.date] : [history[0]!, history[Math.floor((history.length - 1) / 2)]!, history[history.length - 1]!].map(p => p.date);
-  const xLabels = [...new Set(labelDates)].map(d => ({ x: xOf(d), label: MONTHS[Number(d.slice(5, 7)) - 1]! }));
+  const xLabels: { x: number; label: string }[] = [];
+  for (const d of labelDates) {
+    const label = MONTHS[Number(d.slice(5, 7)) - 1]!;
+    if (!xLabels.some(l => l.label === label)) xLabels.push({ x: xOf(d), label });
+  }
   const last = history[history.length - 1]!;
   const summary = `Net worth ${formatAud(last.totalCents, { hidden: hideBalances, decimals: 'never' })}`;
 
@@ -76,7 +80,7 @@ export function NetWorthChart({ history, hideBalances }: { history: Point[]; hid
           </AppText>
         ))}
         {xLabels.map(l => (
-          <AppText key={`x${l.x}`} variant="axis" tone="muted" style={{ position: 'absolute', width: 40, left: l.x - 20, textAlign: 'center', top: HEIGHT - BOTTOM + 4, fontSize: AXIS_FONT }}>
+          <AppText key={`x${l.x}`} variant="axis" tone="muted" style={{ position: 'absolute', width: 40, left: Math.min(Math.max(l.x - 20, 0), width - 40), textAlign: 'center', top: HEIGHT - BOTTOM + 4, fontSize: AXIS_FONT }}>
             {l.label}
           </AppText>
         ))}

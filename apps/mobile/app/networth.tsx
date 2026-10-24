@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
-import { useNetWorth } from '../src/api/hooks';
+import { Pressable, RefreshControl, View } from 'react-native';
+import { useAccounts, useNetWorth } from '../src/api/hooks';
 import type { NwLine, NwRange } from '../src/api/types';
+import { kindColor, kindEmoji } from '../src/components/AccountRow';
 import { Amount } from '../src/components/Amount';
 import { AppText } from '../src/components/AppText';
 import { Card } from '../src/components/Card';
@@ -20,8 +21,14 @@ const RANGES: NwRange[] = ['1M', '6M', '1Y', 'All'];
 
 function Line({ line, owe, onPress, indent }: { line: NwLine; owe: boolean; onPress?: () => void; indent?: boolean }) {
   const t = useTheme();
-  const emoji = line.key === 'offsets' ? '🛟' : owe ? '💳' : '🏡';
-  const color = line.key === 'offsets' ? accents.blue : owe ? accents.pink : accents.lime;
+  const accounts = useAccounts().data?.accounts;
+  const account = accounts?.find(a => a.id === line.accountIds[0]);
+  const brokerage = /commsec/i.test(line.name);
+  const generic = owe ? '💳' : brokerage ? '📈' : '🏡';
+  const genericColor = owe ? accents.pink : accents.lime;
+  const isGroup = line.key === 'offsets';
+  const emoji = isGroup ? '🛟' : account ? (account.icon ?? kindEmoji[account.kind]) : generic;
+  const color = isGroup ? accents.blue : account ? kindColor[account.kind] : genericColor;
   return (
     <Pressable
       accessibilityRole="button"
@@ -68,16 +75,26 @@ export default function NetWorthScreen() {
   const router = useRouter();
   const hideBalances = useSettings(s => s.hideBalances);
   const [range, setRange] = useState<NwRange>('6M');
-  const { data } = useNetWorth(range);
+  const { data, isError, refetch } = useNetWorth(range);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
-    <Screen>
+    <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} />}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <Pressable accessibilityLabel="Back" accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
           <AppText variant="title">‹</AppText>
         </Pressable>
         <AppText variant="title">Net worth</AppText>
       </View>
+      {!data && isError ? <AppText tone="muted">Couldn't load net worth. Pull to try again.</AppText> : null}
       {data ? (
         <>
           <View style={{ alignSelf: 'flex-start', marginTop: 4 }}>

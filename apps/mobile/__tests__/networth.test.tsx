@@ -27,12 +27,21 @@ const response = {
   since: { fromDate: '2026-09-24', deltaCents: 620_000 },
 };
 let data: object | undefined;
+let isError = false;
+const refetch = jest.fn();
 
 beforeEach(() => {
   jest.clearAllMocks();
   data = response;
+  isError = false;
+  (mocked.useAccounts as jest.Mock).mockReturnValue({
+    data: { accounts: [
+      { id: 2, kind: 'manual_asset', icon: '🧓' },
+      { id: 5, kind: 'mortgage', icon: null },
+    ] },
+  });
   useSettings.setState({ hideBalances: false });
-  (mocked.useNetWorth as jest.Mock).mockImplementation(() => ({ data }));
+  (mocked.useNetWorth as jest.Mock).mockImplementation(() => ({ data, isError, refetch }));
 });
 
 it('shows total, note, tiles and lists', async () => {
@@ -97,4 +106,31 @@ it('empty history shows no note', async () => {
   data = { ...response, history: [], since: null };
   await renderScreen(<NetWorthScreen />);
   expect(screen.queryByText('History starts today')).toBeNull();
+});
+
+it('uses each account icon, with the kind emoji as fallback', async () => {
+  await renderScreen(<NetWorthScreen />);
+  expect(screen.getByText('🧓')).toBeTruthy();
+  expect(screen.getByText('🏦')).toBeTruthy();
+  expect(screen.getByText('🛟')).toBeTruthy();
+});
+
+it('shows each month label once on 1M', async () => {
+  data = { ...response, history: [{ date: '2026-09-25', totalCents: 1_000_000 }, { date: '2026-10-10', totalCents: 1_100_000 }, { date: '2026-10-24', totalCents: 1_200_000 }] };
+  await renderScreen(<NetWorthScreen />);
+  expect(screen.getAllByText('Oct')).toHaveLength(1);
+  expect(screen.getAllByText('Sep')).toHaveLength(1);
+});
+
+it('shows an error when the load fails', async () => {
+  data = undefined;
+  isError = true;
+  await renderScreen(<NetWorthScreen />);
+  expect(screen.getByText("Couldn't load net worth. Pull to try again.")).toBeTruthy();
+});
+
+it('shows nothing extra while loading', async () => {
+  data = undefined;
+  await renderScreen(<NetWorthScreen />);
+  expect(screen.queryByText(/Couldn't load/)).toBeNull();
 });
