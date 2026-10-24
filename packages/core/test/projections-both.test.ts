@@ -56,11 +56,29 @@ describe('offsetVsInvest net-worth gains', () => {
   });
   it('after payoff the offset keeps the spare cash and the repayments no longer paid', () => {
     const small = { ...mortgage, balanceCents: 6_000_000, monthlyRepaymentCents: 100_000 };
-    const r = offsetVsInvest({ ...p, mortgage: small, spareCents: 300_000, atMonth: 120 });
+    // Zero return, so the cash pile does not compound after payoff.
+    const r = offsetVsInvest({ ...p, etf: { ...etf, returnBps: 0 }, distributionYieldBps: 0, mortgage: small, spareCents: 300_000, atMonth: 120 });
     const base = amortise(small).payoffMonth!;
     const boosted = amortise({ ...small, offsetGrowthCents: 300_000 }).payoffMonth!;
     expect(boosted).toBeLessThan(base);
     // Both loans are gone by month 120: the boosted arm has the spare cash plus the repayments it skipped.
     expect(r.offsetGainCents).toBe(300_000 * 120 + (base - boosted) * 100_000);
+  });
+
+  describe('the cash pile is invested after payoff', () => {
+    // $600k at 6%, $3,597.30 a month, $500 spare; 7% return, 45% tax on a 3% yield.
+    const review = { mortgage, etf, spareCents: 50_000, distributionYieldBps: 300, taxRateBps: 4500 };
+    it('the offset arm leads at 120 months', () => {
+      const r = offsetVsInvest({ ...review, atMonth: 120 });
+      expect(r.offsetGainCents).toBeGreaterThan(r.etfGainCents);
+    });
+    it.each([480, 600])('the offset arm does not lag the ETFs by multiples at %i months', (atMonth) => {
+      const r = offsetVsInvest({ ...review, atMonth });
+      expect(r.offsetGainCents).toBeGreaterThanOrEqual(0.9 * r.etfGainCents);
+    });
+    it('near-equal gains at 600 months when the return equals the rate and there is no tax', () => {
+      const r = offsetVsInvest({ ...review, etf: { ...etf, returnBps: 600 }, taxRateBps: 0, atMonth: 600 });
+      expect(Math.abs(r.offsetGainCents - r.etfGainCents) / r.etfGainCents).toBeLessThan(0.05);
+    });
   });
 });

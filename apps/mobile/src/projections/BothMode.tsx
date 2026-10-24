@@ -133,6 +133,9 @@ export function BothMode({ profile, prefill, p }: { profile: ProjectionProfile; 
           <AppText style={lime(winner === 'offset')}>
             Into offsets → <Amount cents={vs.offsetGainCents} decimals="never" signed inline /> better off {at} · {payoffText}
           </AppText>
+          <AppText variant="axis" tone="muted">
+            Assumes the cash is invested once the loan is paid off
+          </AppText>
           <AppText style={lime(winner === 'etf')}>
             Into ETFs → <Amount cents={vs.etfGainCents} decimals="never" signed inline /> better off {at} (after tax on distributions)
           </AppText>

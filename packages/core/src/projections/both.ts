@@ -32,16 +32,21 @@ export function offsetVsInvest(p: {
   };
   const extraEtfCents = at(p.etf.monthlyCents + p.spareCents) - at(p.etf.monthlyCents);
 
-  // Net worth (offset - loan) at atMonth. The offset keeps accumulating after payoff, and from then on it
-  // also keeps the repayment no longer paid. A loan missing past payoff counts as 0, and an unpaid loan has
-  // a point for every month up to the 600-month horizon.
+  // Net worth (offset - loan) at atMonth. Before an arm's payoff its offset just grows. After its own
+  // payoff, that arm's cash pile (the offset plus its growth, spare and the repayment no longer paid) is
+  // assumed invested: it compounds monthly at the after-tax return, rounded to cents. A loan missing past
+  // payoff counts as 0, and an unpaid loan has a point for every month up to the 600-month horizon.
   const m = Math.max(0, Math.min(600, Math.floor(p.atMonth)));
   const freed = p.mortgage.monthlyRepaymentCents + p.mortgage.extraMonthlyCents;
+  const rInvest = effectiveReturnBps / 10_000 / 12;
   const netAt = (r: typeof base, growthCents: number) => {
     let offset = Math.max(0, p.mortgage.offsetCents);
     for (let i = 1; i <= m; i++) {
-      offset = Math.max(0, offset + growthCents);
-      if (r.payoffMonth !== null && i > r.payoffMonth) offset += freed;
+      if (r.payoffMonth !== null && i > r.payoffMonth) {
+        offset = Math.max(0, offset + Math.round(offset * rInvest) + growthCents + freed);
+      } else {
+        offset = Math.max(0, offset + growthCents);
+      }
     }
     const loan = r.points[m]?.balanceCents ?? (r.payoffMonth !== null ? 0 : r.points[r.points.length - 1]!.balanceCents);
     return offset - loan;

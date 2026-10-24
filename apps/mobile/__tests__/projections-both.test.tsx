@@ -178,6 +178,11 @@ it('distributions slider is 0-8% in 0.25% steps, changes the ETF row and is save
   }
 });
 
+it('notes that the offsets row assumes the cash is invested after payoff', async () => {
+  await open();
+  expect(screen.getByText('Assumes the cash is invested once the loan is paid off')).toBeTruthy();
+});
+
 it('shows the assumptions line', async () => {
   await open();
   expect(screen.getByText('7% return · 2.5% inflation · 3% distributions taxed at 30%')).toBeTruthy();
