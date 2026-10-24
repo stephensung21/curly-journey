@@ -8,6 +8,7 @@ const sample = [
   '24/10/2026,C1234567,B 15 VAS @ 102.450000,1546.75,,0.00',
   '25/10/2026,C7654321,B 20 VGS @ 140.100000,2822.00,,0.00',
   '26/10/2026,,Direct Credit 123456 COMMONWEALTH,,500.00,500.00',
+  '27/10/2026,,SMITHSON J 123456 Rent,,50.00,550.00',
 ].join('\n');
 
 test('output has no amounts, names or reference values', () => {
@@ -19,8 +20,8 @@ test('output has no amounts, names or reference values', () => {
     .map((l) => l.replace(/ ×\d+$/, ''))
     .join('\n');
   assert.doesNotMatch(shapes, /[0-8]/);
-  assert.doesNotMatch(out, /C1234567|C7654321|VAS|VGS|COMMONWEALTH|1546|102\.45|500/);
-  assert.match(out, /Rows: 3/);
+  assert.doesNotMatch(out, /C1234567|C7654321|VAS|VGS|COMMONWEALTH|SMITHSON|Smithson|1546|102\.45|500/);
+  assert.match(out, /Rows: 4/);
   assert.match(out, /B 99 aaa @ 999\.999999 ×2/);
   assert.match(out, /Direct aaaaaa 999999 aaaaaaaaaaaa ×1/);
 });

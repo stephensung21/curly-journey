@@ -180,6 +180,9 @@ export default function CommsecScreen() {
             </HandNote>
           ) : null}
           {stale ? <AppText variant="label" tone="muted">{`price as of ${dayMonth(data.priceDate!)}`}</AppText> : null}
+          {data.missingPrices?.length ? (
+            <AppText variant="label" tone="muted">{`No price yet for ${data.missingPrices.join(', ')} — valued at what you paid.`}</AppText>
+          ) : null}
           <AllocationBar holdings={data.holdings} />
           <AppText variant="label" tone="muted">
             Holdings

@@ -26,7 +26,7 @@ export function yahooPrices(fetchImpl: typeof fetch = fetch): PriceClient {
       const out: { date: string; closeMicros: number }[] = [];
       ts.forEach((t, i) => {
         const c = close[i];
-        if (typeof t !== 'number' || typeof c !== 'number' || !Number.isFinite(c)) return;
+        if (typeof t !== 'number' || typeof c !== 'number' || !Number.isFinite(c) || c <= 0) return;
         // Yahoo closes carry float32 noise; ASX ticks are at least 0.1 cent, so 4 decimal places is exact.
         out.push({ date: sydneyDate(new Date(t * 1000)), closeMicros: Math.round(c * 1e4) * 100 });
       });

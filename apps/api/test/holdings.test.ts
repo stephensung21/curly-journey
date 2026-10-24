@@ -25,6 +25,7 @@ type Summary = {
   gainCents: number;
   gainBps: number;
   priceDate: string | null;
+  missingPrices: string[];
   holdings: { symbol: string; units: number; valueCents: number }[];
   trades: { id: number }[];
 };
@@ -43,7 +44,7 @@ describe('holdings', () => {
   it('GET /holdings is empty before any import', async () => {
     const { send } = await setup();
     const r = (await (await send('GET', '/holdings')).json()) as Summary;
-    expect(r).toEqual({ accountId: null, valueCents: 0, costCents: 0, gainCents: 0, gainBps: 0, priceDate: null, holdings: [], trades: [] });
+    expect(r).toEqual({ accountId: null, valueCents: 0, costCents: 0, gainCents: 0, gainBps: 0, priceDate: null, missingPrices: [], holdings: [], trades: [] });
   });
 
   it('preview then import, creating the CommSec account; re-import inserts nothing', async () => {
@@ -121,6 +122,30 @@ describe('holdings', () => {
     expect(s.gainCents).toBe(10325);
     expect(s.priceDate).toBe('2026-10-23');
     expect(s.holdings[0]).toMatchObject({ symbol: 'VAS', units: 15, valueCents: 165000 });
+  });
+
+  it('priceDate is the oldest held price; symbols with no price are in missingPrices', async () => {
+    const { send, db } = await setup();
+    const csv = `${HEADER}
+24/10/2026,C1,B 15 VAS @ 102.450000,1546.75,,0.00
+24/10/2026,C2,B 10 VGS @ 100.000000,1010.00,,0.00
+24/10/2026,C3,B 5 VDHG @ 60.000000,310.00,,0.00
+`;
+    await send('POST', '/holdings/import', { csv });
+    await makeHoldingsRepo(db).upsertPrices([
+      { symbol: 'VAS', date: '2026-10-20', closeMicros: 110_000_000 },
+      { symbol: 'VGS', date: '2026-10-23', closeMicros: 120_000_000 },
+    ]);
+    const s = (await (await send('GET', '/holdings')).json()) as Summary;
+    expect(s.priceDate).toBe('2026-10-20');
+    expect(s.missingPrices).toEqual(['VDHG']);
+  });
+
+  it('missingPrices is empty when every holding has a price', async () => {
+    const { send, db } = await setup();
+    await send('POST', '/holdings/import', { csv: CSV });
+    await makeHoldingsRepo(db).upsertPrices([{ symbol: 'VAS', date: '2026-10-23', closeMicros: 110_000_000 }]);
+    expect(((await (await send('GET', '/holdings')).json()) as Summary).missingPrices).toEqual([]);
   });
 
   it('dismiss hint returns 204 and is idempotent', async () => {

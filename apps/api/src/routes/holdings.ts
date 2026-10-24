@@ -132,7 +132,7 @@ export function holdingsRoutes(deps: Deps) {
   r.get('/holdings', async (c) => {
     const accountId = await repo.commsecAccountId();
     if (accountId === null) {
-      return c.json({ accountId: null, valueCents: 0, costCents: 0, gainCents: 0, gainBps: 0, priceDate: null, holdings: [], trades: [] });
+      return c.json({ accountId: null, valueCents: 0, costCents: 0, gainCents: 0, gainBps: 0, priceDate: null, missingPrices: [], holdings: [], trades: [] });
     }
     const { trades, holdings } = await valued(accountId);
     const valueCents = holdings.reduce((n, h) => n + h.valueCents, 0);
@@ -140,8 +140,9 @@ export function holdingsRoutes(deps: Deps) {
     const gainCents = valueCents - costCents;
     const gainBps = costCents > 0 ? Math.round((gainCents * 10000) / costCents) : 0;
     const dates = holdings.map((h) => h.priceDate).filter((d): d is string => d !== null);
-    const priceDate = dates.length ? dates.reduce((a, b) => (a > b ? a : b)) : null;
-    return c.json({ accountId, valueCents, costCents, gainCents, gainBps, priceDate, holdings, trades });
+    const priceDate = dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : null;
+    const missingPrices = holdings.filter((h) => h.priceDate === null).map((h) => h.symbol);
+    return c.json({ accountId, valueCents, costCents, gainCents, gainBps, priceDate, missingPrices, holdings, trades });
   });
 
   r.post('/holdings/import/preview', async (c) => {

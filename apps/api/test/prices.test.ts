@@ -39,6 +39,11 @@ describe('yahooPrices', () => {
     expect(out).toEqual([{ date: '2026-10-23', closeMicros: 103_100_000 }]);
   });
 
+  it('skips zero and negative closes', async () => {
+    const out = await yahooPrices(ok(payload([0, 103.1, -1])) as unknown as typeof fetch).closes('VAS');
+    expect(out).toEqual([{ date: '2026-10-23', closeMicros: 103_100_000 }]);
+  });
+
   it('throws on HTTP errors and on a bad shape', async () => {
     const bad = vi.fn(async () => new Response('x', { status: 500 }));
     await expect(yahooPrices(bad as unknown as typeof fetch).closes('VAS')).rejects.toThrow();

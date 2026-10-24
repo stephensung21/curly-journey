@@ -45,12 +45,12 @@ describe('GET /networth', () => {
     expect(b.since).toEqual({ fromDate: '2026-10-20', deltaCents: 150_000 });
   });
 
-  it('keeps an existing snapshot for today instead of appending', async () => {
+  it('replaces an existing snapshot for today with the live total', async () => {
     const { db, get, acct } = await setup();
     await acct('pocketsmith', '1', 'Everyday', 500_000);
     await db.query("insert into net_worth_snapshot values ('2026-10-24', 1000, 0)");
     const b = (await (await get('/networth')).json()) as Body;
-    expect(b.history).toEqual([{ date: '2026-10-24', totalCents: 1000 }]);
+    expect(b.history).toEqual([{ date: '2026-10-24', totalCents: 500_000 }]);
     expect(b.since).toBeNull();
   });
 

@@ -53,8 +53,8 @@ describe('parseCommSecRows', () => {
     expect(r.skipped[0]!.reason).toBe("Amount doesn't match units × price");
   });
 
-  it('skips every row when there is no header', () => {
-    const r = parseCommSecRows('24/10/2026,C1,B 15 VAS @ 102.45,1546.75,,0.00\n');
+  it('returns one skipped entry when there is no header', () => {
+    const r = parseCommSecRows('24/10/2026,C1,B 15 VAS @ 102.45,1546.75,,0.00\n24/10/2026,C2,B 1 VGS @ 1,1.00,,0.00\n');
     expect(r.trades).toEqual([]);
     expect(r.skipped).toEqual([{ line: 1, reason: 'No CommSec header row' }]);
   });

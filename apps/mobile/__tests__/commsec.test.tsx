@@ -43,7 +43,7 @@ const trade = (id: number, date: string, side: 'buy' | 'sell', symbol: string, u
   id, source: 'csv' as const, date, reference: null, side, symbol, units, priceMicros: 70_800_000, brokerageCents: 1000, totalCents: 213400,
 });
 const data = {
-  accountId: 9, valueCents: 8_490_000, costCents: 7_366_000, gainCents: 1_124_000, gainBps: 1526, priceDate: '2026-10-23',
+  accountId: 9, valueCents: 8_490_000, costCents: 7_366_000, gainCents: 1_124_000, gainBps: 1526, priceDate: '2026-10-23', missingPrices: [] as string[],
   holdings: [holding('VDHG', 620, 4_415_000, 3_850_000), holding('VGS', 176, 2_377_000, 2_084_000), holding('VAS', 163, 1_698_000, 1_432_000)],
   trades: [trade(2, '2026-10-15', 'buy', 'VGS', 12), trade(1, '2026-10-01', 'buy', 'VDHG', 30)],
 };
@@ -89,6 +89,17 @@ describe('commsec screen', () => {
     commsec = { ...data, priceDate: '2026-10-21' };
     await renderScreen(<CommsecScreen />);
     expect(screen.getByText('price as of 21 Oct')).toBeTruthy();
+  });
+
+  it('lists symbols with no price and says they are valued at cost', async () => {
+    commsec = { ...data, missingPrices: ['VAS', 'VGS'] };
+    await renderScreen(<CommsecScreen />);
+    expect(screen.getByText('No price yet for VAS, VGS — valued at what you paid.')).toBeTruthy();
+  });
+
+  it('shows no missing-price line when every holding has a price', async () => {
+    await renderScreen(<CommsecScreen />);
+    expect(screen.queryByText(/No price yet/)).toBeNull();
   });
 
   it('hide balances masks dollars and units', async () => {

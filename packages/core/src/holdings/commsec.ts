@@ -90,7 +90,7 @@ export function parseCommSecRows(text: string): { trades: ParsedTrade[]; skipped
     if (cols) headerAt = i;
   }
   if (!cols) {
-    return { trades, skipped: records.map((r) => ({ line: r.line, reason: 'No CommSec header row' })), ignored };
+    return { trades, skipped: records.length ? [{ line: records[0]!.line, reason: 'No CommSec header row' }] : [], ignored };
   }
   for (const { line, cells } of records.slice(headerAt + 1)) {
     const details = (cells[cols.details] ?? '').trim();

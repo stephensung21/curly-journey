@@ -184,6 +184,7 @@ export type CommsecResponse = {
   gainCents: number;
   gainBps: number;
   priceDate: string | null;
+  missingPrices: string[];
   holdings: ValuedEtfHolding[];
   trades: Trade[];
 };

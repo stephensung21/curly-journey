@@ -15,7 +15,8 @@ export function netWorthRoutes(deps: Deps) {
     const today = sydneyDate(deps.now());
     const [accounts, snapshots] = await Promise.all([repo.accounts(), repo.history(rangeStart(range as NwRange, today))]);
     const live = netWorth(accounts, today);
-    const history = snapshots.some((p) => p.date === today) ? snapshots : [...snapshots, { date: today, totalCents: live.totalCents }];
+    // Today's point is always the live total, so headline, chart end and since-note agree.
+    const history = [...snapshots.filter((p) => p.date !== today), { date: today, totalCents: live.totalCents }];
     return c.json({ ...live, history, since: sinceNote(history) });
   });
 

@@ -37,13 +37,16 @@ export function splitCsv(text) {
   return rows.filter((r) => r.some((c) => c.trim() !== ''));
 }
 
-// Keep the first word; digits become 9; letters in later words become a.
+// Digits become 9, letters become a. The first word stays verbatim only when it is a
+// trade side or a known transaction keyword; anything else could be a surname.
+const KEEP = /^([BS]|Direct|Transfer|Dividend|Interest|BPAY|Deposit|Withdrawal|Fee|Contract|Payment)$/i;
 export function shapeOf(details) {
   const t = details.trim();
   const m = /^(\S+)(.*)$/s.exec(t);
   if (!m) return '';
   const rest = m[2].replace(/[0-9]/g, '9').replace(/[A-Za-z]/g, 'a');
-  return m[1].replace(/[0-9]/g, '9') + rest;
+  const first = KEEP.test(m[1]) ? m[1] : m[1].replace(/[0-9]/g, '9').replace(/[A-Za-z]/g, 'a');
+  return first + rest;
 }
 
 const norm = (s) => s.toLowerCase().replace(/\(\$\)/g, '').replace(/\s+/g, '');

@@ -81,9 +81,9 @@ Do this after the earlier setups. Run commands in your own PowerShell window. Ne
 1. **Migrate.** From the repo root, load the connection string for this window only: `$env:DATABASE_URL = Read-Host "Neon connection string"`. Then from `apps/api` run `node scripts/migrate.mjs`. Expect `applied 0006_holdings.sql`. Then `Remove-Item Env:DATABASE_URL`.
 2. **Deploy the Worker.** From `apps/api`, run `npx wrangler deploy`. It now registers three crons (sync, alerts, and a daily job for ETF prices and the net-worth snapshot).
 3. **New APK.** From `apps/mobile`, run `npx eas-cli build -p android --profile preview` and install it as in "Build and install the APK".
-4. **Export from CommSec.** In CommSec go to Portfolio, then Transactions, then Download (CSV). Choose a date range that covers all your trades, such as the last 12 months.
+4. **Export from CommSec.** In CommSec go to Portfolio, then Transactions, then Download (CSV). Choose a date range that covers all your trades, starting from your very first trade. A shorter range leaves holdings short, because sells and buys before it are missing.
 5. **Import on the phone.** Move the CSV to your phone and open the import screen in the app's CommSec section. Importing the same file twice is safe: trades you already have show as "already have" and nothing doubles.
-6. **If any rows are skipped,** run `node scripts/commsec-shape.mjs <path-to-csv>` from the repo root and paste its output into chat. It prints only the header row, the row count and the shape of each `Details` line (digits become `9`, letters after the first word become `a`). It prints no amounts, names or reference numbers. Never paste the CSV itself.
+6. **If any rows are skipped,** run `node scripts/commsec-shape.mjs <path-to-csv>` from the repo root and paste its output into chat. It prints only the header row, the row count and the shape of each `Details` line (digits become `9`; letters become `a`, except a trade side or a known keyword such as `Direct` or `Dividend`). It prints no amounts, names or reference numbers. Never paste the CSV itself.
 
 Phone checks after you deploy:
 
