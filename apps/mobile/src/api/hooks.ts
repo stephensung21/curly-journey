@@ -10,6 +10,7 @@ import type {
   AccountValue,
   AccountsResponse,
   CategorisationStats,
+  CommsecResponse,
   Category,
   Connection,
   DailyPoint,
@@ -22,7 +23,10 @@ import type {
   Limit,
   LimitPatch,
   NewLimit,
+  NetWorthResponse,
+  NewTrade,
   NotificationPrefs,
+  NwRange,
   NewCategory,
   NewRule,
   Occurrence,
@@ -38,6 +42,9 @@ import type {
   Transaction,
   TransactionPatch,
   TransactionQuery,
+  Trade,
+  TradeImport,
+  TradePreview,
   TransactionsResponse,
 } from './types';
 
@@ -542,4 +549,75 @@ export function useRegisterDevice() {
 export function useTestNotification() {
   const conn = useConn();
   return useMutation({ mutationFn: () => apiFetch<{ sent: number }>(conn, '/notifications/test', { method: 'POST' }) });
+}
+
+export function useCommsec() {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['commsec'],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<CommsecResponse>(conn, '/holdings'),
+  });
+}
+
+export function useNetWorth(range: NwRange) {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['networth', range],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<NetWorthResponse>(conn, `/networth${qs({ range })}`),
+  });
+}
+
+/** A trade changes the holdings list, the CommSec balance and net worth. */
+function invalidateTrades(qc: QueryClient) {
+  return Promise.all(['commsec', 'networth', 'accounts'].map(k => qc.invalidateQueries({ queryKey: [k] })));
+}
+
+/** `csv` is the CommSec export text. */
+export function useCommsecPreview() {
+  const conn = useConn();
+  return useMutation({
+    mutationFn: (csv: string) =>
+      apiFetch<TradePreview>(conn, '/holdings/import/preview', { method: 'POST', body: JSON.stringify({ csv }) }),
+  });
+}
+
+export function useCommsecImport() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (csv: string) =>
+      apiFetch<TradeImport>(conn, '/holdings/import', { method: 'POST', body: JSON.stringify({ csv }) }),
+    onSettled: () => invalidateTrades(qc),
+  });
+}
+
+export function useAddTrade() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: NewTrade) =>
+      apiFetch<{ trade: Trade }>(conn, '/holdings/trades', { method: 'POST', body: JSON.stringify(body) }),
+    onSettled: () => invalidateTrades(qc),
+  });
+}
+
+export function useDeleteTrade() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(conn, `/holdings/trades/${id}`, { method: 'DELETE' }),
+    onSettled: () => invalidateTrades(qc),
+  });
+}
+
+export function useDismissHint() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (transactionId: number) =>
+      apiFetch<void>(conn, `/holdings/hints/${transactionId}/dismiss`, { method: 'POST' }),
+    onSettled: () => invalidateTrades(qc),
+  });
 }

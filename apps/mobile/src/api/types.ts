@@ -1,4 +1,14 @@
-import type { CategoryColor, CategorySource, Flow as CoreFlow, Rule as CoreRule, Summary } from '@curly/core';
+import type {
+  CategoryColor,
+  CategorySource,
+  Flow as CoreFlow,
+  NwLine as CoreNwLine,
+  NwRange as CoreNwRange,
+  ParsedTrade,
+  Rule as CoreRule,
+  Summary,
+  ValuedEtfHolding as CoreValuedEtfHolding,
+} from '@curly/core';
 
 export type Connection = { url: string; token: string };
 
@@ -22,6 +32,8 @@ export type Account = {
   stale: boolean;
   syncedAt: string | null;
   needsUpdate: boolean;
+  /** Yearly growth in basis points, manual accounts only. */
+  growthBps: number | null;
 };
 
 export type AccountValue = { asOf: string; valueCents: number };
@@ -30,7 +42,7 @@ export type Holding = { symbol: string; units: string; audCents: number };
 export type AccountsResponse = { accounts: Account[]; lastSuccessAt: string | null };
 
 export type AccountSettings = Partial<
-  Pick<Account, 'displayName' | 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'icon'>
+  Pick<Account, 'displayName' | 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'icon' | 'growthBps'>
 >;
 
 export type Flow = CoreFlow;
@@ -154,4 +166,46 @@ export type Occurrence = {
 };
 export type OccurrencesResponse = { events: CalendarEventDef[]; occurrences: Occurrence[] };
 
-export type NotificationPrefs = { limit: boolean; bill: boolean; paid_check: boolean; sync: boolean; stale: boolean };
+export type NotificationPrefs = {
+  limit: boolean;
+  bill: boolean;
+  paid_check: boolean;
+  sync: boolean;
+  stale: boolean;
+  trade_hint: boolean;
+};
+
+export type ValuedEtfHolding = CoreValuedEtfHolding;
+export type Trade = ParsedTrade & { id: number; source: 'csv' | 'manual' };
+export type CommsecResponse = {
+  accountId: number | null;
+  valueCents: number;
+  costCents: number;
+  gainCents: number;
+  gainBps: number;
+  priceDate: string | null;
+  holdings: ValuedEtfHolding[];
+  trades: Trade[];
+};
+export type NewTrade = { date: string; side: 'buy' | 'sell'; symbol: string; units: number; price: string; brokerage: string };
+export type TradePreview = {
+  new: ParsedTrade[];
+  have: ParsedTrade[];
+  /** CSV trades that will replace hand-entered ones. */
+  replacing: number;
+  skipped: { line: number; reason: string }[];
+  ignored: number;
+};
+export type TradeImport = { imported: number };
+
+export type NwLine = CoreNwLine;
+export type NwRange = CoreNwRange;
+export type NetWorthResponse = {
+  totalCents: number;
+  ownCents: number;
+  oweCents: number;
+  own: NwLine[];
+  owe: NwLine[];
+  history: { date: string; totalCents: number }[];
+  since: { fromDate: string; deltaCents: number } | null;
+};
