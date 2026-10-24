@@ -22,6 +22,17 @@ describe('yahooPrices', () => {
     expect((init.headers as Record<string, string>)['User-Agent']).toBe('curly-journey/1');
   });
 
+  it('rounds float32 noise in closes to 4 decimal places', async () => {
+    const out = await yahooPrices(ok(payload([102.44999694824219])) as unknown as typeof fetch).closes('VAS');
+    expect(out).toEqual([{ date: '2026-10-22', closeMicros: 102_450_000 }]);
+  });
+
+  it('dates a bar stamped 23:00 UTC the previous day to the next Sydney day', async () => {
+    const body = { chart: { result: [{ timestamp: [Date.UTC(2026, 9, 21, 23) / 1000], indicators: { quote: [{ close: [1] }] } }] } };
+    const out = await yahooPrices(ok(body) as unknown as typeof fetch).closes('VAS');
+    expect(out).toEqual([{ date: '2026-10-22', closeMicros: 1_000_000 }]);
+  });
+
   it('skips null and NaN closes', async () => {
     const f = ok(payload([null, 103.1, Number.NaN]));
     const out = await yahooPrices(f as unknown as typeof fetch).closes('VAS');
