@@ -85,6 +85,17 @@ it('shows the CommSec row with its value and opens it', async () => {
   expect(mockPush).toHaveBeenCalledWith('/commsec');
 });
 
+it('shows the About you and Home loan rows and opens them', async () => {
+  await renderScreen(<MoreScreen />);
+  expect(screen.getByText('Birth date and tax rate')).toBeTruthy();
+  expect(screen.getByText('Rate, repayment and term')).toBeTruthy();
+  for (const [label, route] of [['About you', '/about-you'], ['Home loan', '/home-loan']] as const) {
+    mockPush.mockClear();
+    await fireEvent.press(screen.getByText(label));
+    expect(mockPush).toHaveBeenCalledWith(route);
+  }
+});
+
 it('invites an import when there is no CommSec account', async () => {
   commsecValue = undefined;
   await renderScreen(<MoreScreen />);

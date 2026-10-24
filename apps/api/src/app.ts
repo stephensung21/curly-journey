@@ -14,6 +14,7 @@ import { importRoutes } from './routes/imports';
 import { limitRoutes } from './routes/limits';
 import { netWorthRoutes } from './routes/networth';
 import { notifyRoutes } from './routes/notify';
+import { projectionRoutes } from './routes/projections';
 import { ruleRoutes } from './routes/rules';
 import { spendingRoutes } from './routes/spending';
 import { syncRoutes } from './routes/sync';
@@ -37,5 +38,6 @@ export function createApp(deps: Deps) {
   app.route('/', eventRoutes(deps));
   app.route('/', notifyRoutes(deps));
   app.route('/', netWorthRoutes(deps));
+  app.route('/', projectionRoutes(deps));
   return app;
 }

@@ -47,6 +47,8 @@ function AppStack() {
           <Stack.Screen name="networth" options={{ headerShown: false }} />
           <Stack.Screen name="commsec" options={{ headerShown: false }} />
           <Stack.Screen name="commsec-import" options={{ headerShown: false }} />
+          <Stack.Screen name="about-you" options={{ headerShown: false }} />
+          <Stack.Screen name="home-loan" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Protected guard={!conn}>
           <Stack.Screen name="connect" options={{ headerShown: false }} />

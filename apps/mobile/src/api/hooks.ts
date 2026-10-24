@@ -32,6 +32,8 @@ import type {
   Occurrence,
   CalendarEventDef,
   OccurrencesResponse,
+  ProjectionProfile,
+  ProjectionsResponse,
   OccurrenceStatus,
   Rule,
   RulePreviewParams,
@@ -619,5 +621,25 @@ export function useDismissHint() {
     mutationFn: (transactionId: number) =>
       apiFetch<void>(conn, `/holdings/hints/${transactionId}/dismiss`, { method: 'POST' }),
     onSettled: () => invalidateTrades(qc),
+  });
+}
+
+export function useProjections() {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['projections'],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<ProjectionsResponse>(conn, '/projections'),
+  });
+}
+
+/** Partial update: only the fields given change. */
+export function useUpdateProfile() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<ProjectionProfile>) =>
+      apiFetch<ProjectionProfile>(conn, '/projections/profile', { method: 'PUT', body: JSON.stringify(patch) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['projections'] }),
   });
 }
