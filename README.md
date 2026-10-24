@@ -48,10 +48,11 @@ For CoinSpot: on coinspot.com.au go to Profile, then API, and create a **Read On
 
 ### Scheduled jobs
 
-The Worker runs two crons, set in `apps/api/wrangler.toml`. You don't need to do anything for them.
+The Worker runs three crons, set in `apps/api/wrangler.toml`. You don't need to do anything for them.
 
 - `*/15 * * * *`: sync, every 15 minutes.
 - `7 * * * *`: alerts, at 7 minutes past every hour. It checks spending limits and bill reminders, and sends push notifications.
+- `17 7 * * *`: daily job, at 07:17 UTC. It saves the net-worth snapshot and refreshes ETF prices.
 
 ## Push notifications setup (once)
 
@@ -72,3 +73,22 @@ Do this after the backend setup above. Run commands in your own PowerShell windo
 12. **Test.** In the app go to More, then Notifications, then Turn on, then Send a test notification. It should arrive, and tapping it opens Notifications.
 
 Notifications never contain dollar amounts, so hide balances still holds. To watch the Worker while you test, run `npx wrangler tail --format pretty` from `apps/api`.
+
+## Plan 5 setup (once)
+
+Do this after the earlier setups. Run commands in your own PowerShell window. Never paste the CSV file itself, a connection string, a key or a token into chat.
+
+1. **Migrate.** From the repo root, load the connection string for this window only: `$env:DATABASE_URL = Read-Host "Neon connection string"`. Then from `apps/api` run `node scripts/migrate.mjs`. Expect `applied 0006_holdings.sql`. Then `Remove-Item Env:DATABASE_URL`.
+2. **Deploy the Worker.** From `apps/api`, run `npx wrangler deploy`. It now registers three crons (sync, alerts, and a daily job for ETF prices and the net-worth snapshot).
+3. **New APK.** From `apps/mobile`, run `npx eas-cli build -p android --profile preview` and install it as in "Build and install the APK".
+4. **Export from CommSec.** In CommSec go to Portfolio, then Transactions, then Download (CSV). Choose a date range that covers all your trades, such as the last 12 months.
+5. **Import on the phone.** Move the CSV to your phone and open the import screen in the app's CommSec section. Importing the same file twice is safe: trades you already have show as "already have" and nothing doubles.
+6. **If any rows are skipped,** run `node scripts/commsec-shape.mjs <path-to-csv>` from the repo root and paste its output into chat. It prints only the header row, the row count and the shape of each `Details` line (digits become `9`, letters after the first word become `a`). It prints no amounts, names or reference numbers. Never paste the CSV itself.
+
+Phone checks after you deploy:
+
+- Import the real CommSec CSV: the counts look right, and importing again shows everything as "already have".
+- Holdings match CommSec's own portfolio page (units exactly; value within the day's price movement).
+- Net worth total is about own minus owe by eye; offsets are grouped; super shows `update?` when old.
+- Next day: the chart has two points, and the Home row shows the since-note.
+- A CommSec payment in CommBank with no trade gives the hint within about an hour of the sync (after 9am). "Not a trade" stops it.
