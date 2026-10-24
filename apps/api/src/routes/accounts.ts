@@ -12,7 +12,7 @@ const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 function parsePatch(body: unknown): AccountSettingsPatch | null {
   if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
-  const allowed = new Set<string>([...BOOLS, 'projections', 'displayName', 'icon']);
+  const allowed = new Set<string>([...BOOLS, 'projections', 'displayName', 'icon', 'growthBps']);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(body)) {
     if (!allowed.has(k)) return null;
@@ -20,6 +20,8 @@ function parsePatch(body: unknown): AccountSettingsPatch | null {
       if (typeof v !== 'boolean') return null;
     } else if (k === 'projections') {
       if (typeof v !== 'string' || !PROJECTIONS.includes(v)) return null;
+    } else if (k === 'growthBps') {
+      if (v !== null && (typeof v !== 'number' || !Number.isInteger(v) || v < -2000 || v > 2000)) return null;
     } else if (k === 'icon') {
       if (v !== null) {
         if (typeof v !== 'string') return null;
@@ -112,6 +114,12 @@ export function accountRoutes(deps: Deps) {
     }
     const patch = parsePatch(body);
     if (!patch) return c.json({ error: 'bad_patch' }, 400);
+    if (patch.growthBps !== undefined) {
+      // Growth is a guess about a hand-entered value, so synced accounts never take it.
+      const account = await repo.getAccount(id);
+      if (!account) return c.json({ error: 'account_not_found' }, 404);
+      if (account.source !== 'manual') return c.json({ error: 'not_manual' }, 400);
+    }
     const updated = await repo.updateAccountSettings(id, patch);
     if (!updated) return c.json({ error: 'account_not_found' }, 404);
     return c.json(updated);

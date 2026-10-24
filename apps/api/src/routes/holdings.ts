@@ -149,6 +149,7 @@ export function holdingsRoutes(deps: Deps) {
     return c.json({
       new: p.fresh.map(({ source: _s, fingerprint: _f, ...t }) => t),
       have: p.have,
+      replacing: p.replacing.length,
       skipped: p.skipped,
       ignored: p.ignored,
     });
@@ -160,7 +161,7 @@ export function holdingsRoutes(deps: Deps) {
     const rows = [...p.replacing, ...p.fresh];
     if (rows.length) accountId = await repo.ensureCommsecAccount(deps.now());
     const imported = accountId === null ? 0 : await repo.insertTrades(accountId, rows, p.replaceIds);
-    if (accountId !== null && imported > 0) await refreshBalance(accountId);
+    if (accountId !== null && (imported > 0 || p.replaceIds.length > 0)) await refreshBalance(accountId);
     return c.json({ imported });
   });
 

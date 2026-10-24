@@ -1,4 +1,5 @@
 import type { CoinSpotClient } from './coinspot/client';
+import type { PriceClient } from './prices/yahoo';
 import type { PushClient } from './push/types';
 import { Hono } from 'hono';
 import { bearerAuth } from './auth';
@@ -11,13 +12,14 @@ import { eventRoutes } from './routes/events';
 import { holdingsRoutes } from './routes/holdings';
 import { importRoutes } from './routes/imports';
 import { limitRoutes } from './routes/limits';
+import { netWorthRoutes } from './routes/networth';
 import { notifyRoutes } from './routes/notify';
 import { ruleRoutes } from './routes/rules';
 import { spendingRoutes } from './routes/spending';
 import { syncRoutes } from './routes/sync';
 import { transactionRoutes } from './routes/transactions';
 
-export type Deps = { db: Db; pocketsmith: PocketSmithClient; now: () => Date; coinspot?: CoinSpotClient; push?: PushClient };
+export type Deps = { db: Db; pocketsmith: PocketSmithClient; now: () => Date; coinspot?: CoinSpotClient; push?: PushClient; prices?: PriceClient };
 
 export function createApp(deps: Deps) {
   const app = new Hono();
@@ -34,5 +36,6 @@ export function createApp(deps: Deps) {
   app.route('/', limitRoutes(deps));
   app.route('/', eventRoutes(deps));
   app.route('/', notifyRoutes(deps));
+  app.route('/', netWorthRoutes(deps));
   return app;
 }

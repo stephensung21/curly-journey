@@ -4,7 +4,7 @@ compatibility_date = "2026-10-01"
 compatibility_flags = ["nodejs_compat"]
 
 [triggers]
-crons = ["*/15 * * * *", "7 * * * *"]
+crons = ["*/15 * * * *", "7 * * * *", "17 7 * * *"]
 
 # Secrets (DATABASE_URL, POCKETSMITH_KEY, and the optional COINSPOT_KEY, COINSPOT_SECRET and EXPO_ACCESS_TOKEN)
 # are set with "wrangler secret put", never here.

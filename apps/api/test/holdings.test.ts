@@ -179,3 +179,35 @@ describe('manual trade then CSV import', () => {
     expect(r.status).toBe(400);
   });
 });
+
+describe('replacing manual trades on import', () => {
+  const manual = { date: '2026-10-22', side: 'buy', symbol: 'VAS', units: 15, price: '102.45', brokerage: '12.00' };
+  it('preview reports how many CSV trades replace manual ones', async () => {
+    const { send } = await setup();
+    await send('POST', '/holdings/trades', manual);
+    const p = (await (await send('POST', '/holdings/import/preview', { csv: CSV })).json()) as { replacing: number };
+    expect(p.replacing).toBe(1);
+    const q = (await (await send('POST', '/holdings/import/preview', { csv: `${HEADER}\n` })).json()) as { replacing: number };
+    expect(q.replacing).toBe(0);
+  });
+
+  it('import refreshes the balance after replacing even if no row reports inserted', async () => {
+    const real = await pgliteDb();
+    const token = await seedToken(real);
+    // Runs the real insert but reports no new rows, as a conflict-skipped insert would.
+    const db = {
+      async query<T = Record<string, unknown>>(text: string, params?: unknown[]) {
+        const rows = await real.query<T>(text, params);
+        return text.includes('with gone as') ? [] : rows;
+      },
+    };
+    const app = createApp({ db, pocketsmith: fakePocketSmith(), now: () => NOW });
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const post = (path: string, body: unknown) => app.request(path, { method: 'POST', headers, body: JSON.stringify(body) });
+    await post('/holdings/trades', manual);
+    const bal = async () => (await real.query<{ b: string }>("select balance_cents::text b from account where source = 'commsec'"))[0]!.b;
+    expect(await bal()).toBe('154875'); // manual: 1536.75 + 12.00
+    expect(await (await post('/holdings/import', { csv: CSV })).json()).toEqual({ imported: 0 });
+    expect(await bal()).toBe('154675'); // CSV: 1536.75 + 10.00
+  });
+});

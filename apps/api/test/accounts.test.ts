@@ -187,3 +187,30 @@ describe('PUT /accounts/order', () => {
     expect((await app.request('/accounts/order', { method: 'PUT', body: '{"ids":[1]}' })).status).toBe(401);
   });
 });
+
+describe('PATCH /accounts/:id growthBps', () => {
+  it('sets and clears growthBps on a manual account', async () => {
+    const { app, auth, manual } = await setup();
+    let r = await patch(app, auth, manual, { growthBps: 450 });
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as { growthBps: number | null }).growthBps).toBe(450);
+    r = await patch(app, auth, manual, { growthBps: null });
+    expect(((await r.json()) as { growthBps: number | null }).growthBps).toBeNull();
+  });
+
+  it('rejects out-of-range or non-integer values', async () => {
+    const { app, auth, manual } = await setup();
+    for (const v of [2001, -2001, 1.5, '5']) expect((await patch(app, auth, manual, { growthBps: v })).status).toBe(400);
+  });
+
+  it('rejects growthBps on a non-manual account', async () => {
+    const { app, auth, ps } = await setup();
+    expect((await patch(app, auth, ps, { growthBps: 100 })).status).toBe(400);
+  });
+
+  it('lists growthBps (null by default)', async () => {
+    const { app, auth, manual } = await setup();
+    const body = (await (await app.request('/accounts', { headers: auth })).json()) as { accounts: { id: number; growthBps: number | null }[] };
+    expect(body.accounts.find((a) => a.id === manual)!.growthBps).toBeNull();
+  });
+});
