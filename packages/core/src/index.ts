@@ -18,3 +18,5 @@ export * from './calendar/events';
 export * from './calendar/match';
 export * from './limits/limits';
 export * from './notify/plan';
+export * from './holdings/commsec';
+export * from './holdings/holdings';
