@@ -51,3 +51,13 @@ it('rolls back when the update fails', async () => {
   await act(async () => patchGate.resolve(res(500, { error: 'boom' })));
   await waitFor(() => expect(cached().categoryId).toBeNull());
 });
+
+it('invalidates limits after an update settles', async () => {
+  const spy = jest.spyOn(qc, 'invalidateQueries');
+  (globalThis.fetch as jest.Mock).mockImplementation((_u: string, init?: RequestInit) =>
+    Promise.resolve(res(200, init?.method === 'PATCH' ? { transaction: txn({ categoryId: 3 }) } : { transactions: [txn()] })),
+  );
+  const { result } = await renderHook(() => useUpdateTransaction(), { wrapper });
+  await act(async () => { await result.current.mutateAsync({ id: 5, patch: { categoryId: 3 } }); });
+  expect(spy).toHaveBeenCalledWith({ queryKey: ['limits'] });
+});

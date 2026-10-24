@@ -120,6 +120,35 @@ describe('PATCH /transactions/:id', () => {
     expect(await (await call('GET', `/transactions/${id}`)).json()).toMatchObject({ flow: 'not_spending', flowSource: 'user' });
   });
 
+  async function pair(ctx: Awaited<ReturnType<typeof setup>>) {
+    const { add, row, bank, amex, repo, db } = ctx;
+    const a = await add(bank, row('pa', '2026-10-10', -5000, 'AMEX CARD PAYMENT'));
+    const b = await add(amex, { ...row('pb', '2026-10-11', 5000, 'PAYMENT RECEIVED - THANK YOU'), accountExternalId: '2' });
+    await runPipeline(repo, { since: '2026-10-01', now: T0 });
+    const get = async (id: number) =>
+      (await db.query<{ flow: string; flow_source: string; pair_id: number | null; categorised: boolean }>(
+        'select flow, flow_source, pair_id, categorised from transaction where id = $1', [id]))[0]!;
+    return { a, b, get };
+  }
+
+  it('unpairs the partner when the owner changes one half flow', async () => {
+    const ctx = await setup();
+    const { a, b, get } = await pair(ctx);
+    expect(await get(a)).toMatchObject({ flow: 'transfer', pair_id: b });
+    await ctx.call('PATCH', `/transactions/${a}`, { flow: 'normal' });
+    expect(await get(a)).toMatchObject({ flow: 'normal', flow_source: 'user', pair_id: null });
+    expect(await get(b)).toMatchObject({ flow: 'normal', flow_source: 'auto', pair_id: null, categorised: false });
+  });
+
+  it('leaves an owner-set partner alone when unpairing', async () => {
+    const ctx = await setup();
+    const { a, b, get } = await pair(ctx);
+    await ctx.db.query("update transaction set flow_source = 'user', categorised = true where id = $1", [b]);
+    await ctx.call('PATCH', `/transactions/${a}`, { flow: 'normal' });
+    expect(await get(a)).toMatchObject({ flow: 'normal', flow_source: 'user', pair_id: null });
+    expect(await get(b)).toMatchObject({ flow: 'transfer', flow_source: 'user', pair_id: null, categorised: true });
+  });
+
   it('validates and 404s', async () => {
     const { call, add, row, bank } = await setup();
     const id = await add(bank, row('a', '2026-10-05', -1000, 'X'));

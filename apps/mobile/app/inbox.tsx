@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useAccounts, useCategories, useCategorisationStats, useInbox, useUpdateTransaction } from '../src/api/hooks';
 import type { InboxItem } from '../src/api/types';
@@ -29,6 +29,8 @@ export default function InboxScreen() {
   const [sorted, setSorted] = useState(0);
   const [failed, setFailed] = useState(false);
   const [picking, setPicking] = useState(false);
+  // Cards whose update is in flight: a fast second tap or swipe on the same card is ignored until it settles.
+  const pending = useRef(new Set<number>());
 
   // Built once from the first load; later refetches (after each save) must not reshuffle it.
   useEffect(() => {
@@ -44,8 +46,9 @@ export default function InboxScreen() {
   const account = top ? accounts.find(a => a.id === top.accountId) : undefined;
 
   async function accept(categoryId: number) {
-    if (!top) return;
+    if (!top || pending.current.has(top.id)) return;
     const item = top;
+    pending.current.add(item.id);
     setFailed(false);
     setPicking(false);
     setQueue(q => (q ?? []).filter(i => i.id !== item.id));
@@ -56,10 +59,13 @@ export default function InboxScreen() {
       setQueue(q => [item, ...(q ?? [])]);
       setSorted(n => n - 1);
       setFailed(true);
+    } finally {
+      pending.current.delete(item.id);
     }
   }
 
   function skip() {
+    if (top && pending.current.has(top.id)) return;
     setFailed(false);
     setQueue(q => (q && q.length > 1 ? [...q.slice(1), q[0]!] : q));
   }
@@ -96,7 +102,7 @@ export default function InboxScreen() {
             <View style={{ width: `${progress * 100}%`, height: 8, backgroundColor: accents.lime }} />
           </View>
 
-          <SwipeCard key={top.id} onSwipeRight={first !== undefined ? () => accept(first) : undefined} onSwipeLeft={skip}>
+          <SwipeCard key={top.id} onSwipeRight={first !== undefined ? () => void accept(first) : undefined} onSwipeLeft={skip}>
             <Card style={{ gap: 8 }}>
               <AppText variant="title">{top.merchant || top.description}</AppText>
               <AppText tone="muted">{top.description}</AppText>
@@ -111,7 +117,7 @@ export default function InboxScreen() {
                       <Pressable
                         key={id}
                         accessibilityRole="button"
-                        onPress={() => accept(id)}
+                        onPress={() => void accept(id)}
                         style={{ backgroundColor: i === 0 ? accents.lime : t.surface, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}
                       >
                         <AppText variant="bodyStrong" tone={i === 0 ? 'onAccent' : 'ink'} style={{ fontSize: 13 }}>
@@ -134,14 +140,14 @@ export default function InboxScreen() {
             </View>
             {firstCat ? (
               <View style={{ flex: 1 }}>
-                <Button label={`Use ${firstCat.name}`} onPress={() => accept(firstCat.id)} />
+                <Button label={`Use ${firstCat.name}`} onPress={() => void accept(firstCat.id)} />
               </View>
             ) : null}
           </View>
         </>
       ) : null}
 
-      <CategoryPicker visible={picking} onClose={() => setPicking(false)} onPick={accept} categories={categories} />
+      <CategoryPicker visible={picking} onClose={() => setPicking(false)} onPick={id => void accept(id)} categories={categories} />
     </Screen>
   );
 }

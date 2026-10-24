@@ -1,7 +1,7 @@
 import type { Cents } from '../money';
 import { cleanMerchant } from '../spending/merchant';
 
-export type AccountKind = 'transaction' | 'savings' | 'credit_card' | 'mortgage' | 'brokerage' | 'manual_asset';
+export type AccountKind = 'transaction' | 'savings' | 'credit_card' | 'mortgage' | 'brokerage' | 'manual_asset' | 'crypto';
 export type ProjectionsRole = 'off' | 'etf' | 'mortgage';
 export type Counts = { countsSpending: boolean; countsNetWorth: boolean; projections: ProjectionsRole };
 
@@ -84,6 +84,7 @@ export function defaultCounts(kind: AccountKind): Counts {
     case 'brokerage':
       return { countsSpending: false, countsNetWorth: true, projections: 'etf' };
     case 'manual_asset':
+    case 'crypto':
       return { countsSpending: false, countsNetWorth: true, projections: 'off' };
     default:
       return { countsSpending: true, countsNetWorth: true, projections: 'off' };

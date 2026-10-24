@@ -44,3 +44,15 @@ jest.mock('react-native-reanimated', () => {
   };
 });
 require('react-native-gesture-handler/jestSetup');
+
+// Push notifications: native module doesn't exist in Jest. Tests override per case.
+jest.mock('expo-notifications', () => ({
+  AndroidImportance: { DEFAULT: 3 },
+  setNotificationHandler: jest.fn(),
+  setNotificationChannelAsync: jest.fn(async () => {}),
+  getPermissionsAsync: jest.fn(async () => ({ granted: false, canAskAgain: true, status: 'undetermined' })),
+  requestPermissionsAsync: jest.fn(async () => ({ granted: false, canAskAgain: true, status: 'denied' })),
+  getExpoPushTokenAsync: jest.fn(async () => ({ data: 'ExponentPushToken[fake]' })),
+  getLastNotificationResponseAsync: jest.fn(async () => null),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+}));

@@ -3,9 +3,10 @@ import { renderScreen } from '../test-utils/renderScreen';
 import AccountSettings from '../app/account/[id]/settings';
 import * as hooks from '../src/api/hooks';
 
+const mockDismissAll = jest.fn();
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: '7' }),
-  useRouter: () => ({ back: jest.fn() }),
+  useRouter: () => ({ back: jest.fn(), dismissAll: mockDismissAll }),
 }));
 jest.mock('../src/api/hooks');
 
@@ -15,16 +16,21 @@ const account = {
   balanceCents: 1, balanceDate: null, countsSpending: true, countsNetWorth: true, projections: 'off', isOffset: false, stale: false, icon: null,
 };
 const mutate = jest.fn();
+const del = jest.fn();
 let isError = false;
 let kind = 'transaction';
+let source = 'pocketsmith';
 let displayName: string | null = null;
 
 beforeEach(() => {
   jest.clearAllMocks();
   isError = false;
   kind = 'transaction';
+  source = 'pocketsmith';
+  del.mockResolvedValue(undefined);
+  (mocked.useDeleteAccount as jest.Mock).mockReturnValue({ mutateAsync: del, isPending: false });
   displayName = null;
-  (mocked.useAccounts as jest.Mock).mockImplementation(() => ({ data: { accounts: [{ ...account, kind, displayName }], lastSuccessAt: null } }));
+  (mocked.useAccounts as jest.Mock).mockImplementation(() => ({ data: { accounts: [{ ...account, kind, source, displayName }], lastSuccessAt: null } }));
   (mocked.useUpdateAccount as jest.Mock).mockImplementation(() => ({ mutate, isError }));
 });
 
@@ -109,4 +115,31 @@ it('Default tile resets the icon to null', async () => {
   await fireEvent.press(screen.getByLabelText('Icon'));
   await fireEvent.press(screen.getByText('Default'));
   expect(mutate).toHaveBeenCalledWith({ id: 7, settings: { icon: null } });
+});
+
+it('offers no delete on bank accounts', async () => {
+  await renderScreen(<AccountSettings />);
+  expect(screen.queryByText('Delete this account')).toBeNull();
+});
+
+it('deletes a manual account after confirming, then returns to Accounts', async () => {
+  kind = 'manual_asset';
+  source = 'manual';
+  displayName = 'AMP super';
+  await renderScreen(<AccountSettings />);
+  await fireEvent.press(screen.getByText('Delete this account'));
+  expect(screen.getByText('Delete AMP super? Its value history goes too.')).toBeTruthy();
+  expect(del).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText('Delete'));
+  expect(del).toHaveBeenCalledWith(7);
+  expect(mockDismissAll).toHaveBeenCalled();
+});
+
+it('Cancel keeps the account', async () => {
+  kind = 'manual_asset';
+  source = 'manual';
+  await renderScreen(<AccountSettings />);
+  await fireEvent.press(screen.getByText('Delete this account'));
+  await fireEvent.press(screen.getByText('Cancel'));
+  expect(del).not.toHaveBeenCalled();
 });

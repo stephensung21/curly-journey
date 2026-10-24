@@ -2,11 +2,11 @@ import type { CategoryColor, CategorySource, Flow as CoreFlow, Rule as CoreRule,
 
 export type Connection = { url: string; token: string };
 
-export type AccountKind = 'transaction' | 'savings' | 'credit_card' | 'mortgage' | 'brokerage' | 'manual_asset';
+export type AccountKind = 'transaction' | 'savings' | 'credit_card' | 'mortgage' | 'brokerage' | 'manual_asset' | 'crypto';
 
 export type Account = {
   id: number;
-  source: 'pocketsmith' | 'manual';
+  source: 'pocketsmith' | 'manual' | 'coinspot';
   institution: string;
   name: string;
   displayName: string | null;
@@ -20,7 +20,12 @@ export type Account = {
   icon: string | null;
   sortOrder: number | null;
   stale: boolean;
+  syncedAt: string | null;
+  needsUpdate: boolean;
 };
+
+export type AccountValue = { asOf: string; valueCents: number };
+export type Holding = { symbol: string; units: string; audCents: number };
 
 export type AccountsResponse = { accounts: Account[]; lastSuccessAt: string | null };
 
@@ -110,3 +115,43 @@ export type ImportBody = { accountId: number; format: ImportFormat; csv: string 
 export type ImportedRow = { date: string; amountCents: number; description: string };
 export type ImportPreview = { new: ImportedRow[]; duplicates: ImportedRow[]; skipped: { line: number; reason: string }[] };
 export type ImportCommit = { inserted: number };
+
+export type LimitLevel = 'ok' | 'warn' | 'over';
+/** categoryId null = the whole-month limit. */
+export type Limit = {
+  id: number;
+  categoryId: number | null;
+  amountCents: number;
+  warnPercent: number;
+  spentCents: number;
+  percent: number;
+  level: LimitLevel;
+  alertedAt: string | null;
+};
+export type NewLimit = { categoryId: number | null; amountCents: number; warnPercent?: number };
+export type LimitPatch = { amountCents?: number; warnPercent?: number };
+
+export type EventRepeat = 'none' | 'weekly' | 'fortnightly' | 'monthly' | 'quarterly' | 'yearly';
+export type CalendarEventDef = {
+  id: number;
+  name: string;
+  emoji: string;
+  amountCents: number | null;
+  accountId: number | null;
+  startDate: string;
+  repeat: EventRepeat;
+  leadDays: number;
+  onDayAlert: boolean;
+};
+export type OccurrenceStatus = 'paid' | 'skipped';
+export type Occurrence = {
+  eventId: number;
+  date: string;
+  status: OccurrenceStatus | null;
+  source: 'auto' | 'user' | null;
+  transactionId: number | null;
+  payable: boolean;
+};
+export type OccurrencesResponse = { events: CalendarEventDef[]; occurrences: Occurrence[] };
+
+export type NotificationPrefs = { limit: boolean; bill: boolean; paid_check: boolean; sync: boolean; stale: boolean };

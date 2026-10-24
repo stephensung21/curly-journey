@@ -1,8 +1,8 @@
-import { monthKey } from '@curly/core';
+import { limitMessage, monthKey, WHOLE_MONTH_LABEL } from '@curly/core';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, View } from 'react-native';
-import { useCategories, useSpending, useSyncNow } from '../../src/api/hooks';
+import { useCategories, useLimits, useSpending, useSyncNow } from '../../src/api/hooks';
 import type { SpendingQuery } from '../../src/api/types';
 import { Amount } from '../../src/components/Amount';
 import { AppText } from '../../src/components/AppText';
@@ -48,6 +48,7 @@ export default function SpendingScreen() {
   const query: SpendingQuery = institution ? { month, institution } : { month };
   const spendingQ = useSpending(query);
   const categories = useCategories().data ?? [];
+  const limitsQ = useLimits(month);
   const sync = useSyncNow();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -67,7 +68,13 @@ export default function SpendingScreen() {
 
   const s = spendingQ.data;
   const byId = new Map(categories.map(c => [c.id, c]));
-  const max = s ? Math.max(1, ...s.byCategory.map(c => c.cents)) : 1;
+  // Limits only apply to the whole picture, not to a single institution's slice.
+  const limits = institution ? [] : (limitsQ.data?.limits ?? []);
+  const limitByCategory = new Map(limits.filter(l => l.categoryId !== null).map(l => [l.categoryId, l]));
+  const shownLimits = s ? s.byCategory.flatMap(c => limitByCategory.get(c.categoryId) ?? []) : [];
+  const max = s ? Math.max(1, ...s.byCategory.map(c => c.cents), ...shownLimits.map(l => l.amountCents)) : 1;
+  const nameOf = (categoryId: number | null) => (categoryId === null ? WHOLE_MONTH_LABEL : (byId.get(categoryId)?.name ?? 'Unknown'));
+  const warnings = limits.filter(l => l.level !== 'ok').sort((a, b) => b.percent - a.percent);
   const drill = (id: number | null) =>
     router.push(
       `/category/${id ?? 'none'}?month=${month}${institution ? `&institution=${encodeURIComponent(institution)}` : ''}` as never,
@@ -95,6 +102,10 @@ export default function SpendingScreen() {
             <CrayonUnderline width={150} color={accents.orange} />
             <MoreLessNote month={month} totalCents={s.totalCents} prevTotalCents={s.prevTotalCents} />
           </View>
+
+          {warnings.map(l => (
+            <AppText key={l.id}>{limitMessage(nameOf(l.categoryId), l.percent)}</AppText>
+          ))}
 
           {s.byInstitution.length > 0 ? (
             <AppText tone="muted">
@@ -125,6 +136,7 @@ export default function SpendingScreen() {
             <Card style={{ gap: 12 }}>
               {s.byCategory.map(c => {
                 const cat = c.categoryId === null ? undefined : byId.get(c.categoryId);
+                const limit = limitByCategory.get(c.categoryId);
                 return (
                   <CategoryBar
                     key={c.categoryId ?? 'none'}
@@ -133,6 +145,7 @@ export default function SpendingScreen() {
                     name={c.categoryId === null ? 'Uncategorised' : (cat?.name ?? 'Unknown')}
                     cents={c.cents}
                     fraction={c.cents / max}
+                    limitFraction={limit ? limit.amountCents / max : undefined}
                     onPress={() => drill(c.categoryId)}
                   />
                 );

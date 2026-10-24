@@ -1,11 +1,13 @@
-import { isStale } from '@curly/core';
+import { isManualStale, isStale, sydneyDate } from '@curly/core';
 import { Hono } from 'hono';
 import type { Deps } from '../app';
+import { makeManualRepo } from '../db/manual';
 import { makeRepo, type AccountSettingsPatch } from '../db/repo';
-import { parseId } from './http';
+import { isObject, parseId, readJson } from './http';
 
 const BOOLS = ['countsSpending', 'countsNetWorth', 'isOffset'] as const;
 const PROJECTIONS = ['off', 'etf', 'mortgage'];
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 function parsePatch(body: unknown): AccountSettingsPatch | null {
@@ -34,17 +36,54 @@ function parsePatch(body: unknown): AccountSettingsPatch | null {
   return out as AccountSettingsPatch;
 }
 
+type ManualValueInput = { valueCents: number; asOf: string };
+
+function parseValue(body: Record<string, unknown>, today: string): ManualValueInput | null {
+  const { valueCents, asOf } = body;
+  if (typeof valueCents !== 'number' || !Number.isSafeInteger(valueCents) || Math.abs(valueCents) > 1e12) return null;
+  if (typeof asOf !== 'string' || !ISO_DATE.test(asOf) || asOf > today) return null;
+  // Rejects dates like 2026-02-30 that the pattern allows but the calendar does not.
+  if (new Date(`${asOf}T00:00:00Z`).toISOString().slice(0, 10) !== asOf) return null;
+  return { valueCents, asOf };
+}
+
 export function accountRoutes(deps: Deps) {
   const r = new Hono();
   const repo = makeRepo(deps.db);
+  const manual = makeManualRepo(deps.db);
 
   r.get('/accounts', async (c) => {
     const [accounts, last] = await Promise.all([repo.listAccounts(), repo.lastSuccessfulSync()]);
-    const stale = isStale(last?.finishedAt ?? null, deps.now());
+    const now = deps.now();
+    const today = sydneyDate(now);
+    const globalStale = isStale(last?.finishedAt ?? null, now);
     return c.json({
-      accounts: accounts.map((a) => ({ ...a, stale: a.source === 'pocketsmith' && stale })),
+      accounts: accounts.map((a) => ({
+        ...a,
+        stale:
+          (a.source === 'pocketsmith' && globalStale) ||
+          (a.source === 'coinspot' && isStale(a.syncedAt === null ? null : new Date(a.syncedAt), now)),
+        needsUpdate: a.source === 'manual' && isManualStale(a.balanceDate, today),
+      })),
       lastSuccessAt: last ? last.finishedAt.toISOString() : null,
     });
+  });
+
+  r.post('/accounts/manual', async (c) => {
+    const body = await readJson(c);
+    const v = isObject(body) ? parseValue(body, sydneyDate(deps.now())) : null;
+    const { name, icon } = isObject(body) ? body : ({} as Record<string, unknown>);
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+    const cleanIcon = typeof icon === 'string' ? icon.trim() : icon;
+    if (
+      !v ||
+      cleanName.length < 1 ||
+      cleanName.length > 60 ||
+      !(cleanIcon === null || (typeof cleanIcon === 'string' && cleanIcon.length >= 1 && cleanIcon.length <= 8))
+    ) {
+      return c.json({ error: 'bad_manual' }, 400);
+    }
+    return c.json(await manual.create({ name: cleanName, icon: cleanIcon, ...v }), 201);
   });
 
   r.put('/accounts/order', async (c) => {
@@ -76,6 +115,44 @@ export function accountRoutes(deps: Deps) {
     const updated = await repo.updateAccountSettings(id, patch);
     if (!updated) return c.json({ error: 'account_not_found' }, 404);
     return c.json(updated);
+  });
+
+  r.put('/accounts/:id/value', async (c) => {
+    const id = parseId(c.req.param('id'));
+    if (id === null) return c.json({ error: 'bad_id' }, 400);
+    const body = await readJson(c);
+    const v = isObject(body) ? parseValue(body, sydneyDate(deps.now())) : null;
+    if (!v) return c.json({ error: 'bad_manual' }, 400);
+    const account = await repo.getAccount(id);
+    if (!account) return c.json({ error: 'account_not_found' }, 404);
+    if (account.source !== 'manual') return c.json({ error: 'not_manual' }, 400);
+    const updated = await manual.setValue(id, v.valueCents, v.asOf);
+    if (!updated) return c.json({ error: 'account_not_found' }, 404);
+    return c.json(updated);
+  });
+
+  r.get('/accounts/:id/values', async (c) => {
+    const id = parseId(c.req.param('id'));
+    if (id === null) return c.json({ error: 'bad_id' }, 400);
+    if (!(await repo.getAccount(id))) return c.json({ error: 'account_not_found' }, 404);
+    return c.json({ values: await manual.values(id) });
+  });
+
+  r.get('/accounts/:id/holdings', async (c) => {
+    const id = parseId(c.req.param('id'));
+    if (id === null) return c.json({ error: 'bad_id' }, 400);
+    if (!(await repo.getAccount(id))) return c.json({ error: 'account_not_found' }, 404);
+    return c.json({ holdings: await manual.holdings(id) });
+  });
+
+  r.delete('/accounts/:id', async (c) => {
+    const id = parseId(c.req.param('id'));
+    if (id === null) return c.json({ error: 'bad_id' }, 400);
+    const account = await repo.getAccount(id);
+    if (!account) return c.json({ error: 'account_not_found' }, 404);
+    if (account.source !== 'manual') return c.json({ error: 'not_manual' }, 400);
+    await manual.remove(id);
+    return c.body(null, 204);
   });
 
   r.get('/accounts/:id/transactions', async (c) => {

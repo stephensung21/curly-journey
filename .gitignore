@@ -6,3 +6,6 @@ node_modules/
 .env
 .env.*
 *.local
+
+# Firebase config (EAS file variable)
+apps/mobile/google-services.json

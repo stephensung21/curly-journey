@@ -22,7 +22,7 @@ export type AccountDto = {
   institution: string;
   name: string;
   displayName: string | null;
-  source: 'pocketsmith' | 'manual';
+  source: 'pocketsmith' | 'manual' | 'coinspot';
   kind: AccountKind;
   balanceCents: Cents;
   balanceDate: string | null;
@@ -32,6 +32,8 @@ export type AccountDto = {
   isOffset: boolean;
   icon: string | null;
   sortOrder: number | null;
+  /** ISO 8601 UTC: when a CoinSpot account last synced; null for other sources. */
+  syncedAt: string | null;
 };
 
 export type TransactionDto = {
@@ -217,12 +219,13 @@ const CHUNK = 100;
 const BULK_CHUNK = 1000;
 
 // Dates are cast to text in SQL and bigints to numbers here, so PGlite and Neon return identical shapes.
-const ACCOUNT_COLS = `id, source, institution, name, display_name, kind, balance_cents::text as balance_cents,
-  to_char(balance_date, 'YYYY-MM-DD') as balance_date, counts_spending, counts_net_worth, projections, is_offset, icon, sort_order`;
+export const ACCOUNT_COLS = `id, source, institution, name, display_name, kind, balance_cents::text as balance_cents,
+  to_char(balance_date, 'YYYY-MM-DD') as balance_date, counts_spending, counts_net_worth, projections, is_offset, icon, sort_order,
+  to_char(synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as synced_at`;
 
-type AccountSql = {
+export type AccountSql = {
   id: number;
-  source: 'pocketsmith' | 'manual';
+  source: 'pocketsmith' | 'manual' | 'coinspot';
   institution: string;
   name: string;
   display_name: string | null;
@@ -235,9 +238,10 @@ type AccountSql = {
   is_offset: boolean;
   icon: string | null;
   sort_order: number | null;
+  synced_at: string | null;
 };
 
-const toAccountDto = (r: AccountSql): AccountDto => ({
+export const toAccountDto = (r: AccountSql): AccountDto => ({
   id: Number(r.id),
   source: r.source,
   institution: r.institution,
@@ -252,6 +256,7 @@ const toAccountDto = (r: AccountSql): AccountDto => ({
   isOffset: r.is_offset,
   icon: r.icon,
   sortOrder: r.sort_order === null ? null : Number(r.sort_order),
+  syncedAt: r.synced_at,
 });
 
 type TransactionSql = {
@@ -693,7 +698,24 @@ export function makeRepo(db: Db): Repo {
         sets.push(`note = $${params.length}::text`);
       }
       if (sets.length) {
-        const done = await db.query(`update transaction set ${sets.join(', ')} where id = $1 returning id`, params);
+        // One statement. A flow edit on a paired row also frees the partner (keeping its flow if the owner set it) and
+        // marks it uncategorised so the next pipeline run re-detects it. The CTE reads the pair_id from before the update.
+        const unpair = patch.flow !== undefined
+          ? `, freed as (
+               update transaction p set
+                 flow = case when p.flow_source = 'user' then p.flow else 'normal' end,
+                 flow_source = case when p.flow_source = 'user' then p.flow_source else 'auto' end,
+                 pair_id = null,
+                 categorised = case when p.flow_source = 'user' then p.categorised else false end
+               from old where p.id = old.pair_id
+             )`
+          : '';
+        const done = await db.query(
+          `with old as (select pair_id from transaction where id = $1 and pair_id is not null)${unpair},
+           upd as (update transaction set ${sets.join(', ')} where id = $1 returning id)
+           select id from upd`,
+          params,
+        );
         if (!done.length) return null;
       }
       return this.getTransaction(id);

@@ -7,6 +7,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useConnection } from '../src/api/hooks';
+import { reregisterQuietly } from '../src/notifications/register';
+import { useNotificationRouting } from '../src/notifications/useNotificationRouting';
 import { QueryProvider } from '../src/api/QueryProvider';
 import { LockGate } from '../src/lock/LockGate';
 import { navTheme, statusBarStyle } from '../src/theme/chrome';
@@ -18,6 +20,10 @@ SplashScreen.preventAutoHideAsync();
 
 function AppStack() {
   const { conn, loading } = useConnection();
+  useNotificationRouting(!loading && !!conn);
+  useEffect(() => {
+    if (conn) void reregisterQuietly(conn);
+  }, [conn]);
   if (loading) return null;
   return (
     <>
@@ -25,6 +31,7 @@ function AppStack() {
         <Stack.Protected guard={!!conn}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="settings" options={{ headerShown: false }} />
+          <Stack.Screen name="account/new" options={{ headerShown: false }} />
           <Stack.Screen name="account/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="account/[id]/settings" options={{ headerShown: false }} />
           <Stack.Screen name="transaction/[id]" options={{ headerShown: false }} />
@@ -32,6 +39,10 @@ function AppStack() {
           <Stack.Screen name="inbox" options={{ headerShown: false }} />
           <Stack.Screen name="rules" options={{ headerShown: false }} />
           <Stack.Screen name="import" options={{ headerShown: false }} />
+          <Stack.Screen name="limits" options={{ headerShown: false }} />
+          <Stack.Screen name="notifications" options={{ headerShown: false }} />
+          <Stack.Screen name="calendar" options={{ headerShown: false }} />
+          <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="design-system" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Protected guard={!conn}>

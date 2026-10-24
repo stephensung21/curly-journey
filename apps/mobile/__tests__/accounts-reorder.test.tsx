@@ -5,7 +5,7 @@ import * as hooks from '../src/api/hooks';
 import { moveItem } from '../src/lib/moveItem';
 import { useSettings } from '../src/settings/store';
 
-jest.mock('expo-router', () => ({ Link: ({ children }: { children: unknown }) => children }));
+jest.mock('expo-router', () => ({ Link: ({ children }: { children: unknown }) => children, useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('../src/lib/now', () => ({ now: () => new Date('2026-10-22T02:00:00Z') }));
 jest.mock('../src/api/hooks');
 
@@ -19,7 +19,7 @@ const reorder = jest.fn();
 
 beforeEach(() => {
   jest.clearAllMocks();
-  useSettings.setState({ hideBalances: false, homeChart: 'sixMonths' });
+  useSettings.setState({ hideBalances: false, homeChart: 'sixMonths', bankOrder: [] });
   const accounts = [
     acct(1, 'Up', 'Up spend'),
     acct(2, 'CommBank', 'Everyday'),
@@ -30,6 +30,9 @@ beforeEach(() => {
   (mocked.useSyncStatus as jest.Mock).mockReturnValue({ data: { lastSuccessAt: null, lastStatus: 'ok', stale: false }, refetch: jest.fn() });
   (mocked.useSyncNow as jest.Mock).mockReturnValue({ mutateAsync: jest.fn() });
   (mocked.useSpending as jest.Mock).mockReturnValue({ data: { totalCents: 0 } });
+  (mocked.useLimits as jest.Mock).mockReturnValue({ data: { limits: [] } });
+  (mocked.useOccurrences as jest.Mock).mockReturnValue({ data: { events: [], occurrences: [] } });
+  (mocked.useCategories as jest.Mock).mockReturnValue({ data: [] });
   (mocked.useInOut as jest.Mock).mockReturnValue({ data: [] });
   (mocked.useDaily as jest.Mock).mockReturnValue({ data: [] });
   (mocked.useReorderAccounts as jest.Mock).mockReturnValue({ mutate: reorder });
@@ -89,4 +92,31 @@ it('moving a row down then back up counts as no change', async () => {
   await fireEvent.press(screen.getAllByLabelText('Move up')[0]!);
   await fireEvent.press(screen.getByText('Done'));
   expect(reorder).not.toHaveBeenCalled();
+});
+
+describe('bank order', () => {
+  it('Move bank up on the second group swaps the first two and saves the full order', async () => {
+    await renderScreen(<AccountsScreen />);
+    await fireEvent.press(screen.getByText('Edit order'));
+    // Order: CommBank, Amex, Up.
+    await fireEvent.press(screen.getAllByLabelText('Move bank up')[0]!);
+    expect(useSettings.getState().bankOrder).toEqual(['Amex', 'CommBank', 'Up']);
+    expect(screen.getAllByLabelText('Move bank up')).toHaveLength(2);
+    expect(screen.getAllByLabelText('Move bank down')).toHaveLength(2);
+  });
+
+  it('hides up on the first group and down on the last', async () => {
+    await renderScreen(<AccountsScreen />);
+    await fireEvent.press(screen.getByText('Edit order'));
+    expect(screen.getAllByLabelText('Move bank up').map(n => n.props.accessibilityHint)).toEqual(['Amex', 'Up']);
+    expect(screen.getAllByLabelText('Move bank down').map(n => n.props.accessibilityHint)).toEqual(['CommBank', 'Amex']);
+  });
+
+  it('moving a bank alone makes no account reorder request', async () => {
+    await renderScreen(<AccountsScreen />);
+    await fireEvent.press(screen.getByText('Edit order'));
+    await fireEvent.press(screen.getAllByLabelText('Move bank down')[0]!);
+    await fireEvent.press(screen.getByText('Done'));
+    expect(reorder).not.toHaveBeenCalled();
+  });
 });

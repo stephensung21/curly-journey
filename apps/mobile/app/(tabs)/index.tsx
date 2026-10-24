@@ -1,12 +1,15 @@
-import { monthKey } from '@curly/core';
+import { institutionGroup, limitMessage, monthKey, WHOLE_MONTH_LABEL } from '@curly/core';
+import { useRouter } from 'expo-router';
 import { useCallback, useRef, useState, type ReactElement } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, View } from 'react-native';
-import { useAccounts, useDaily, useInOut, useReorderAccounts, useSpending, useSyncNow, useSyncStatus } from '../../src/api/hooks';
+import { useAccounts, useCategories, useDaily, useInOut, useLimits, useReorderAccounts, useSpending, useSyncNow, useSyncStatus } from '../../src/api/hooks';
 import type { Account } from '../../src/api/types';
 import { AccountRow, kindColor, kindEmoji } from '../../src/components/AccountRow';
+import { BankLogo } from '../../src/components/BankLogo';
 import { Amount } from '../../src/components/Amount';
 import { AppText } from '../../src/components/AppText';
 import { Card } from '../../src/components/Card';
+import { Chip } from '../../src/components/Chip';
 import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
 import { SunDoodle } from '../../src/components/doodles/SunDoodle';
 import { HeroCard } from '../../src/components/HeroCard';
@@ -16,25 +19,32 @@ import { IconTile } from '../../src/components/IconTile';
 import { Screen } from '../../src/components/Screen';
 import { SortableList } from '../../src/components/SortableList';
 import { SyncBanner } from '../../src/components/SyncBanner';
+import { UpcomingEvents } from '../../src/components/UpcomingEvents';
 import { moveItem } from '../../src/lib/moveItem';
 import { now } from '../../src/lib/now';
 import { useSettings } from '../../src/settings/store';
 import { useTheme } from '../../src/theme/useTheme';
 
-const ORDER = ['CommBank', 'Amex', 'Up', 'CommSec'];
+const ORDER = ['CommBank', 'Amex', 'Up', 'CommSec', 'CoinSpot', 'Manual'];
 
-function groupAccounts(accounts: Account[]): [string, Account[]][] {
+/** Saved bank order first, then the fixed ORDER (by bank group, so "American Express" ranks as Amex), then A to Z. */
+function groupAccounts(accounts: Account[], bankOrder: string[] = []): [string, Account[]][] {
   const map = new Map<string, Account[]>();
   for (const a of accounts) map.set(a.institution, [...(map.get(a.institution) ?? []), a]);
-  const rank = (n: string) => (ORDER.includes(n) ? ORDER.indexOf(n) : ORDER.length);
-  return [...map.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b));
+  const saved = (n: string) => (bankOrder.includes(n) ? bankOrder.indexOf(n) : bankOrder.length);
+  const rank = (n: string) => (ORDER.includes(institutionGroup(n)) ? ORDER.indexOf(institutionGroup(n)) : ORDER.length);
+  return [...map.entries()].sort(([a], [b]) => saved(a) - saved(b) || rank(a) - rank(b) || a.localeCompare(b));
 }
 
 const ROW_HEIGHT = 52;
 
-function ReorderRow({ account, handle, onUp, onDown }: { account: Account; handle: ReactElement; onUp?: () => void; onDown?: () => void }) {
+function useArrowStyle() {
   const t = useTheme();
-  const arrow = { width: 32, height: 32, borderRadius: 16, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' } as const;
+  return { width: 32, height: 32, borderRadius: 16, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' } as const;
+}
+
+function ReorderRow({ account, handle, onUp, onDown }: { account: Account; handle: ReactElement; onUp?: () => void; onDown?: () => void }) {
+  const arrow = useArrowStyle();
   return (
     <View style={{ height: ROW_HEIGHT, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
       {handle}
@@ -70,7 +80,13 @@ export default function AccountsScreen() {
   const month = monthKey(now());
   const homeChart = useSettings(s => s.homeChart);
   const hideBalances = useSettings(s => s.hideBalances);
+  const bankOrder = useSettings(s => s.bankOrder);
+  const setBankOrder = useSettings(s => s.setBankOrder);
+  const arrow = useArrowStyle();
+  const router = useRouter();
   const spendingQ = useSpending({ month });
+  const limits = useLimits(month).data?.limits ?? [];
+  const categoryNames = new Map((useCategories().data ?? []).map(c => [c.id, c.name]));
   const inOutQ = useInOut(month, 6);
   const dailyQ = useDaily(month);
   const accountsQ = useAccounts();
@@ -114,19 +130,34 @@ export default function AccountsScreen() {
           : `${firstStale.institution} hasn't updated recently`
         : null;
 
-  const shown = draft ?? groupAccounts(accounts);
+  const warned = limits.filter(l => l.level !== 'ok').sort((a, b) => b.percent - a.percent);
+  const top = warned[0];
+  const chipText = top
+    ? limitMessage(top.categoryId === null ? WHOLE_MONTH_LABEL : (categoryNames.get(top.categoryId) ?? 'A category'), top.percent) +
+      (warned.length > 1 ? ` · +${warned.length - 1} more` : '')
+    : null;
+
+  const shown = draft ?? groupAccounts(accounts, bankOrder);
   const idsOf = (groups: [string, Account[]][]) => groups.flatMap(([, rows]) => rows.map(a => a.id));
-  const startEditing = () => setDraft(groupAccounts(accounts));
+  const startEditing = () => setDraft(groupAccounts(accounts, bankOrder));
   const finishEditing = () => {
     if (draft) {
       const ids = idsOf(draft);
-      const before = idsOf(groupAccounts(accounts));
+      // Compare in the draft's bank order: moving a whole bank is saved on its own, not as an account reorder.
+      const before = idsOf(draft.map(([name]) => groupAccounts(accounts).find(([n]) => n === name)!));
       if (ids.some((id, i) => id !== before[i])) reorder.mutate(ids);
     }
     setDraft(null);
   };
   const setGroup = (institution: string, rows: Account[]) =>
     setDraft(d => (d ? d.map(([name, old]) => (name === institution ? [name, rows] : [name, old])) : d));
+
+  const moveBank = (from: number, to: number) => {
+    if (!draft) return;
+    const next = moveItem(draft, from, to);
+    setDraft(next);
+    setBankOrder(next.map(([name]) => name));
+  };
 
   return (
     <Screen testID="accounts-scroll" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
@@ -162,6 +193,11 @@ export default function AccountsScreen() {
         </AppText>
         <Amount cents={spendingQ.data?.totalCents ?? 0} variant="hero" tone="onAccent" />
         <CrayonUnderline width={150} color={t.inkOnAccent} />
+        {chipText ? (
+          <View style={{ marginTop: 8, alignItems: 'flex-start' }}>
+            <Chip label={chipText} onPress={() => router.push('/limits')} />
+          </View>
+        ) : null}
         <View style={{ marginTop: 10 }}>
           {homeChart === 'sixMonths' ? (
             <InOutChart mode="sixMonths" data={inOutQ.data ?? []} hideBalances={hideBalances} onHero />
@@ -170,16 +206,30 @@ export default function AccountsScreen() {
           )}
         </View>
       </HeroCard>
+      <UpcomingEvents />
       {accounts.length === 0 && !accountsQ.isLoading ? (
         <AppText tone="muted">No accounts yet. Connect PocketSmith in the backend, then pull to refresh.</AppText>
       ) : null}
-      {shown.map(([institution, rows]) => (
+      {shown.map(([institution, rows], groupIndex) => (
         <Card key={institution}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <AppText variant="label" tone="muted">
-              {institution}
-            </AppText>
-            <OpenBankAppLink institution={institution} />
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <BankLogo institution={institution} />
+              <AppText variant="label" tone="muted">
+                {institution}
+              </AppText>
+              <OpenBankAppLink institution={institution} />
+            </View>
+            {draft && groupIndex > 0 ? (
+              <Pressable accessibilityRole="button" accessibilityLabel="Move bank up" accessibilityHint={institution} onPress={() => moveBank(groupIndex, groupIndex - 1)} hitSlop={4} style={arrow}>
+                <AppText>↑</AppText>
+              </Pressable>
+            ) : null}
+            {draft && groupIndex < shown.length - 1 ? (
+              <Pressable accessibilityRole="button" accessibilityLabel="Move bank down" accessibilityHint={institution} onPress={() => moveBank(groupIndex, groupIndex + 1)} hitSlop={4} style={arrow}>
+                <AppText>↓</AppText>
+              </Pressable>
+            ) : null}
           </View>
           {draft ? (
             <SortableList
@@ -200,6 +250,15 @@ export default function AccountsScreen() {
           )}
         </Card>
       ))}
+      {draft ? null : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/account/new')}
+          style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.inkMuted, borderRadius: 14, padding: 12, alignItems: 'center' }}
+        >
+          <AppText tone="muted">+ Add super or home value</AppText>
+        </Pressable>
+      )}
     </Screen>
   );
 }

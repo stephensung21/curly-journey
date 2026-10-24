@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PsTransaction, PsTransactionAccount } from '@curly/core';
 import { createApp } from '../src/app';
 import { makeRepo } from '../src/db/repo';
+import { CoinSpotError, coinSpotClient } from '../src/coinspot/client';
 import { PocketSmithError, type TransactionQuery } from '../src/pocketsmith';
 import { runSync, syncDue } from '../src/sync/runSync';
 import { fakePocketSmith, pgliteDb, seedToken } from './helpers';
@@ -384,5 +385,74 @@ describe('runSync', () => {
     expect(s2.stale).toBe(false);
     expect(s2.lastStatus).toBe('ok');
     expect(s2.lastSuccessAt).toBe(T0.toISOString());
+  });
+
+  describe('CoinSpot feed', () => {
+    const holdings = [
+      { symbol: 'BTC', units: '0.5', audCents: 3000012 },
+      { symbol: 'AUD', units: '12.5', audCents: 1250 },
+    ];
+    const coinRows = (db: Awaited<ReturnType<typeof pgliteDb>>) =>
+      db.query<{ id: number; balance_cents: string }>(`select id, balance_cents::text from account where source = 'coinspot'`);
+
+    it('creates the CoinSpot account with its holdings, within budget', async () => {
+      const ps = fakePocketSmith({ accounts: [acct(1, 10)] });
+      const { db } = await setup(ps);
+      let dbCalls = 0;
+      let coinCalls = 0;
+      const counting = { query: (t: string, p?: unknown[]) => { dbCalls++; return db.query(t, p); } } as typeof db;
+      const coinspot = { balances: async () => { coinCalls++; return holdings; } };
+      const r = await runSync({ db: counting, pocketsmith: ps, coinspot, now: () => T0 });
+      expect(r.status).toBe('ok');
+      expect(dbCalls + coinCalls + ps.calls.length).toBeLessThanOrEqual(45);
+      const rows = await coinRows(db);
+      expect(rows).toHaveLength(1);
+      expect(Number(rows[0]!.balance_cents)).toBe(3001262);
+      const h = await db.query(`select symbol from account_holding where account_id = $1`, [rows[0]!.id]);
+      expect(h).toHaveLength(2);
+      // A second run replaces rather than duplicates.
+      await runSync({ db, pocketsmith: ps, coinspot, now: () => new Date('2026-10-23T05:00:00Z') });
+      expect(await db.query(`select 1 from account_holding`)).toHaveLength(2);
+    });
+
+    it('a failing CoinSpot client never breaks the sync and never logs the key', async () => {
+      const ps = fakePocketSmith({ accounts: [acct(1, 10)] });
+      const { db } = await setup(ps);
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const coinspot = { balances: async () => { throw new CoinSpotError(401); } };
+      const r = await runSync({ db, pocketsmith: ps, coinspot, now: () => T0 });
+      expect(r.status).toBe('ok');
+      expect(r.accounts).toBe(1);
+      expect(spy).toHaveBeenCalledWith('coinspot failed', 401);
+      spy.mockRestore();
+      expect(await coinRows(db)).toHaveLength(0);
+    });
+
+    it('a CoinSpot timeout abort never breaks the sync and logs no message text', async () => {
+      const ps = fakePocketSmith({ accounts: [acct(1, 10)] });
+      const { db } = await setup(ps);
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const hang = (async () => { throw new DOMException('secret-ish text', 'AbortError'); }) as unknown as typeof fetch;
+      const r = await runSync({ db, pocketsmith: ps, coinspot: coinSpotClient('k', 's', hang), now: () => T0 });
+      expect(r.status).toBe('ok');
+      expect(spy).toHaveBeenCalledWith('coinspot failed', 'error');
+      spy.mockRestore();
+      expect(await coinRows(db)).toHaveLength(0);
+    });
+
+    it('no client means no CoinSpot account', async () => {
+      const { db, deps } = await setup();
+      await runSync(deps);
+      expect(await coinRows(db)).toHaveLength(0);
+    });
+
+    it('skips CoinSpot when fewer than 5 calls are left', async () => {
+      const ps = fakePocketSmith({ accounts: [acct(1, 10)] });
+      const { db } = await setup(ps);
+      let called = false;
+      const coinspot = { balances: async () => { called = true; return holdings; } };
+      await runSync({ db, pocketsmith: ps, coinspot, now: () => T0 }, { maxCalls: 8 });
+      expect(called).toBe(false);
+    });
   });
 });

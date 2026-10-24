@@ -78,3 +78,9 @@ describe('isStale', () => {
     expect(isStale(new Date(now.getTime() - STALE_AFTER_MS - 1), now)).toBe(true);
   });
 });
+
+describe('defaultCounts crypto', () => {
+  it('counts net worth only', () => {
+    expect(defaultCounts('crypto')).toEqual({ countsSpending: false, countsNetWorth: true, projections: 'off' });
+  });
+});

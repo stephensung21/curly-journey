@@ -2,22 +2,33 @@ import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey 
 import { useCallback, useEffect } from 'react';
 import { ApiError, apiFetch } from './client';
 import { clearConnection, loadConnection, saveConnection } from './connection';
+import { registerForPush } from '../notifications/register';
 import { useConnectionStore } from './connectionStore';
 import type {
   Account,
   AccountSettings,
+  AccountValue,
   AccountsResponse,
   CategorisationStats,
   Category,
   Connection,
   DailyPoint,
+  Holding,
   ImportBody,
   ImportCommit,
   ImportPreview,
   InboxResponse,
   InOutMonth,
+  Limit,
+  LimitPatch,
+  NewLimit,
+  NotificationPrefs,
   NewCategory,
   NewRule,
+  Occurrence,
+  CalendarEventDef,
+  OccurrencesResponse,
+  OccurrenceStatus,
   Rule,
   RulePreviewParams,
   SpendingQuery,
@@ -187,7 +198,7 @@ function qs(params: Record<string, string | number | undefined>): string {
 /** Anything the owner changes can move spending totals, the inbox and the charts. */
 function invalidateSpending(qc: QueryClient) {
   return Promise.all(
-    ['transactions', 'transaction', 'spending', 'inbox', 'inout', 'daily'].map(k => qc.invalidateQueries({ queryKey: [k] })),
+    ['transactions', 'transaction', 'spending', 'inbox', 'inout', 'daily', 'limits'].map(k => qc.invalidateQueries({ queryKey: [k] })),
   );
 }
 
@@ -354,4 +365,181 @@ export function useCategorisationStats() {
     enabled: !!conn.url,
     queryFn: () => apiFetch<CategorisationStats>(conn, '/stats/categorisation'),
   });
+}
+
+export function useLimits(month: string) {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['limits', month],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<{ limits: Limit[] }>(conn, `/limits${qs({ month })}`),
+  });
+}
+
+export function useCreateLimit() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: NewLimit) => apiFetch<Limit>(conn, '/limits', { method: 'POST', body: JSON.stringify(body) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['limits'] }),
+  });
+}
+
+export function useUpdateLimit() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: LimitPatch & { id: number }) =>
+      apiFetch<Limit>(conn, `/limits/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['limits'] }),
+  });
+}
+
+export function useDeleteLimit() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(conn, `/limits/${id}`, { method: 'DELETE' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['limits'] }),
+  });
+}
+
+export function useOccurrences(from: string, to: string) {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['occurrences', from, to],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<OccurrencesResponse>(conn, `/events/occurrences${qs({ from, to })}`),
+  });
+}
+
+export function useSetOccurrence() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, date, status }: { eventId: number; date: string; status: OccurrenceStatus | null }) =>
+      apiFetch<unknown>(conn, `/events/${eventId}/occurrences/${date}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['occurrences'] }),
+  });
+}
+
+export type EventBody = Omit<CalendarEventDef, 'id'>;
+
+export function useEvents() {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['events'],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<{ events: CalendarEventDef[] }>(conn, '/events'),
+  });
+}
+
+function invalidateEvents(qc: QueryClient) {
+  return Promise.all([qc.invalidateQueries({ queryKey: ['occurrences'] }), qc.invalidateQueries({ queryKey: ['events'] })]);
+}
+
+export function useCreateEvent() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: EventBody) => apiFetch<CalendarEventDef>(conn, '/events', { method: 'POST', body: JSON.stringify(body) }),
+    onSettled: () => invalidateEvents(qc),
+  });
+}
+
+export function useUpdateEvent() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: Partial<EventBody> & { id: number }) =>
+      apiFetch<CalendarEventDef>(conn, `/events/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    onSettled: () => invalidateEvents(qc),
+  });
+}
+
+export function useDeleteEvent() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(conn, `/events/${id}`, { method: 'DELETE' }),
+    onSettled: () => invalidateEvents(qc),
+  });
+}
+
+export type ManualAccountBody = { name: string; icon: string | null; valueCents: number; asOf: string };
+
+export function useCreateManualAccount() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ManualAccountBody) => apiFetch<Account>(conn, '/accounts/manual', { method: 'POST', body: JSON.stringify(body) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
+  });
+}
+
+export function useSetAccountValue() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; valueCents: number; asOf: string }) =>
+      apiFetch<Account>(conn, `/accounts/${id}/value`, { method: 'PUT', body: JSON.stringify(body) }),
+    onSettled: (_d, _e, { id }) =>
+      Promise.all([qc.invalidateQueries({ queryKey: ['accounts'] }), qc.invalidateQueries({ queryKey: ['accountValues', id] })]),
+  });
+}
+
+export function useAccountValues(id: number, enabled = true) {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['accountValues', id],
+    enabled: !!conn.url && enabled,
+    queryFn: () => apiFetch<{ values: AccountValue[] }>(conn, `/accounts/${id}/values`),
+  });
+}
+
+export function useHoldings(id: number, enabled = true) {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['holdings', id],
+    enabled: !!conn.url && enabled,
+    queryFn: () => apiFetch<{ holdings: Holding[] }>(conn, `/accounts/${id}/holdings`),
+  });
+}
+
+export function useDeleteAccount() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(conn, `/accounts/${id}`, { method: 'DELETE' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['accounts'] }),
+  });
+}
+
+export function useNotificationPrefs() {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['notificationPrefs'],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<NotificationPrefs>(conn, '/notifications/prefs'),
+  });
+}
+
+export function useSetNotificationPrefs() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<NotificationPrefs>) =>
+      apiFetch<NotificationPrefs>(conn, '/notifications/prefs', { method: 'PUT', body: JSON.stringify(patch) }),
+    onSuccess: prefs => qc.setQueryData(['notificationPrefs'], prefs),
+  });
+}
+
+export function useRegisterDevice() {
+  const conn = useConn();
+  return useMutation({ mutationFn: () => registerForPush(conn) });
+}
+
+export function useTestNotification() {
+  const conn = useConn();
+  return useMutation({ mutationFn: () => apiFetch<{ sent: number }>(conn, '/notifications/test', { method: 'POST' }) });
 }
