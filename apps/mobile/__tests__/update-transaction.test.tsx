@@ -18,7 +18,8 @@ const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider 
 const query = { month: '2026-10' };
 
 beforeEach(() => {
-  qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  // gcTime Infinity: no 5-minute garbage-collection timers left to hold Jest open after the run.
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } } });
   useConnectionStore.setState({ conn: { url: 'http://x', token: 't' }, loading: false });
   (globalThis as unknown as { fetch: unknown }).fetch = jest.fn((_url: string, init?: RequestInit) => {
     if (init?.method === 'PATCH') return new Promise(r => (patchGate = { resolve: r }));
