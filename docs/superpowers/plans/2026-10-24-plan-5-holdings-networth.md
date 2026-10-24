@@ -71,10 +71,10 @@
   - `tradeFingerprint(t: Pick<ParsedTrade, 'date' | 'reference' | 'side' | 'symbol' | 'units' | 'priceMicros'>): string`
   - `grossCents(units: number, priceMicros: number): number`
   - `parsePriceToMicros(s: string): number` (throws `RangeError`)
-  - `type Holding = { symbol: string; units: number; costCents: number }`
-  - `holdingsFromTrades(trades: Pick<ParsedTrade, 'date' | 'side' | 'symbol' | 'units' | 'totalCents'>[]): Holding[]` — sorted by symbol, zero-unit holdings dropped; trades applied in date order, buys before sells on the same date
-  - `type ValuedHolding = Holding & { closeMicros: number | null; priceDate: string | null; valueCents: number; avgCostMicros: number; gainCents: number; gainBps: number }`
-  - `valueHoldings(h: Holding[], closes: Map<string, { closeMicros: number; date: string }>): ValuedHolding[]` — no close means `valueCents = costCents`, `gainCents = 0`
+  - `type EtfHolding = { symbol: string; units: number; costCents: number }`
+  - `holdingsFromTrades(trades: Pick<ParsedTrade, 'date' | 'side' | 'symbol' | 'units' | 'totalCents'>[]): EtfHolding[]` — sorted by symbol, zero-unit holdings dropped; trades applied in date order, buys before sells on the same date
+  - `type ValuedEtfHolding = EtfHolding & { closeMicros: number | null; priceDate: string | null; valueCents: number; avgCostMicros: number; gainCents: number; gainBps: number }`
+  - `valueHoldings(h: EtfHolding[], closes: Map<string, { closeMicros: number; date: string }>): ValuedEtfHolding[]` — no close means `valueCents = costCents`, `gainCents = 0`
   - `avgMonthlyInvestmentCents(trades, today: string): number` — Σ buy totals − Σ sell totals with `date > minusMonths(today, 12)`, ÷ 12, rounded (used by Plan 6)
 - Consumes: `parseCsvRecords`, `parseAuDate`, `parseDecimalToCents`, `SkippedRow` from `packages/core/src/import/*`; `minusMonths` from `dates.ts`.
 
@@ -166,7 +166,7 @@ Date,Reference,Details,Debit($),Credit($),Balance($)
 - `dismissHint(transactionId): Promise<void>`
 
 **Routes** (all under auth):
-- `GET /holdings` → `{ accountId: number | null; valueCents; costCents; gainCents; gainBps; priceDate: string | null; holdings: ValuedHolding[]; trades: TradeRow[] }` (empty and zeros when no account yet)
+- `GET /holdings` → `{ accountId: number | null; valueCents; costCents; gainCents; gainBps; priceDate: string | null; holdings: ValuedEtfHolding[]; trades: TradeRow[] }` (empty and zeros when no account yet)
 - `POST /holdings/import/preview` body `{ csv }` (2 MB cap and error codes as `imports.ts`) → `{ new: ParsedTrade[]; have: ParsedTrade[]; skipped: SkippedRow[]; ignored: number }`
 - `POST /holdings/import` body `{ csv }` → re-parses server-side, inserts only new, refreshes the CommSec balance from latest closes, → `{ imported: number }`
 - `POST /holdings/trades` body `{ date, side, symbol, units, price, brokerage }` (price/brokerage as decimal strings) → `201 { trade }`; fingerprint `manual:<uuid>` so manual trades never collide; 400 `bad_trade` on invalid input
@@ -227,10 +227,10 @@ Date,Reference,Details,Debit($),Credit($),Balance($)
 - Test: `apps/mobile/__tests__/holdings-hooks.test.tsx`
 
 **Interfaces:**
-- Types mirroring Task 3/4 responses: `HoldingsResponse`, `ValuedHolding`, `Trade`, `TradePreview`, `NetWorthResponse`, `NwLine`, `NwRange`; `Account` gains `growthBps: number | null`; `NotificationPrefs` gains `trade_hint`.
-- Hooks: `useHoldings()`, `useCommsecPreview()` (mutation), `useCommsecImport()`, `useAddTrade()`, `useDeleteTrade()`, `useDismissHint()`, `useNetWorth(range)`. Every trade mutation invalidates `['holdings']`, `['networth']`, `['accounts']`.
+- Types mirroring Task 3/4 responses: `CommsecResponse`, `ValuedEtfHolding`, `Trade`, `TradePreview`, `NetWorthResponse`, `NwLine`, `NwRange`; `Account` gains `growthBps: number | null`; `NotificationPrefs` gains `trade_hint`.
+- Hooks: `useCommsec()` (query key `['commsec']`; the name `useHoldings` and key `['holdings', id]` already belong to Plan 4's CoinSpot holdings), `useCommsecPreview()` (mutation), `useCommsecImport()`, `useAddTrade()`, `useDeleteTrade()`, `useDismissHint()`, `useNetWorth(range)`. Every trade mutation invalidates `['commsec']`, `['networth']`, `['accounts']`.
 
-- [ ] **Step 1: Write failing tests** (pattern of `update-transaction.test.tsx`, with `gcTime: Infinity` so Jest exits): import invalidates the three keys; `useNetWorth('1Y')` requests `/networth?range=1Y`.
+- [ ] **Step 1: Write failing tests** (pattern of `update-transaction.test.tsx`, with `gcTime: Infinity` so Jest exits): import invalidates `['commsec']`, `['networth']` and `['accounts']`; `useNetWorth('1Y')` requests `/networth?range=1Y`.
 - [ ] **Step 2: Run** `cd apps/mobile && NODE_OPTIONS=--max-old-space-size=2048 npx jest --ci -i --forceExit holdings-hooks`. Expected: FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** the same command and `cd apps/mobile && npx tsc --noEmit`. Expected: pass.
