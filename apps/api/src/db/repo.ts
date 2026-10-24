@@ -22,7 +22,7 @@ export type AccountDto = {
   institution: string;
   name: string;
   displayName: string | null;
-  source: 'pocketsmith' | 'manual' | 'coinspot';
+  source: 'pocketsmith' | 'manual' | 'coinspot' | 'commsec';
   kind: AccountKind;
   balanceCents: Cents;
   balanceDate: string | null;
@@ -225,7 +225,7 @@ export const ACCOUNT_COLS = `id, source, institution, name, display_name, kind, 
 
 export type AccountSql = {
   id: number;
-  source: 'pocketsmith' | 'manual' | 'coinspot';
+  source: 'pocketsmith' | 'manual' | 'coinspot' | 'commsec';
   institution: string;
   name: string;
   display_name: string | null;

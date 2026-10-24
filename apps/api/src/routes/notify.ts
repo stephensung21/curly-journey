@@ -5,7 +5,7 @@ import { makeNotifyRepo } from '../db/notify';
 import { isObject, readJson } from './http';
 
 const TOKEN = /^ExponentPushToken\[[A-Za-z0-9_-]+\]$/;
-const TYPES: NotificationType[] = ['limit', 'bill', 'paid_check', 'sync', 'stale'];
+const TYPES: NotificationType[] = ['limit', 'bill', 'paid_check', 'sync', 'stale', 'trade_hint'];
 
 export function notifyRoutes(deps: Deps) {
   const r = new Hono();

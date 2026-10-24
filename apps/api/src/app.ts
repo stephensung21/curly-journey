@@ -8,6 +8,7 @@ import { makeRepo } from './db/repo';
 import { accountRoutes } from './routes/accounts';
 import { categoryRoutes } from './routes/categories';
 import { eventRoutes } from './routes/events';
+import { holdingsRoutes } from './routes/holdings';
 import { importRoutes } from './routes/imports';
 import { limitRoutes } from './routes/limits';
 import { notifyRoutes } from './routes/notify';
@@ -24,6 +25,7 @@ export function createApp(deps: Deps) {
   app.use('*', bearerAuth(deps.db));
   app.route('/', accountRoutes(deps));
   app.route('/', importRoutes(deps));
+  app.route('/', holdingsRoutes(deps));
   app.route('/', syncRoutes(deps));
   app.route('/', categoryRoutes(deps));
   app.route('/', transactionRoutes(deps));
