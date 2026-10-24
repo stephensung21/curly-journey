@@ -99,6 +99,7 @@ export default function MoreScreen() {
       />
       <Group
         rows={[
+          { emoji: '💰', color: accents.lime, label: 'Net worth', href: '/networth' },
           {
             emoji: '📈', color: accents.lime, label: 'CommSec', href: '/commsec',
             ...(hasCommsec ? { sublineCents: commsec.valueCents } : { subline: 'Import your trades' }),

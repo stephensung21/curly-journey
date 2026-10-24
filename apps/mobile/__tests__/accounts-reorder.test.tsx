@@ -35,6 +35,7 @@ beforeEach(() => {
   (mocked.useCategories as jest.Mock).mockReturnValue({ data: [] });
   (mocked.useInOut as jest.Mock).mockReturnValue({ data: [] });
   (mocked.useDaily as jest.Mock).mockReturnValue({ data: [] });
+  (mocked.useNetWorth as jest.Mock).mockReturnValue({ data: undefined, isError: true });
   (mocked.useReorderAccounts as jest.Mock).mockReturnValue({ mutate: reorder });
 });
 

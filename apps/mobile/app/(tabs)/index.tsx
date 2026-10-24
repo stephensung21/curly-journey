@@ -14,6 +14,7 @@ import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
 import { SunDoodle } from '../../src/components/doodles/SunDoodle';
 import { HeroCard } from '../../src/components/HeroCard';
 import { InOutChart } from '../../src/components/InOutChart';
+import { NetWorthRow } from '../../src/components/NetWorthRow';
 import { OpenBankAppLink } from '../../src/components/OpenBankApp';
 import { IconTile } from '../../src/components/IconTile';
 import { Screen } from '../../src/components/Screen';
@@ -206,6 +207,7 @@ export default function AccountsScreen() {
           )}
         </View>
       </HeroCard>
+      <NetWorthRow />
       <UpcomingEvents />
       {accounts.length === 0 && !accountsQ.isLoading ? (
         <AppText tone="muted">No accounts yet. Connect PocketSmith in the backend, then pull to refresh.</AppText>

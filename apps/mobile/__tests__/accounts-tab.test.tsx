@@ -20,6 +20,7 @@ let accounts: object[];
 let status: object;
 let limits: object[];
 let occurrences: object;
+let netWorth: object;
 const refetchAccounts = jest.fn();
 const refetchStatus = jest.fn();
 const mutateAsync = jest.fn();
@@ -46,6 +47,8 @@ beforeEach(() => {
     });
     (mocked.useDaily as jest.Mock).mockReturnValue({ data: [{ day: 1, inCents: 0, mortgageCents: 0, spendingCents: 1000 }] });
   };
+  netWorth = { data: { totalCents: 31_840_000, ownCents: 0, oweCents: 0, own: [], owe: [], history: [], since: { fromDate: '2026-09-24', deltaCents: 620_000 } } };
+  (mocked.useNetWorth as jest.Mock).mockImplementation(() => netWorth);
   limits = [];
   occurrences = { events: [], occurrences: [] };
   (mocked.useLimits as jest.Mock).mockImplementation(() => ({ data: { limits } }));
@@ -103,9 +106,25 @@ it('shows offset subline and displayName', async () => {
 it('hides every balance when Hide balances is on', async () => {
   useSettings.setState({ hideBalances: true });
   await renderScreen(<AccountsScreen />);
-  // 5 accounts + hero total + 5 chart y labels
-  expect(screen.getAllByText('$•••')).toHaveLength(11);
+  // 5 accounts + hero total + 5 chart y labels + net worth row and since note
+  expect(screen.getAllByText('$•••')).toHaveLength(13);
   expect(screen.queryByText(/1,234/)).toBeNull();
+});
+
+it('shows the net worth row and opens it', async () => {
+  await renderScreen(<AccountsScreen />);
+  expect(screen.getByText('Net worth')).toBeTruthy();
+  expect(screen.getByText('$318,400')).toBeTruthy();
+  expect(screen.getByText(/up \$6,200 since Sep/)).toBeTruthy();
+  await fireEvent.press(screen.getByText('Net worth'));
+  expect(mockPush).toHaveBeenCalledWith('/networth');
+});
+
+it('hides the net worth row when the request fails', async () => {
+  netWorth = { data: undefined, isError: true };
+  await renderScreen(<AccountsScreen />);
+  expect(screen.queryByText('Net worth')).toBeNull();
+  expect(screen.getByText('Accounts')).toBeTruthy();
 });
 
 it('shows the empty state', async () => {
