@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, View } from 'react-native';
 import { useCommsec, useDeleteTrade, useDismissHint } from '../src/api/hooks';
 import type { Trade, ValuedEtfHolding } from '../src/api/types';
 import { AllocationBar } from '../src/components/AllocationBar';
@@ -95,14 +95,18 @@ export default function CommsecScreen() {
   const dismiss = useDismissHint();
   const del = useDeleteTrade();
   const [sheet, setSheet] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
   const data = q.data;
   const today = sydneyDate(now());
   const stale = !!data?.priceDate && data.priceDate < lastWeekday(today);
+  const hintId = Number(hint);
+  const showHint = !!hint && Number.isInteger(hintId) && hintId > 0;
   const empty = !data || data.accountId === null || (data.holdings.length === 0 && data.trades.length === 0);
 
   async function notATrade() {
     try {
-      await dismiss.mutateAsync(Number(hint));
+      await dismiss.mutateAsync(hintId);
       router.setParams({ hint: undefined });
     } catch {
       // leave the banner up so it can be tried again
@@ -110,10 +114,20 @@ export default function CommsecScreen() {
   }
 
   function confirmDelete(trade: Trade) {
+    setDeleteError(false);
     Alert.alert('Delete this trade?', undefined, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => void del.mutateAsync(trade.id).catch(() => {}) },
+      { text: 'Delete', style: 'destructive', onPress: () => void del.mutateAsync(trade.id).catch(() => setDeleteError(true)) },
     ]);
+  }
+
+  async function onRefresh() {
+    setRefreshing(true);
+    try {
+      await q.refetch();
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   const buttons = (
@@ -128,20 +142,23 @@ export default function CommsecScreen() {
   );
 
   return (
-    <Screen>
+    <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} />}>
       <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
         <AppText tone="muted">‹ Back</AppText>
       </Pressable>
       <AppText variant="title">📈 CommSec ETFs</AppText>
 
-      {hint ? (
+      {showHint ? (
         <Card style={{ gap: 8 }}>
           <AppText variant="bodyStrong">Looks like you bought something on CommSec.</AppText>
+          {buttons}
           <Button label="Not a trade" kind="secondary" disabled={dismiss.isPending} onPress={() => void notATrade()} />
         </Card>
       ) : null}
 
-      {empty || !data ? (
+      {q.isError && !data ? (
+        <AppText tone="muted">Couldn't load CommSec. Pull to try again.</AppText>
+      ) : q.isLoading && !data ? null : empty || !data ? (
         <>
           <Card style={{ gap: 4 }}>
             <AppText variant="bodyStrong">No trades yet</AppText>
@@ -185,6 +202,7 @@ export default function CommsecScreen() {
           ) : null}
         </>
       )}
+      {deleteError ? <AppText style={{ color: accents.pink }}>Couldn't delete that trade. Try again.</AppText> : null}
       <TradeSheet visible={sheet} onClose={() => setSheet(false)} />
     </Screen>
   );

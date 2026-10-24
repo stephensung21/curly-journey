@@ -135,6 +135,47 @@ describe('commsec screen', () => {
     await waitFor(() => expect(mockSetParams).toHaveBeenCalledWith({ hint: undefined }));
   });
 
+  it('hint banner also offers Import CSV and Add trade', async () => {
+    mockParams = { hint: '55' };
+    await renderScreen(<CommsecScreen />);
+    const banner = screen.getAllByText('Import CSV');
+    expect(banner).toHaveLength(2); // banner + the page buttons
+    expect(screen.getAllByText('Add trade')).toHaveLength(2);
+    await fireEvent.press(banner[0]!);
+    expect(mockPush).toHaveBeenCalledWith('/commsec-import');
+    await fireEvent.press(screen.getAllByText('Add trade')[0]!);
+    expect(await screen.findByText('Save trade')).toBeTruthy();
+  });
+
+  it('shows no banner for a non-numeric hint', async () => {
+    mockParams = { hint: 'abc' };
+    await renderScreen(<CommsecScreen />);
+    expect(screen.queryByText('Not a trade')).toBeNull();
+  });
+
+  it('shows a load error, not the empty state', async () => {
+    (mocked.useCommsec as jest.Mock).mockImplementation(() => ({ data: undefined, isLoading: false, isError: true, refetch: jest.fn() }));
+    await renderScreen(<CommsecScreen />);
+    expect(screen.getByText("Couldn't load CommSec. Pull to try again.")).toBeTruthy();
+    expect(screen.queryByText('No trades yet')).toBeNull();
+  });
+
+  it('shows no empty state while loading', async () => {
+    (mocked.useCommsec as jest.Mock).mockImplementation(() => ({ data: undefined, isLoading: true, isError: false, refetch: jest.fn() }));
+    await renderScreen(<CommsecScreen />);
+    expect(screen.queryByText('No trades yet')).toBeNull();
+  });
+
+  it('shows an inline error when delete fails', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    del.mockRejectedValueOnce(new Error('x'));
+    await renderScreen(<CommsecScreen />);
+    await fireEvent(screen.getByText('Buy VGS'), 'longPress');
+    await alert.mock.calls[0]![2]!.find(b => b.text === 'Delete')!.onPress!();
+    expect(await screen.findByText("Couldn't delete that trade. Try again.")).toBeTruthy();
+    alert.mockRestore();
+  });
+
   it('no hint banner without the param', async () => {
     await renderScreen(<CommsecScreen />);
     expect(screen.queryByText('Not a trade')).toBeNull();
