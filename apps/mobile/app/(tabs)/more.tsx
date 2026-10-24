@@ -114,6 +114,8 @@ export default function MoreScreen() {
             emoji: '🪄', color: accents.purple, label: 'Rules',
             subline: autoPercent === undefined ? undefined : `${autoPercent}% auto-sorted`, href: '/rules',
           },
+          { emoji: '🎂', color: accents.pink, label: 'About you', subline: 'Birth date and tax rate', href: '/about-you' },
+          { emoji: '🏦', color: accents.blue, label: 'Home loan', subline: 'Rate, repayment and term', href: '/home-loan' },
           { emoji: '🦘', color: accents.orange, label: 'Add super or home value', href: '/account/new' },
         ]}
       />

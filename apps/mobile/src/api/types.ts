@@ -210,3 +210,28 @@ export type NetWorthResponse = {
   history: { date: string; totalCents: number }[];
   since: { fromDate: string; deltaCents: number } | null;
 };
+
+export type RepaymentFrequency = 'weekly' | 'fortnightly' | 'monthly';
+export type ProjectionProfile = {
+  birthDate: string | null;
+  taxRateBps: number | null;
+  mortgageRateBps: number | null;
+  repaymentCents: number | null;
+  repaymentFrequency: RepaymentFrequency;
+  termMonths: number | null;
+  offsetGrowthCents: number;
+  returnBps: number;
+  inflationBps: number;
+  distributionYieldBps: number;
+  targetCents: number;
+  targetAge: number;
+  todaysDollars: boolean;
+};
+export type ProjectionPrefill = {
+  etfStartCents: number;
+  etfMonthlyCents: number;
+  mortgageBalanceCents: number;
+  offsetCents: number;
+  today: string;
+};
+export type ProjectionsResponse = { profile: ProjectionProfile; prefill: ProjectionPrefill };
