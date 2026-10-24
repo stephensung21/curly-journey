@@ -92,3 +92,19 @@ Phone checks after you deploy:
 - Net worth total is about own minus owe by eye; offsets are grouped; super shows `update?` when old.
 - Next day: the chart has two points, and the Home row shows the since-note.
 - A CommSec payment in CommBank with no trade gives the hint within about an hour of the sync (after 9am). "Not a trade" stops it.
+
+## Plan 6 setup (once)
+
+Do this after the earlier setups. Run commands in your own PowerShell window. Never paste a connection string, a key or a token into chat.
+
+1. **Migrate.** From the repo root, load the connection string for this window only: `$env:DATABASE_URL = Read-Host "Neon connection string"`. Then from `apps/api` run `node scripts/migrate.mjs`. Expect `applied 0007_projections.sql`. Then `Remove-Item Env:DATABASE_URL`.
+2. **Deploy the Worker.** From `apps/api`, run `npx wrangler deploy`.
+3. **New APK.** From `apps/mobile`, run `npx eas-cli build -p android --profile preview` and install it as in "Build and install the APK".
+4. **Fill in your details.** In the app, open More, then About you (birth date, tax rate, return, inflation, distributions). Then open More, then Home loan (balance, rate, repayment, term, offset growth).
+
+Phone checks after you deploy:
+
+- The ETFs headline is close to a rough online calculator, given the same start, contribution and return.
+- The mortgage-free date is close to your bank's own estimate for your current repayment.
+- Moving the extra-repayment slider moves the mortgage-free date earlier.
+- Hide balances masks every figure on the Projections tab.
