@@ -44,6 +44,9 @@ function AppStack() {
           <Stack.Screen name="calendar" options={{ headerShown: false }} />
           <Stack.Screen name="event/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="design-system" options={{ headerShown: false }} />
+          <Stack.Screen name="networth" options={{ headerShown: false }} />
+          <Stack.Screen name="commsec" options={{ headerShown: false }} />
+          <Stack.Screen name="commsec-import" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Protected guard={!conn}>
           <Stack.Screen name="connect" options={{ headerShown: false }} />

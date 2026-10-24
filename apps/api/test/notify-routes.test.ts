@@ -38,7 +38,7 @@ describe('notify routes', () => {
   it('sets and reads prefs; unknown keys are 400', async () => {
     const { call } = await setup();
     const before = (await (await call('GET', '/notifications/prefs')).json()) as Record<string, boolean>;
-    expect(before).toEqual({ limit: true, bill: true, paid_check: true, sync: true, stale: true });
+    expect(before).toEqual({ limit: true, bill: true, paid_check: true, sync: true, stale: true, trade_hint: true });
     expect((await call('PUT', '/notifications/prefs', { bill: false })).status).toBe(200);
     const after = (await (await call('GET', '/notifications/prefs')).json()) as Record<string, boolean>;
     expect(after.bill).toBe(false);

@@ -11,6 +11,9 @@ vi.mock('../src/sync/runSync', () => ({
 const runAlerts = vi.fn();
 vi.mock('../src/alerts/runAlerts', () => ({ runAlerts: (...a: unknown[]) => runAlerts(...a) }));
 
+const runDaily = vi.fn();
+vi.mock('../src/daily/runDaily', () => ({ runDaily: (...a: unknown[]) => runDaily(...a) }));
+
 import worker from '../src/index';
 
 const env = { DATABASE_URL: 'postgres://secret-conn', POCKETSMITH_KEY: 'secret-key' };
@@ -73,6 +76,27 @@ describe('scheduled', () => {
     runAlerts.mockRejectedValue(new Error('boom secret-conn'));
     await fire('7 * * * *');
     expect(err).toHaveBeenCalledWith('alerts failed', 'error');
+    expect(JSON.stringify(err.mock.calls)).not.toContain('secret');
+  });
+
+  it("runs the daily job, not the sync, on the '17 7 * * *' cron", async () => {
+    runSync.mockReset();
+    syncDue.mockReset();
+    runAlerts.mockReset();
+    runDaily.mockReset();
+    runDaily.mockResolvedValue({ prices: 0, snapshot: true });
+    await fire('17 7 * * *');
+    expect(runDaily).toHaveBeenCalledTimes(1);
+    expect(runSync).not.toHaveBeenCalled();
+    expect(runAlerts).not.toHaveBeenCalled();
+  });
+
+  it('logs a daily failure without its message', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    runDaily.mockReset();
+    runDaily.mockRejectedValue(new Error('boom secret-conn'));
+    await fire('17 7 * * *');
+    expect(err).toHaveBeenCalledWith('daily failed', 'error');
     expect(JSON.stringify(err.mock.calls)).not.toContain('secret');
   });
 });

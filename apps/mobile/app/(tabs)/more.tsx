@@ -1,7 +1,8 @@
 import { addDays, monthKey, sydneyDate } from '@curly/core';
 import { useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { useCategorisationStats, useLimits, useOccurrences } from '../../src/api/hooks';
+import { useCategorisationStats, useCommsec, useLimits, useOccurrences } from '../../src/api/hooks';
+import { Amount } from '../../src/components/Amount';
 import { AppText } from '../../src/components/AppText';
 import { Card } from '../../src/components/Card';
 import { IconTile } from '../../src/components/IconTile';
@@ -11,7 +12,7 @@ import { accents } from '../../src/theme/tokens';
 import { useTheme } from '../../src/theme/useTheme';
 
 type Href = Parameters<ReturnType<typeof useRouter>['push']>[0];
-type RowDef = { emoji: string; color: string; label: string; subline?: string; href: Href };
+type RowDef = { emoji: string; color: string; label: string; subline?: string; sublineCents?: number; href: Href };
 
 function MoreRow({ row }: { row: RowDef }) {
   const t = useTheme();
@@ -36,7 +37,9 @@ function MoreRow({ row }: { row: RowDef }) {
       <IconTile emoji={row.emoji} color={row.color} />
       <View style={{ flex: 1, gap: 2 }}>
         <AppText variant="bodyStrong">{row.label}</AppText>
-        {row.subline ? (
+        {row.sublineCents !== undefined ? (
+          <Amount cents={row.sublineCents} variant="label" tone="muted" />
+        ) : row.subline ? (
           <AppText variant="label" tone="muted">
             {row.subline}
           </AppText>
@@ -80,6 +83,8 @@ export default function MoreScreen() {
   const occurrences = useOccurrences(today, weekEnd).data?.occurrences ?? [];
   const limits = useLimits(monthKey(current)).data?.limits ?? [];
   const autoPercent = useCategorisationStats().data?.autoPercent;
+  const commsec = useCommsec().data;
+  const hasCommsec = commsec?.accountId != null;
 
   const coming = occurrences.filter((o) => o.status === null && o.date >= today && o.date <= weekEnd).length;
 
@@ -90,6 +95,15 @@ export default function MoreScreen() {
         rows={[
           { emoji: '📅', color: accents.yellow, label: 'Bills & dates', subline: coming > 0 ? `${coming} coming up this week` : 'Nothing this week', href: '/calendar' },
           { emoji: '⬆', color: accents.blue, label: 'Import', subline: 'CommBank or Amex CSV', href: '/import' },
+        ]}
+      />
+      <Group
+        rows={[
+          { emoji: '💰', color: accents.lime, label: 'Net worth', href: '/networth' },
+          {
+            emoji: '📈', color: accents.lime, label: 'CommSec', href: '/commsec',
+            ...(hasCommsec ? { sublineCents: commsec.valueCents } : { subline: 'Import your trades' }),
+          },
         ]}
       />
       <Group

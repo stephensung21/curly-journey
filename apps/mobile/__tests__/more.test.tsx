@@ -15,14 +15,17 @@ const limit = (categoryId: number | null) => ({ id: categoryId ?? 0, categoryId,
 let occurrences: object[];
 let limits: object[];
 let autoPercent: number | undefined;
+let commsecValue: number | undefined;
 
 beforeEach(() => {
   jest.clearAllMocks();
   occurrences = [occ('2026-10-22', null), occ('2026-10-28', null), occ('2026-10-23', 'paid'), occ('2026-10-29', null)];
   limits = [limit(null), limit(1), limit(2), limit(3)];
   autoPercent = 93;
+  commsecValue = 8490000;
   mocked.useOccurrences.mockImplementation((() => ({ data: { events: [], occurrences } })) as any);
   mocked.useLimits.mockImplementation((() => ({ data: { limits } })) as any);
+  mocked.useCommsec.mockImplementation((() => ({ data: commsecValue === undefined ? { accountId: null, valueCents: 0, holdings: [], trades: [] } : { accountId: 9, valueCents: commsecValue, holdings: [], trades: [] } })) as any);
   mocked.useCategorisationStats.mockImplementation((() => ({ data: autoPercent === undefined ? undefined : { autoPercent } })) as any);
 });
 
@@ -71,4 +74,19 @@ it('words limit sublines for one category', async () => {
   limits = [limit(1)];
   await renderScreen(<MoreScreen />);
   expect(screen.getByText('1 category')).toBeTruthy();
+});
+
+it('shows the CommSec row with its value and opens it', async () => {
+  await renderScreen(<MoreScreen />);
+  expect(screen.getByText('CommSec')).toBeTruthy();
+  expect(screen.getByText('$84,900.00')).toBeTruthy();
+  mockPush.mockClear();
+  await fireEvent.press(screen.getByText('CommSec'));
+  expect(mockPush).toHaveBeenCalledWith('/commsec');
+});
+
+it('invites an import when there is no CommSec account', async () => {
+  commsecValue = undefined;
+  await renderScreen(<MoreScreen />);
+  expect(screen.getByText('Import your trades')).toBeTruthy();
 });

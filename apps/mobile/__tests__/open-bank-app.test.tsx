@@ -43,6 +43,7 @@ beforeEach(() => {
   (mocked.useSyncNow as jest.Mock).mockReturnValue({ mutateAsync: jest.fn() });
   (mocked.useInOut as jest.Mock).mockReturnValue({ data: [] });
   (mocked.useDaily as jest.Mock).mockReturnValue({ data: [] });
+  (mocked.useNetWorth as jest.Mock).mockReturnValue({ data: undefined, isError: true });
   open.mockResolvedValue(undefined);
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
 });

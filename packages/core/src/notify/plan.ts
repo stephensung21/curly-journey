@@ -3,14 +3,18 @@ import { dayLabel, dayMonthLabel, daysBetween, sydneyDate, sydneyHour } from '..
 import { isManualStale, limitMessage, type LimitStatus } from '../limits/limits';
 import { isStale } from '../sync/staleness';
 
-export type NotificationType = 'limit' | 'bill' | 'paid_check' | 'sync' | 'stale';
+export type NotificationType = 'limit' | 'bill' | 'paid_check' | 'sync' | 'stale' | 'trade_hint';
 export type PlannedNotification = { keys: string[]; type: NotificationType; title: string; body: string; url: string };
+/** Window (days) either side of a CommSec transfer in which a buy is hinted (spec 9.9). */
+export const TRADE_HINT_DAYS = 5;
+
 export type PlanInput = {
   now: Date;
   month: string;
   limits: (LimitStatus & { label: string })[];
   occurrences: { event: CalendarEvent; date: string; status: 'paid' | 'skipped' | null }[];
   lastSyncSuccess: Date | null;
+  tradeHints: { transactionId: number; date: string }[];
   manual: { id: number; name: string; balanceDate: string | null }[];
   enabled: Record<NotificationType, boolean>;
 };
@@ -89,6 +93,18 @@ export function planNotifications(p: PlanInput): PlannedNotification[] {
         title: 'Time to update',
         body: `${m.name} hasn't been updated since ${dayMonthLabel(m.balanceDate)}`,
         url: `/account/${m.id}`,
+      });
+    }
+  }
+
+  if (p.enabled.trade_hint && afterNine) {
+    for (const h of p.tradeHints) {
+      out.push({
+        keys: [`trade:${h.transactionId}`],
+        type: 'trade_hint',
+        title: 'CommSec',
+        body: 'Looks like you bought something on CommSec. Import or add the trade?',
+        url: `/commsec?hint=${h.transactionId}`,
       });
     }
   }

@@ -15,14 +15,15 @@ import {
 import type { Deps } from '../app';
 import type { Db } from '../db/db';
 import { makeEventsRepo } from '../db/events';
+import { makeHoldingsRepo } from '../db/holdings';
 import { makeLimitsRepo } from '../db/limits';
 import { makeNotifyRepo } from '../db/notify';
 import { makeRepo } from '../db/repo';
 
 /**
- * Its own invocation, so its own Workers Free budget of 50 outbound requests. A run costs at most 15: 4 to load bills and
- * candidate payments, 1 to record auto-paid ones, 3 for limits, 4 for sync, manual accounts, prefs and devices, then
- * 1 claim, 1 push and 1 device cleanup.
+ * Its own invocation, so its own Workers Free budget of 50 outbound requests. A run costs at most 16: 4 to load bills and
+ * candidate payments, 1 to record auto-paid ones, 3 for limits, 4 for sync, manual accounts, prefs and devices, 1 for
+ * trade hint candidates, then 1 claim, 1 push and 1 device cleanup.
  */
 export const MAX_ALERT_CALLS = 30;
 /** Unpaid bills are auto-ticked this far back. */
@@ -79,7 +80,7 @@ export async function runAlerts(deps: Deps): Promise<{ matched: number; sent: nu
   for (const k of matches.keys()) if (!status.has(k)) status.set(k, 'paid');
 
   const month = monthKey(now);
-  const [limits, lines, categories, lastSync, accounts, enabled, devices] = await Promise.all([
+  const [limits, lines, categories, lastSync, accounts, enabled, devices, tradeHints] = await Promise.all([
     makeLimitsRepo(db).list(),
     repo.spendLines(monthPeriod(month)),
     repo.listCategories(),
@@ -87,6 +88,7 @@ export async function runAlerts(deps: Deps): Promise<{ matched: number; sent: nu
     repo.listAccounts(),
     notify.prefs(),
     deps.push ? notify.devices() : Promise.resolve([]),
+    makeHoldingsRepo(db).hintCandidates(today),
   ]);
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
 
@@ -109,6 +111,7 @@ export async function runAlerts(deps: Deps): Promise<{ matched: number; sent: nu
     manual: accounts
       .filter((a) => a.source === 'manual')
       .map((a) => ({ id: a.id, name: a.displayName ?? a.name, balanceDate: a.balanceDate })),
+    tradeHints,
     enabled,
   });
 

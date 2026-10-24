@@ -41,6 +41,8 @@ function Form({ account }: { account: Account }) {
   const [deleteError, setDeleteError] = useState(false);
   const [picking, setPicking] = useState(false);
   const [name, setName] = useState(account.displayName ?? '');
+  const [growth, setGrowth] = useState(account.growthBps === null ? '' : String(account.growthBps / 100));
+  const [growthError, setGrowthError] = useState(false);
   const save = (settings: AccountSettings) => update.mutate({ id: account.id, settings });
 
   return (
@@ -110,6 +112,37 @@ function Form({ account }: { account: Account }) {
 
       {account.source === 'manual' ? (
         <>
+          <AppText variant="label" tone="muted">
+            Grows by % a year
+          </AppText>
+          <TextInput
+            accessibilityLabel="Grows by % a year"
+            value={growth}
+            onChangeText={v => {
+              setGrowth(v);
+              setGrowthError(false);
+            }}
+            onBlur={() => {
+              const text = growth.trim();
+              if (text === '') {
+                setGrowth('');
+                if (account.growthBps !== null) save({ growthBps: null });
+                return;
+              }
+              const pct = Number(text);
+              if (!/^-?\d+(\.\d)?$/.test(text) || pct < -20 || pct > 20) {
+                setGrowthError(true);
+                return;
+              }
+              const bps = Math.round(pct * 100);
+              if (bps !== account.growthBps) save({ growthBps: bps });
+            }}
+            keyboardType="numbers-and-punctuation"
+            placeholder="None"
+            placeholderTextColor={t.inkFaded}
+            style={{ backgroundColor: t.surface, color: t.ink, borderRadius: 12, padding: 12, fontFamily: 'BricolageGrotesque_500Medium', fontSize: 14 }}
+          />
+          {growthError ? <AppText tone="muted">Enter -20 to 20, one decimal.</AppText> : null}
           <Button kind="secondary" label="Delete this account" onPress={() => setConfirming(true)} />
           <Sheet visible={confirming} onClose={() => setConfirming(false)}>
             <AppText variant="title">{`Delete ${account.displayName ?? account.name}? Its value history goes too.`}</AppText>

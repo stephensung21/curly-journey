@@ -143,3 +143,51 @@ it('Cancel keeps the account', async () => {
   await fireEvent.press(screen.getByText('Cancel'));
   expect(del).not.toHaveBeenCalled();
 });
+
+describe('growth field', () => {
+  beforeEach(() => {
+    kind = 'manual_asset';
+    source = 'manual';
+  });
+
+  it('is only on manual accounts', async () => {
+    source = 'pocketsmith';
+    await renderScreen(<AccountSettings />);
+    expect(screen.queryByLabelText('Grows by % a year')).toBeNull();
+  });
+
+  it('saves 3.5 as 350 bps', async () => {
+    await renderScreen(<AccountSettings />);
+    const input = screen.getByLabelText('Grows by % a year');
+    await fireEvent.changeText(input, '3.5');
+    await fireEvent(input, 'blur');
+    expect(mutate).toHaveBeenCalledWith({ id: 7, settings: { growthBps: 350 } });
+  });
+
+  it('rejects 25', async () => {
+    await renderScreen(<AccountSettings />);
+    const input = screen.getByLabelText('Grows by % a year');
+    await fireEvent.changeText(input, '25');
+    await fireEvent(input, 'blur');
+    expect(mutate).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter -20 to 20, one decimal.')).toBeTruthy();
+  });
+
+  it('shows the save error once on a failed growth save', async () => {
+    isError = true;
+    await renderScreen(<AccountSettings />);
+    const input = screen.getByLabelText('Grows by % a year');
+    await fireEvent.changeText(input, '3.5');
+    await fireEvent(input, 'blur');
+    expect(screen.getAllByText("Couldn't save. Try again.")).toHaveLength(1);
+  });
+
+  it('blank clears to none', async () => {
+    (mocked.useAccounts as jest.Mock).mockImplementation(() => ({ data: { accounts: [{ ...account, kind, source, growthBps: 350 }], lastSuccessAt: null } }));
+    await renderScreen(<AccountSettings />);
+    const input = screen.getByLabelText('Grows by % a year');
+    await fireEvent.changeText(input, '');
+    await fireEvent(input, 'blur');
+    expect(mutate).toHaveBeenCalledWith({ id: 7, settings: { growthBps: null } });
+  });
+});

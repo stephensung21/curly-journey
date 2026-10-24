@@ -15,7 +15,7 @@ jest.mock('../src/api/client', () => ({ ...jest.requireActual('../src/api/client
 const mocked = hooks as jest.Mocked<typeof hooks>;
 const N = Notifications as jest.Mocked<typeof Notifications>;
 const conn = { url: 'https://api.test', token: 'cj_test' };
-const prefs = { limit: true, bill: true, paid_check: true, sync: true, stale: true };
+const prefs = { limit: true, bill: true, paid_check: true, sync: true, stale: true, trade_hint: true };
 const setPrefs = jest.fn();
 const test = jest.fn();
 
@@ -117,4 +117,12 @@ it('creates the Android channel before asking for permission', async () => {
   const channel = N.setNotificationChannelAsync.mock.invocationCallOrder[0];
   expect(channel).toBeLessThan(N.getPermissionsAsync.mock.invocationCallOrder[0]);
   expect(channel).toBeLessThan(N.requestPermissionsAsync.mock.invocationCallOrder[0]);
+});
+
+it('shows the CommSec hint switch and toggles it', async () => {
+  N.getPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true, status: 'granted' } as never);
+  await renderScreen(<NotificationsScreen />);
+  expect(await screen.findByText('When a CommSec payment has no trade')).toBeTruthy();
+  await fireEvent(screen.getByLabelText('CommSec hint'), 'valueChange', false);
+  expect(setPrefs).toHaveBeenCalledWith({ trade_hint: false });
 });

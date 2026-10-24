@@ -19,6 +19,7 @@ const ROWS: { key: keyof NotificationPrefs; title: string; sub: string }[] = [
   { key: 'paid_check', title: 'Did this get paid?', sub: "When a bill's payment doesn't show up" },
   { key: 'sync', title: 'Bank sync problems', sub: "When accounts haven't updated for 36 hours" },
   { key: 'stale', title: 'Manual values', sub: 'When super or home value is 3 months old' },
+  { key: 'trade_hint', title: 'CommSec hint', sub: 'When a CommSec payment has no trade' },
 ];
 
 function testError(e: unknown): string {

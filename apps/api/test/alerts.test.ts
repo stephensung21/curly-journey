@@ -3,6 +3,7 @@ import type { TransactionRow } from '@curly/core';
 import { runAlerts } from '../src/alerts/runAlerts';
 import type { Db } from '../src/db/db';
 import { makeEventsRepo } from '../src/db/events';
+import { makeHoldingsRepo } from '../src/db/holdings';
 import { makeNotifyRepo } from '../src/db/notify';
 import { makeRepo } from '../src/db/repo';
 import type { PushClient, PushMessage } from '../src/push/types';
@@ -177,5 +178,63 @@ describe('runAlerts', () => {
     await s.run();
     // Database queries plus the one push request.
     expect(s.calls() - before + s.push.sent.length).toBeLessThanOrEqual(20);
+  });
+
+  describe('trade hint', () => {
+    const HINT = 'Looks like you bought something on CommSec. Import or add the trade?';
+    const addTrade = async (s: Awaited<ReturnType<typeof setup>>, date: string) => {
+      const h = makeHoldingsRepo(s.raw);
+      const acct = await h.ensureCommsecAccount(NOW);
+      await h.insertTrade(acct, {
+        date, reference: null, side: 'buy', symbol: 'VAS', units: 1, priceMicros: 100_000_000, brokerageCents: 0, totalCents: 10_000,
+        source: 'manual', fingerprint: `fp-${date}`,
+      });
+    };
+
+    it('hints once for a CommSec debit with no nearby trade', async () => {
+      const s = await setup();
+      const id = await s.txn('2026-10-23', -250000, 'COMMSEC SECURITIES');
+      expect((await s.run()).sent).toBe(1);
+      expect(s.push.sent[0]!.messages).toEqual([{ title: 'CommSec', body: HINT, url: `/commsec?hint=${id}` }]);
+      expect(await s.logKeys()).toEqual([`trade:${id}`]);
+      expect((await s.run()).sent).toBe(0);
+      expect(s.push.sent).toHaveLength(1);
+    });
+
+    it('ignores credits, other merchants and old debits', async () => {
+      const s = await setup();
+      await s.txn('2026-10-23', 250000, 'COMMSEC SECURITIES');
+      await s.txn('2026-10-23', -250000, 'Woolworths');
+      await s.txn('2026-10-05', -250000, 'COMMSEC SECURITIES');
+      expect((await s.run()).sent).toBe(0);
+    });
+
+    it('stays quiet when a trade is within the window', async () => {
+      const s = await setup();
+      await s.txn('2026-10-23', -250000, 'CommSec');
+      await addTrade(s, '2026-10-27');
+      expect((await s.run()).sent).toBe(0);
+    });
+
+    it('hints when the nearest trade is outside the window', async () => {
+      const s = await setup();
+      await s.txn('2026-10-23', -250000, 'CommSec');
+      await addTrade(s, '2026-10-15');
+      expect((await s.run()).sent).toBe(1);
+    });
+
+    it('stays quiet once dismissed', async () => {
+      const s = await setup();
+      const id = await s.txn('2026-10-23', -250000, 'COMMSEC SECURITIES');
+      await makeHoldingsRepo(s.raw).dismissHint(id);
+      expect((await s.run()).sent).toBe(0);
+    });
+
+    it('stays quiet when the preference is off', async () => {
+      const s = await setup();
+      await s.txn('2026-10-23', -250000, 'COMMSEC SECURITIES');
+      await makeNotifyRepo(s.raw).setPrefs({ trade_hint: false });
+      expect((await s.run()).sent).toBe(0);
+    });
   });
 });

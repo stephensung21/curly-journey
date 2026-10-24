@@ -13,7 +13,7 @@ const lim = (o: Partial<LimitStatus> = {}): LimitStatus & { label: string } => (
 });
 const input = (o: Partial<PlanInput> = {}): PlanInput => ({
   now, month: '2026-10', limits: [], occurrences: [], lastSyncSuccess: new Date('2026-10-25T00:00:00Z'),
-  manual: [], enabled: { limit: true, bill: true, paid_check: true, sync: true, stale: true }, ...o,
+  tradeHints: [], manual: [], enabled: { limit: true, bill: true, paid_check: true, sync: true, stale: true, trade_hint: true }, ...o,
 });
 const occ = (date: string, e = ev(), status: 'paid' | 'skipped' | null = null) => ({ event: e, date, status });
 
@@ -120,7 +120,7 @@ describe('planNotifications', () => {
     const r = planNotifications(input({
       limits: [lim()],
       occurrences: [occ('2026-10-27')],
-      enabled: { limit: true, bill: false, paid_check: true, sync: true, stale: true },
+      enabled: { limit: true, bill: false, paid_check: true, sync: true, stale: true, trade_hint: true },
     }));
     expect(r.map((n) => n.type)).toEqual(['limit']);
   });
@@ -128,7 +128,7 @@ describe('planNotifications', () => {
     const r = planNotifications(input({
       limits: [lim()], occurrences: [occ('2026-10-27'), occ('2026-10-20')], lastSyncSuccess: null,
       manual: [{ id: 4, name: 'AMP super', balanceDate: '2026-07-24' }],
-      enabled: { limit: false, bill: false, paid_check: false, sync: false, stale: false },
+      enabled: { limit: false, bill: false, paid_check: false, sync: false, stale: false, trade_hint: false },
     }));
     expect(r).toEqual([]);
   });
@@ -158,5 +158,22 @@ describe('planNotifications', () => {
     const ls = new Date('2027-04-03T20:00:00Z');
     expect(planNotifications(input({ now: new Date('2027-04-03T22:59:00Z'), occurrences: [o], lastSyncSuccess: ls }))).toEqual([]);
     expect(planNotifications(input({ now: new Date('2027-04-03T23:00:00Z'), occurrences: [o], lastSyncSuccess: ls }))).toHaveLength(1);
+  });
+});
+
+describe('trade hints', () => {
+  const hints = [{ transactionId: 42, date: '2026-10-24' }];
+  it('emits exact copy and key', () => {
+    expect(planNotifications(input({ tradeHints: hints })).filter((n) => n.type === 'trade_hint')).toEqual([{
+      keys: ['trade:42'], type: 'trade_hint', title: 'CommSec',
+      body: 'Looks like you bought something on CommSec. Import or add the trade?', url: '/commsec?hint=42',
+    }]);
+  });
+  it('nothing when pref off', () => {
+    const e = { limit: true, bill: true, paid_check: true, sync: true, stale: true, trade_hint: false };
+    expect(planNotifications(input({ tradeHints: hints, enabled: e }))).toEqual([]);
+  });
+  it('nothing before 09:00', () => {
+    expect(planNotifications(input({ tradeHints: hints, now: new Date('2026-10-24T21:30:00Z') }))).toEqual([]);
   });
 });
