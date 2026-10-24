@@ -141,7 +141,7 @@ function CoinSpotDetail({ account }: { account: Account }) {
             <View style={{ flex: 1 }}>
               <AppText variant="bodyStrong">{h.symbol}</AppText>
               <AppText variant="label" tone="muted">
-                {hidden ? '•••' : h.units}
+                {hidden ? '\u2022\u2022\u2022' : h.units}
               </AppText>
             </View>
             <Amount cents={h.audCents} />

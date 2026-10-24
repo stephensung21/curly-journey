@@ -129,7 +129,7 @@ describe('CoinSpot detail', () => {
     useSettings.setState({ hideBalances: true });
     await renderScreen(<AccountDetail />);
     expect(screen.queryByText('0.0412')).toBeNull();
-    expect(screen.getAllByText('•••').length).toBe(2);
+    expect(screen.getAllByText('\u2022\u2022\u2022').length).toBe(2);
     useSettings.setState({ hideBalances: false });
   });
 
