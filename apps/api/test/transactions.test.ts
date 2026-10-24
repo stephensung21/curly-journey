@@ -92,6 +92,22 @@ describe('GET /transactions', () => {
     expect((await call('GET', '/transactions?month=nope')).status).toBe(400);
   });
 
+  it('without an account, lists every flow in accounts that count towards spending (Spending tab list)', async () => {
+    const { call, add, row, bank, repo } = await setup();
+    const loan = await repo.upsertAccount({ source: 'pocketsmith', externalId: '9', institution: 'CommBank', name: 'Home loan', kind: 'mortgage', balanceCents: 0, balanceDate: '2026-10-22' });
+    const pay = await add(bank, row('p', '2026-10-03', 500000, 'SALARY'));
+    await add(bank, row('a', '2026-10-05', -1000, 'WOOLWORTHS'));
+    await add(loan, { ...row('l', '2026-10-28', -300000, 'LOAN REPAYMENT'), accountExternalId: '9' });
+    await repo.patchTransaction(pay, { flow: 'not_spending' });
+
+    const all = (await (await call('GET', '/transactions?month=2026-10')).json()) as { transactions: TransactionDto[] };
+    expect(all.transactions.map((t) => t.description)).toEqual(['WOOLWORTHS', 'SALARY']);
+    const inst = (await (await call('GET', '/transactions?month=2026-10&institution=CommBank')).json()) as { transactions: TransactionDto[] };
+    expect(inst.transactions.map((t) => t.description)).toEqual(['WOOLWORTHS', 'SALARY']);
+    const loanOnly = (await (await call('GET', `/transactions?month=2026-10&accountId=${loan}`)).json()) as { transactions: TransactionDto[] };
+    expect(loanOnly.transactions.map((t) => t.description)).toEqual(['LOAN REPAYMENT']);
+  });
+
   it('GET /accounts/:id/transactions returns the same dto', async () => {
     const { call, add, row, bank } = await setup();
     await add(bank, row('a', '2026-10-05', -1000, 'WOOLWORTHS'));

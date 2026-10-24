@@ -13,6 +13,16 @@ jest.mock('../src/api/hooks');
 const mocked = hooks as jest.Mocked<typeof hooks>;
 let summary: object;
 let limits: object[];
+const txn = (over: object) => ({
+  id: 1, accountId: 1, date: '2026-10-05', amountCents: -4550, description: 'WOOLWORTHS 1234', merchant: 'Woolworths', status: 'posted',
+  source: 'pocketsmith', categoryId: 1, categorySource: 'auto', flow: 'normal', flowSource: 'auto', note: null, memo: null,
+  feedCreatedAt: null, splits: [], ...over,
+});
+const txns = [
+  txn({ id: 1 }),
+  txn({ id: 2, date: '2026-10-03', merchant: '', description: 'SALARY ACME', amountCents: 500000, categoryId: null, flow: 'not_spending' }),
+  txn({ id: 3, date: '2026-10-04', merchant: '', description: 'TRANSFER TO SAVINGS', amountCents: -50000, categoryId: null, flow: 'transfer' }),
+];
 const base = {
   totalCents: 120000,
   moneyInCents: 0,
@@ -44,6 +54,7 @@ beforeEach(() => {
   (mocked.useLimits as jest.Mock).mockImplementation(() => ({ data: { limits } }));
   (mocked.useSpending as jest.Mock).mockImplementation(() => ({ data: summary, isLoading: false, refetch: jest.fn() }));
   (mocked.useSyncNow as jest.Mock).mockReturnValue({ mutateAsync: jest.fn() });
+  (mocked.useTransactionsQuery as jest.Mock).mockImplementation(() => ({ data: { transactions: txns }, isLoading: false, isError: false, refetch: jest.fn() }));
   (mocked.useCategories as jest.Mock).mockReturnValue({
     data: [
       { id: 1, name: 'Groceries', emoji: '🛒', color: 'lime', kind: 'spending', sort: 1 },
@@ -99,7 +110,8 @@ it('hides zero-count not-counted entries', async () => {
 
 it('tapping Groceries opens the drill-down', async () => {
   await renderScreen(<SpendingScreen />);
-  await fireEvent.press(screen.getByText('Groceries'));
+  // The first match is the category bar; the Transactions page lists Groceries as a row subline too.
+  await fireEvent.press(screen.getAllByText('Groceries')[0]);
   expect(mockPush).toHaveBeenCalledWith('/category/1?month=2026-10');
 });
 
@@ -151,4 +163,49 @@ it('shows no markers or warning lines when an institution is chosen', async () =
   await fireEvent.press(screen.getByText('Amex'));
   expect(screen.queryByTestId('limit-marker')).toBeNull();
   expect(screen.queryByText(/of your limit/)).toBeNull();
+});
+
+describe('Transactions page', () => {
+  it('lists every transaction for the filters, labelling non-spending ones', async () => {
+    await renderScreen(<SpendingScreen />);
+    await fireEvent.press(screen.getByText('Transactions'));
+    expect(screen.getByText('Woolworths')).toBeTruthy();
+    expect(screen.getByText('SALARY ACME')).toBeTruthy();
+    expect(screen.getByText('No category · not spending')).toBeTruthy();
+    expect(screen.getByText('Transfer · not spending')).toBeTruthy();
+    expect(mocked.useTransactionsQuery).toHaveBeenLastCalledWith({ month: '2026-10' });
+  });
+
+  it('passes the bank chip to the list', async () => {
+    await renderScreen(<SpendingScreen />);
+    await fireEvent.press(screen.getByText('Amex'));
+    expect(mocked.useTransactionsQuery).toHaveBeenLastCalledWith({ month: '2026-10', institution: 'Amex' });
+  });
+
+  it('filters by the search box', async () => {
+    await renderScreen(<SpendingScreen />);
+    await fireEvent.press(screen.getByText('Transactions'));
+    await fireEvent.changeText(screen.getByLabelText('Search transactions'), 'salary');
+    expect(screen.getByText('SALARY ACME')).toBeTruthy();
+    expect(screen.queryByText('Woolworths')).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Search transactions'), 'zzz');
+    expect(screen.getByText('No transactions match "zzz".')).toBeTruthy();
+  });
+
+  it('opens a transaction', async () => {
+    await renderScreen(<SpendingScreen />);
+    await fireEvent.press(screen.getByText('Transactions'));
+    await fireEvent.press(screen.getByText('Woolworths'));
+    expect(mockPush).toHaveBeenCalledWith('/transaction/1');
+  });
+
+  it('shows the empty and error states', async () => {
+    (mocked.useTransactionsQuery as jest.Mock).mockImplementation(() => ({ data: { transactions: [] }, isLoading: false, isError: false }));
+    await renderScreen(<SpendingScreen />);
+    await fireEvent.press(screen.getByText('Transactions'));
+    expect(screen.getByText('No transactions this month.')).toBeTruthy();
+    (mocked.useTransactionsQuery as jest.Mock).mockImplementation(() => ({ data: undefined, isLoading: false, isError: true }));
+    await renderScreen(<SpendingScreen />);
+    expect(screen.getByText("Couldn't load transactions. Pull to try again.")).toBeTruthy();
+  });
 });
