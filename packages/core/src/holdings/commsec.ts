@@ -70,6 +70,7 @@ function parseTrade(cells: string[], c: Cols, details: string): ParsedTrade {
   const amountText = (cells[side === 'buy' ? c.debit : c.credit] ?? '').trim();
   if (amountText === '') throw new RangeError(`Missing ${side === 'buy' ? 'Debit' : 'Credit'} amount`);
   const totalCents = parseDecimalToCents(amountText);
+  if (totalCents <= 0) throw new RangeError('Amount must be above zero');
   const gross = grossCents(units, priceMicros);
   const brokerageCents = side === 'buy' ? totalCents - gross : gross - totalCents;
   if (brokerageCents < 0) throw new RangeError("Amount doesn't match units × price");

@@ -89,3 +89,11 @@ describe('money helpers', () => {
     expect(() => parsePriceToMicros('abc')).toThrow(RangeError);
   });
 });
+
+describe('parseCommSecRows non-positive totals', () => {
+  it('skips a sell with a negative credit', () => {
+    const r = parseCommSecRows(`${HEADER}\n24/10/2026,C9,S 1 VAS @ 100.00,,-5.00,0.00\n`);
+    expect(r.trades).toEqual([]);
+    expect(r.skipped).toHaveLength(1);
+  });
+});
