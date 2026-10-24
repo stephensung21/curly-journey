@@ -1,4 +1,4 @@
-import { defaultCounts, sydneyDate, type ParsedTrade } from '@curly/core';
+import { addDays, defaultCounts, sydneyDate, TRADE_HINT_DAYS, type ParsedTrade } from '@curly/core';
 import type { Db } from './db';
 
 export type TradeRow = ParsedTrade & { id: number; source: 'csv' | 'manual' };
@@ -22,7 +22,12 @@ export type HoldingsRepo = {
   upsertPrices(rows: { symbol: string; date: string; closeMicros: number }[]): Promise<void>;
   setCommsecBalance(accountId: number, valueCents: number, date: string): Promise<void>;
   dismissHint(transactionId: number): Promise<void>;
+  /** One query: recent CommSec-looking debits with no trade near them and no dismissal. */
+  hintCandidates(today: string): Promise<{ transactionId: number; date: string }[]>;
 };
+
+/** Debits this far back are still worth a hint. */
+const HINT_LOOKBACK_DAYS = 14;
 
 type TradeSql = {
   id: number;
@@ -157,6 +162,20 @@ export function makeHoldingsRepo(db: Db): HoldingsRepo {
         'insert into trade_hint_dismissed (transaction_id) select id from transaction where id = $1 on conflict do nothing',
         [transactionId],
       );
+    },
+
+    async hintCandidates(today) {
+      const rows = await db.query<{ id: string | number; date: string }>(
+        `select t.id, to_char(t.date, 'YYYY-MM-DD') as date
+         from transaction t join account a on a.id = t.account_id
+         where a.source = 'pocketsmith' and t.amount_cents < 0 and t.date >= $1::date
+           and (t.description_raw ~* 'commsec' or t.payee ~* 'commsec')
+           and not exists (select 1 from trade r where r.date between t.date - $2::int and t.date + $2::int)
+           and not exists (select 1 from trade_hint_dismissed d where d.transaction_id = t.id)
+         order by t.date, t.id`,
+        [addDays(today, -HINT_LOOKBACK_DAYS), TRADE_HINT_DAYS],
+      );
+      return rows.map((r) => ({ transactionId: Number(r.id), date: r.date }));
     },
   };
 }
