@@ -14,6 +14,7 @@ export function useProjectionState(profile: ProjectionProfile, prefill: Projecti
   const update = useUpdateProfile();
   const [startOverride, setStart] = useState<number | null>(null);
   const [monthlyOverride, setMonthly] = useState<number | null>(null);
+  const [yearsFromNow, setYearsFromNow] = useState(25);
   const [saved, setSaved] = useState<Saved>({
     returnBps: profile.returnBps,
     targetCents: profile.targetCents,
@@ -26,6 +27,7 @@ export function useProjectionState(profile: ProjectionProfile, prefill: Projecti
       () => () => {
         setStart(null);
         setMonthly(null);
+        setYearsFromNow(25);
       },
       [],
     ),
@@ -63,9 +65,13 @@ export function useProjectionState(profile: ProjectionProfile, prefill: Projecti
     ...saved,
     setStart,
     setMonthly,
+    yearsFromNow,
+    setYearsFromNow,
     setReturnBps: (v: number) => change('returnBps', v),
     setTargetCents: (v: number) => change('targetCents', v),
     setTargetAge: (v: number) => change('targetAge', v),
     setTodaysDollars: (v: boolean) => change('todaysDollars', v),
   };
 }
+
+export type ProjectionState = ReturnType<typeof useProjectionState>;

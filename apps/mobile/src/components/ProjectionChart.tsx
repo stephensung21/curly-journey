@@ -21,6 +21,8 @@ export type ChartSeries = {
   kind: 'area' | 'line' | 'dashed';
   color: string;
   stackOn?: string;
+  /** Defaults: 0.9 for a stacked area, 0.35 for an unstacked one, so lines stay visible beneath. */
+  opacity?: number;
 };
 
 type Props = {
@@ -34,22 +36,24 @@ type Props = {
   markerMonth?: number;
   markerLabel?: string;
   circleMonth?: number;
+  /** Series whose value at `circleMonth` sets the circle's height; defaults to the highest series. */
+  circleSeriesKey?: string;
   accessibilityLabel?: string;
 };
 
-/** Smallest of 1, 2, 2.5, 5 times a power of ten that is at least `n` (at least 1). */
-function niceMax(n: number): number {
+/** Smallest of 1, 2, 5 times a power of ten that is at least `n` (at least 1). */
+function niceStep(n: number): number {
   if (n <= 1) return 1;
-  for (let k = 1; ; k *= 10) for (const m of [1, 2, 2.5, 5]) if (m * k >= n) return m * k;
+  for (let k = 1; ; k *= 10) for (const m of [1, 2, 5]) if (m * k >= n) return m * k;
 }
 
 /** Shared by every Projections mode: generic series, optional target line, age marker and crossover circle. */
-export function ProjectionChart({ series, hidden, today, targetCents, targetLabel, markerMonth, markerLabel, circleMonth, accessibilityLabel }: Props) {
+export function ProjectionChart({ series, hidden, today, targetCents, targetLabel, markerMonth, markerLabel, circleMonth, circleSeriesKey, accessibilityLabel }: Props) {
   const t = useTheme();
   const [width, setWidth] = useState(FALLBACK_WIDTH);
   const lastMonth = Math.max(1, ...series.flatMap(s => s.points.map(p => p.month)));
   const dataMax = Math.max(0, targetCents ?? 0, ...series.flatMap(s => s.points.map(p => p.cents)));
-  const max = niceMax(dataMax * 1.05);
+  const max = niceStep((dataMax * 1.05) / 4) * 4;
 
   const plotW = width - GUTTER - 8;
   const plotH = HEIGHT - TOP - BOTTOM;
@@ -68,8 +72,9 @@ export function ProjectionChart({ series, hidden, today, targetCents, targetLabe
   };
 
   const xLabels = [0, 1, 2, 3].map(i => Math.round((lastMonth * i) / 3)).map(m => ({ x: xOf(m), label: today ? String(yearOf(today, m)) : `${Math.round(m / 12)}y` }));
-  const circleAt = circleMonth === undefined ? undefined : series.flatMap(s => s.points).find(p => p.month === circleMonth);
-  const circleY = circleAt ? Math.max(...series.flatMap(s => s.points.filter(p => p.month === circleMonth).map(p => p.cents))) : 0;
+  const circlePoints = series.filter(s => !circleSeriesKey || s.key === circleSeriesKey).flatMap(s => s.points.filter(p => p.month === circleMonth));
+  const circleAt = circleMonth === undefined || circlePoints.length === 0 ? undefined : circlePoints[0];
+  const circleY = Math.max(0, ...circlePoints.map(p => p.cents));
 
   return (
     <View onLayout={e => setWidth(e.nativeEvent.layout.width)} accessibilityLabel={accessibilityLabel}>
@@ -80,7 +85,7 @@ export function ProjectionChart({ series, hidden, today, targetCents, targetLabe
         })}
         {series.map(s =>
           s.kind === 'area' ? (
-            <Path key={s.key} d={areaPath(s)} fill={s.color} opacity={s.stackOn ? 0.9 : 1} />
+            <Path key={s.key} d={areaPath(s)} fill={s.color} opacity={s.opacity ?? (s.stackOn ? 0.9 : 0.35)} />
           ) : (
             <Polyline
               key={s.key}

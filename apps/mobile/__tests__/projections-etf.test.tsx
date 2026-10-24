@@ -68,7 +68,28 @@ it('says when the target is never reached', async () => {
   prefill.etfStartCents = 0;
   prefill.etfMonthlyCents = 0;
   await renderScreen(<Projections />);
-  expect(screen.getByText("Doesn't reach $5M by 100")).toBeTruthy();
+  expect(screen.getByText("Doesn't reach $5M within 50 years")).toBeTruthy();
+});
+
+it('limits the age slider to 50 years out and above the current age', async () => {
+  await renderScreen(<Projections />);
+  expect(screen.getByLabelText('Target age').props.accessibilityValue).toEqual({ min: 37, max: 86, now: 60 });
+});
+
+it('clamps a saved target age into range for display', async () => {
+  profile.targetAge = 90;
+  await renderScreen(<Projections />);
+  expect(screen.getByLabelText('Target age').props.accessibilityValue.now).toBe(86);
+  expect(screen.getByText("At 86 you'd have")).toBeTruthy();
+});
+
+it('keeps session overrides when switching modes', async () => {
+  await renderScreen(<Projections />);
+  await bump('Monthly contribution', 'increment');
+  const label = screen.getByLabelText('Monthly contribution').props.accessibilityValue.now;
+  await fireEvent.press(screen.getByText('Mortgage'));
+  await fireEvent.press(screen.getByText('ETFs'));
+  expect(screen.getByLabelText('Monthly contribution').props.accessibilityValue.now).toBe(label);
 });
 
 it('survives 0 contribution and 0% return', async () => {
@@ -84,6 +105,22 @@ it('without a birth date shows years and a link to add it', async () => {
   expect(screen.getByText(/^In \d+ years you'd have$/)).toBeTruthy();
   await fireEvent.press(screen.getByText('Add your birth date'));
   expect(mockPush).toHaveBeenCalledWith('/about-you');
+});
+
+it('without a birth date the age slider becomes years from now and is not saved', async () => {
+  jest.useFakeTimers();
+  try {
+    profile.birthDate = null;
+    await renderScreen(<Projections />);
+    expect(screen.getByLabelText('Years from now').props.accessibilityValue).toEqual({ min: 1, max: 50, now: 25 });
+    await bump('Years from now', 'decrement');
+    expect(screen.getByText("In 24 years you'd have")).toBeTruthy();
+    expect(screen.getByText('24y')).toBeTruthy();
+    await jest.advanceTimersByTimeAsync(1500);
+    expect(mutate).not.toHaveBeenCalled();
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 it('has no birth-date link when there is one', async () => {
