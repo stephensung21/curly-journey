@@ -15,6 +15,7 @@ import { Screen } from '../../src/components/Screen';
 import { Segmented } from '../../src/components/Segmented';
 import { Slider } from '../../src/components/Slider';
 import { Toggle } from '../../src/components/Toggle';
+import { MortgageMode } from '../../src/projections/MortgageMode';
 import { useProjectionState, type ProjectionState } from '../../src/projections/useProjectionState';
 import { useSettings } from '../../src/settings/store';
 import { accents } from '../../src/theme/tokens';
@@ -161,7 +162,13 @@ function Loaded({ profile, prefill }: { profile: ProjectionProfile; prefill: Pro
   return (
     <>
       <Segmented options={[...MODES]} value={mode} onChange={setMode} />
-      {mode === 'etf' ? <EtfMode profile={profile} prefill={prefill} p={p} /> : <HandNote>Coming soon</HandNote>}
+      {mode === 'etf' ? (
+        <EtfMode profile={profile} prefill={prefill} p={p} />
+      ) : mode === 'mortgage' ? (
+        <MortgageMode profile={profile} prefill={prefill} p={p} />
+      ) : (
+        <HandNote>Coming soon</HandNote>
+      )}
     </>
   );
 }
