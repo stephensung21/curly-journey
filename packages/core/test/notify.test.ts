@@ -111,6 +111,11 @@ describe('planNotifications', () => {
       body: "AMP super hasn't been updated since 24 Jul", url: '/account/4',
     }]);
   });
+  it('stale manual waits for 09:00 Sydney', () => {
+    const manual = [{ id: 4, name: 'AMP super', balanceDate: '2026-07-24' }];
+    expect(planNotifications(input({ now: new Date('2026-10-24T21:30:00Z'), manual })).filter(n => n.type === 'stale')).toEqual([]); // 08:30 Sun
+    expect(planNotifications(input({ now: new Date('2026-10-24T22:30:00Z'), manual })).filter(n => n.type === 'stale')).toHaveLength(1); // 09:30
+  });
   it('disabled bill removes only bills', () => {
     const r = planNotifications(input({
       limits: [lim()],

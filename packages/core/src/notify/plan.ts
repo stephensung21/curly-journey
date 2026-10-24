@@ -80,7 +80,7 @@ export function planNotifications(p: PlanInput): PlannedNotification[] {
     });
   }
 
-  if (p.enabled.stale) {
+  if (p.enabled.stale && afterNine) {
     for (const m of p.manual) {
       if (m.balanceDate === null || !isManualStale(m.balanceDate, today)) continue;
       out.push({

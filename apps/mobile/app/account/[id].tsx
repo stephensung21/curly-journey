@@ -22,6 +22,7 @@ import { Segmented } from '../../src/components/Segmented';
 import { TransactionList } from '../../src/components/TransactionList';
 import { plainDay, receivedLabel, statementLabel, sydneyDate } from '../../src/lib/days';
 import { now } from '../../src/lib/now';
+import { useSettings } from '../../src/settings/store';
 import { categoryColor } from '../../src/theme/categoryColor';
 import { accents } from '../../src/theme/tokens';
 import { useTheme } from '../../src/theme/useTheme';
@@ -107,7 +108,7 @@ function ManualDetail({ account }: { account: Account }) {
       <Card style={{ gap: 10 }}>
         {values.map(v => (
           <View key={v.asOf} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <AppText>{dayMonthLabel(v.asOf)}</AppText>
+            <AppText>{v.asOf.slice(0, 4) === today.slice(0, 4) ? dayMonthLabel(v.asOf) : `${dayMonthLabel(v.asOf)} ${v.asOf.slice(0, 4)}`}</AppText>
             <Amount cents={v.valueCents} decimals="never" />
           </View>
         ))}
@@ -127,6 +128,7 @@ function ManualDetail({ account }: { account: Account }) {
 
 function CoinSpotDetail({ account }: { account: Account }) {
   const holdings = useHoldings(account.id).data?.holdings ?? [];
+  const hidden = useSettings(s => s.hideBalances);
   return (
     <Screen>
       <DetailHeader accountId={account.id} />
@@ -139,7 +141,7 @@ function CoinSpotDetail({ account }: { account: Account }) {
             <View style={{ flex: 1 }}>
               <AppText variant="bodyStrong">{h.symbol}</AppText>
               <AppText variant="label" tone="muted">
-                {h.units}
+                {hidden ? '•••' : h.units}
               </AppText>
             </View>
             <Amount cents={h.audCents} />

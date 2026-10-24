@@ -51,4 +51,32 @@ describe('coinSpotClient', () => {
     const f = fakeFetch({ body: { status: 'error', message: 'nope' } });
     await expect(coinSpotClient(KEY, SECRET, f.impl).balances()).rejects.toBeInstanceOf(CoinSpotError);
   });
+
+  it('passes a timeout signal and surfaces an abort as an error', async () => {
+    const seen: RequestInit[] = [];
+    const impl = (async (_u: string, init: RequestInit) => {
+      seen.push(init);
+      throw new DOMException('timed out', 'AbortError');
+    }) as unknown as typeof fetch;
+    await expect(coinSpotClient(KEY, SECRET, impl).balances()).rejects.toMatchObject({ name: 'AbortError' });
+    expect(seen[0]!.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('treats a non-finite audbalance as 0 and drops the coin when its balance is also 0', async () => {
+    const f = fakeFetch({
+      body: {
+        status: 'ok',
+        balances: [
+          { BTC: { balance: 0.5, audbalance: null } },
+          { ETH: { balance: 2 } },
+          { DOGE: { balance: 0, audbalance: 'x' } },
+        ],
+      },
+    });
+    const out = await coinSpotClient(KEY, SECRET, f.impl).balances();
+    expect(out).toEqual([
+      { symbol: 'BTC', units: '0.5', audCents: 0 },
+      { symbol: 'ETH', units: '2', audCents: 0 },
+    ]);
+  });
 });

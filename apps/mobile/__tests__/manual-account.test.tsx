@@ -3,6 +3,7 @@ import { renderScreen } from '../test-utils/renderScreen';
 import AccountDetail from '../app/account/[id]';
 import NewManualAccount from '../app/account/new';
 import * as hooks from '../src/api/hooks';
+import { useSettings } from '../src/settings/store';
 
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
@@ -90,6 +91,15 @@ describe('manual account detail', () => {
     expect(screen.queryByTestId('account-pager')).toBeNull();
   });
 
+  it('shows the year on history dates from other years only', async () => {
+    (mocked.useAccountValues as jest.Mock).mockReturnValue({
+      data: { values: [{ asOf: '2026-07-01', valueCents: 8500000 }, { asOf: '2025-07-24', valueCents: 8000000 }] },
+    });
+    await renderScreen(<AccountDetail />);
+    expect(screen.getByText('1 Jul')).toBeTruthy();
+    expect(screen.getByText('24 Jul 2025')).toBeTruthy();
+  });
+
   it('hides the update prompt when current', async () => {
     account = { ...manual, needsUpdate: false };
     await renderScreen(<AccountDetail />);
@@ -114,6 +124,15 @@ describe('manual account detail', () => {
 });
 
 describe('CoinSpot detail', () => {
+  it('masks units when balances are hidden', async () => {
+    account = coinspot;
+    useSettings.setState({ hideBalances: true });
+    await renderScreen(<AccountDetail />);
+    expect(screen.queryByText('0.0412')).toBeNull();
+    expect(screen.getAllByText('•••').length).toBe(2);
+    useSettings.setState({ hideBalances: false });
+  });
+
   it('lists holdings with units and AUD value', async () => {
     account = coinspot;
     await renderScreen(<AccountDetail />);

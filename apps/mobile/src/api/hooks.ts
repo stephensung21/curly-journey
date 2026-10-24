@@ -198,7 +198,7 @@ function qs(params: Record<string, string | number | undefined>): string {
 /** Anything the owner changes can move spending totals, the inbox and the charts. */
 function invalidateSpending(qc: QueryClient) {
   return Promise.all(
-    ['transactions', 'transaction', 'spending', 'inbox', 'inout', 'daily'].map(k => qc.invalidateQueries({ queryKey: [k] })),
+    ['transactions', 'transaction', 'spending', 'inbox', 'inout', 'daily', 'limits'].map(k => qc.invalidateQueries({ queryKey: [k] })),
   );
 }
 

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { PsTransaction, PsTransactionAccount } from '@curly/core';
 import { createApp } from '../src/app';
 import { makeRepo } from '../src/db/repo';
-import { CoinSpotError } from '../src/coinspot/client';
+import { CoinSpotError, coinSpotClient } from '../src/coinspot/client';
 import { PocketSmithError, type TransactionQuery } from '../src/pocketsmith';
 import { runSync, syncDue } from '../src/sync/runSync';
 import { fakePocketSmith, pgliteDb, seedToken } from './helpers';
@@ -424,6 +424,18 @@ describe('runSync', () => {
       expect(r.status).toBe('ok');
       expect(r.accounts).toBe(1);
       expect(spy).toHaveBeenCalledWith('coinspot failed', 401);
+      spy.mockRestore();
+      expect(await coinRows(db)).toHaveLength(0);
+    });
+
+    it('a CoinSpot timeout abort never breaks the sync and logs no message text', async () => {
+      const ps = fakePocketSmith({ accounts: [acct(1, 10)] });
+      const { db } = await setup(ps);
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const hang = (async () => { throw new DOMException('secret-ish text', 'AbortError'); }) as unknown as typeof fetch;
+      const r = await runSync({ db, pocketsmith: ps, coinspot: coinSpotClient('k', 's', hang), now: () => T0 });
+      expect(r.status).toBe('ok');
+      expect(spy).toHaveBeenCalledWith('coinspot failed', 'error');
       spy.mockRestore();
       expect(await coinRows(db)).toHaveLength(0);
     });

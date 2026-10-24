@@ -30,6 +30,7 @@ export function coinSpotClient(key: string, secret: string, fetchImpl: typeof fe
         method: 'POST',
         headers: { 'content-type': 'application/json', key, sign: await sign(secret, body) },
         body,
+        signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) throw new CoinSpotError(res.status);
       const json = (await res.json()) as Resp;
@@ -38,7 +39,8 @@ export function coinSpotClient(key: string, secret: string, fetchImpl: typeof fe
       for (const entry of json.balances) {
         for (const [symbol, v] of Object.entries(entry)) {
           if (!(v.balance > 0)) continue;
-          out.push({ symbol, units: String(v.balance), audCents: Math.round(v.audbalance * 100) });
+          const aud = Number.isFinite(v.audbalance) ? v.audbalance : 0;
+          out.push({ symbol, units: String(v.balance), audCents: Math.round(aud * 100) });
         }
       }
       return out;
