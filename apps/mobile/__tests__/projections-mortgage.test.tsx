@@ -58,7 +58,46 @@ it('says how much sooner than the term', async () => {
   expect(sooner).toBeGreaterThan(0);
   const y = Math.floor(sooner / 12), m = sooner % 12;
   const txt = [y ? `${y} ${y === 1 ? 'year' : 'years'}` : '', m ? `${m} ${m === 1 ? 'month' : 'months'}` : ''].filter(Boolean).join(' ');
-  expect(screen.getByText(`${txt} sooner than your term, thanks to your offsets`)).toBeTruthy();
+  expect(screen.getByText(`${txt} sooner than your term`)).toBeTruthy();
+});
+
+const spanText = (n: number) => {
+  const y = Math.floor(n / 12), m = n % 12;
+  return [y ? `${y} ${y === 1 ? 'year' : 'years'}` : '', m ? `${m} ${m === 1 ? 'month' : 'months'}` : ''].filter(Boolean).join(' ');
+};
+
+it('says how much the offsets save as a second line', async () => {
+  await open();
+  const r = compareOffset(input());
+  const saved = r.withoutOffset.payoffMonth! - r.withOffset.payoffMonth!;
+  expect(saved).toBeGreaterThan(0);
+  expect(screen.getByText(`Offsets save you ${spanText(saved)}`)).toBeTruthy();
+});
+
+it('omits the offsets-save line when offsets change nothing', async () => {
+  prefill.offsetCents = 0;
+  profile.offsetGrowthCents = 0;
+  await open();
+  expect(screen.queryByText(/Offsets save you/)).toBeNull();
+});
+
+it('says offsets help when only the without-offset loan is unpaid', async () => {
+  profile.repaymentCents = 300_000;
+  prefill.mortgageBalanceCents = 60_000_000;
+  prefill.offsetCents = 40_000_000;
+  profile.offsetGrowthCents = 0;
+  await open();
+  const r = compareOffset(input({ balanceCents: 60_000_000, monthlyRepaymentCents: 300_000, offsetCents: 40_000_000, offsetGrowthCents: 0 }));
+  expect(r.withoutOffset.payoffMonth).toBeNull();
+  expect(r.withOffset.payoffMonth).not.toBeNull();
+  expect(screen.getByText('Offsets help you pay it off within 50 years')).toBeTruthy();
+  expect(screen.getByText('Interest saved is at least this (50-year limit)')).toBeTruthy();
+  expect(screen.queryByText('At least these amounts over 50 years')).toBeNull();
+});
+
+it('draws the offset area at the chart default opacity', async () => {
+  await open();
+  expect(JSON.stringify(screen.toJSON())).not.toContain('"opacity":0.2');
 });
 
 it('says on track when not sooner than the term', async () => {

@@ -1,4 +1,4 @@
-import { compareOffset, monthlyRepayment, requiredRepayment, shiftMonths } from '@curly/core';
+import { compareOffset } from '@curly/core';
 import { useRouter } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
@@ -13,19 +13,9 @@ import { Slider } from '../components/Slider';
 import { useSettings } from '../settings/store';
 import { accents } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
+import { loanInput, monthYear, SetupCard, span } from './shared';
 import type { ProjectionState } from './useProjectionState';
 
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const monthYear = (today: string, m: number) => {
-  const iso = shiftMonths(today, m);
-  return `${MONTH_NAMES[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
-};
-const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
-const span = (months: number) => {
-  const y = Math.floor(months / 12);
-  const m = months % 12;
-  return [y ? plural(y, 'year') : '', m ? plural(m, 'month') : ''].filter(Boolean).join(' ');
-};
 const goHomeLoan = (router: ReturnType<typeof useRouter>) => router.push('/home-loan' as never);
 
 export function MortgageMode({ profile, prefill, p }: { profile: ProjectionProfile; prefill: ProjectionPrefill; p: ProjectionState }) {
@@ -33,49 +23,25 @@ export function MortgageMode({ profile, prefill, p }: { profile: ProjectionProfi
   const router = useRouter();
   const hidden = useSettings(s => s.hideBalances);
   const [headlineWidth, setHeadlineWidth] = useState(0);
-  const { mortgageBalanceCents: balance, offsetCents: offset, today } = prefill;
-  const { mortgageRateBps: rate, termMonths: term, repaymentCents, repaymentFrequency, offsetGrowthCents } = profile;
+  const { today, mortgageBalanceCents: balance, offsetCents: offset } = prefill;
+  const { offsetGrowthCents } = profile;
+  const loan = loanInput(profile, prefill, p);
+  const loanKey = loan ? JSON.stringify(loan.mortgage) : '';
+  const cmp = useMemo(() => (loan ? compareOffset(loan.mortgage) : null), [loanKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const ready = balance > 0 && rate !== null && term !== null && term > 0;
-  const usingMinimum = ready && repaymentCents === null;
-  const monthlyPay = !ready ? 0 : repaymentCents === null ? requiredRepayment(balance, rate, term) : monthlyRepayment(repaymentCents, repaymentFrequency);
-
-  const cmp = useMemo(
-    () =>
-      ready
-        ? compareOffset({
-            balanceCents: balance,
-            rateBps: rate,
-            monthlyRepaymentCents: monthlyPay,
-            offsetCents: offset,
-            offsetGrowthCents,
-            extraMonthlyCents: p.extraMonthlyCents,
-            rateChangeBps: p.rateChangeBps,
-          })
-        : null,
-    [ready, balance, rate, monthlyPay, offset, offsetGrowthCents, p.extraMonthlyCents, p.rateChangeBps],
-  );
-
-  if (!cmp || !ready) {
-    return (
-      <Pressable accessibilityRole="button" onPress={() => goHomeLoan(router)}>
-        <Card style={{ gap: 4 }}>
-          <AppText variant="bodyStrong">Set up your home loan</AppText>
-          <AppText tone="muted">Add your rate, term and repayment to see when you'll be mortgage-free.</AppText>
-        </Card>
-      </Pressable>
-    );
-  }
+  if (!cmp || !loan) return <SetupCard />;
+  const { usingMinimum, monthlyPay, term, rate } = loan;
 
   const payoff = cmp.withOffset.payoffMonth;
   const sooner = payoff === null ? 0 : term - payoff;
-  const note =
-    payoff === null ? 'Not paid off at this repayment' : sooner > 0 ? `${span(sooner)} sooner than your term, thanks to your offsets` : 'On track for your term';
-  const truncated = cmp.withoutOffset.payoffMonth === null;
+  const note = payoff === null ? 'Not paid off at this repayment' : sooner > 0 ? `${span(sooner)} sooner than your term` : 'On track for your term';
+  const withoutPayoff = cmp.withoutOffset.payoffMonth;
+  const offsetsSave = payoff === null ? 0 : withoutPayoff === null ? 0 : withoutPayoff - payoff;
+  const savedNote = payoff !== null && withoutPayoff === null ? 'Offsets help you pay it off within 50 years' : offsetsSave > 0 ? `Offsets save you ${span(offsetsSave)}` : null;
   const money = (c: number) => <Amount cents={c} decimals="never" />;
 
   const series = [
-    { key: 'offset', kind: 'area' as const, color: accents.blue, opacity: 0.2, points: cmp.withOffset.points.map(pt => ({ month: pt.month, cents: pt.offsetCents })) },
+    { key: 'offset', kind: 'area' as const, color: accents.blue, points: cmp.withOffset.points.map(pt => ({ month: pt.month, cents: pt.offsetCents })) },
     { key: 'without', kind: 'dashed' as const, color: t.inkMuted, points: cmp.withoutOffset.points.map(pt => ({ month: pt.month, cents: pt.balanceCents })) },
     { key: 'with', kind: 'line' as const, color: accents.blue, points: cmp.withOffset.points.map(pt => ({ month: pt.month, cents: pt.balanceCents })) },
   ];
@@ -101,6 +67,7 @@ export function MortgageMode({ profile, prefill, p }: { profile: ProjectionProfi
           </>
         )}
         <HandNote>{note}</HandNote>
+        {savedNote ? <HandNote>{savedNote}</HandNote> : null}
         {usingMinimum ? <AppText tone="muted">Using the minimum repayment</AppText> : null}
       </View>
 
@@ -131,9 +98,13 @@ export function MortgageMode({ profile, prefill, p }: { profile: ProjectionProfi
             <Amount cents={cmp.withOffset.interestCents} decimals="never" />
           </View>
         </View>
-        {truncated ? (
+        {payoff === null ? (
           <AppText variant="axis" tone="muted" style={{ marginTop: 4 }}>
             At least these amounts over 50 years
+          </AppText>
+        ) : withoutPayoff === null ? (
+          <AppText variant="axis" tone="muted" style={{ marginTop: 4 }}>
+            Interest saved is at least this (50-year limit)
           </AppText>
         ) : null}
       </Card>
