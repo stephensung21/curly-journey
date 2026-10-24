@@ -109,7 +109,8 @@ export async function runAlerts(deps: Deps): Promise<{ matched: number; sent: nu
     manual: accounts
       .filter((a) => a.source === 'manual')
       .map((a) => ({ id: a.id, name: a.displayName ?? a.name, balanceDate: a.balanceDate })),
-    enabled,
+    tradeHints: [], // Task 5 fills this
+    enabled: { ...enabled, trade_hint: false }, // Task 3 adds the pref and removes this override
   });
 
   const push = deps.push;

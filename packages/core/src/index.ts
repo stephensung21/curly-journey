@@ -20,3 +20,4 @@ export * from './limits/limits';
 export * from './notify/plan';
 export * from './holdings/commsec';
 export * from './holdings/holdings';
+export * from './networth/networth';
