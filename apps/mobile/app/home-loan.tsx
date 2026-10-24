@@ -11,6 +11,7 @@ import { Card } from '../src/components/Card';
 import { Screen } from '../src/components/Screen';
 import { Segmented } from '../src/components/Segmented';
 import { useInputStyle } from '../src/components/ValueSheet';
+import { accents } from '../src/theme/tokens';
 import { useTheme } from '../src/theme/useTheme';
 
 const SAVE_FAILED = "Couldn't save. Try again.";
@@ -45,7 +46,7 @@ function Field({ label, error, children }: { label: string; error?: string | nul
         {label}
       </AppText>
       {children}
-      {error ? <AppText>{error}</AppText> : null}
+      {error ? <AppText style={{ color: accents.pink }}>{error}</AppText> : null}
     </View>
   );
 }
@@ -76,7 +77,7 @@ function Form({ profile, prefill }: { profile: ProjectionProfile; prefill: Proje
   async function save() {
     setSaveError(null);
     const e: Record<string, string> = {};
-    if (rate.trim() !== '' && (rateBps === null || rateBps > 2000)) e.rate = 'Enter a rate between 0 and 20';
+    if (rate.trim() !== '' && (rateBps === null || rateBps < 0 || rateBps > 2000)) e.rate = 'Enter a rate between 0 and 20';
     let repaymentCents: number | null = null;
     if (repayment.trim() !== '') {
       repaymentCents = cents(repayment);
@@ -197,7 +198,7 @@ function Form({ profile, prefill }: { profile: ProjectionProfile; prefill: Proje
           </AppText>
         </Field>
       </Card>
-      {saveError ? <AppText>{saveError}</AppText> : null}
+      {saveError ? <AppText style={{ color: accents.pink }}>{saveError}</AppText> : null}
       <Button label="Save" disabled={update.isPending} onPress={() => void save()} />
     </>
   );
@@ -205,7 +206,7 @@ function Form({ profile, prefill }: { profile: ProjectionProfile; prefill: Proje
 
 export default function HomeLoanScreen() {
   const router = useRouter();
-  const data = useProjections().data;
+  const { data, isError } = useProjections();
   return (
     <Screen>
       <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
@@ -213,6 +214,7 @@ export default function HomeLoanScreen() {
       </Pressable>
       <AppText variant="title">Home loan</AppText>
       <AppText tone="muted">Used by the Mortgage and Both projections.</AppText>
+      {isError ? <AppText style={{ color: accents.pink }}>Couldn't load your details. Go back and try again.</AppText> : null}
       {data ? <Form profile={data.profile} prefill={data.prefill} /> : null}
     </Screen>
   );

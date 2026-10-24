@@ -74,3 +74,9 @@ it('shows an inline error when saving fails', async () => {
   expect(await screen.findByText("Couldn't save. Try again.")).toBeTruthy();
   expect(mockBack).not.toHaveBeenCalled();
 });
+
+it('says so when the details fail to load', async () => {
+  mocked.useProjections.mockImplementation((() => ({ data: undefined, isError: true })) as any);
+  await renderScreen(<AboutYou />);
+  expect(screen.getByText("Couldn't load your details. Go back and try again.")).toBeTruthy();
+});

@@ -127,7 +127,7 @@ function Form({ profile }: { profile: ProjectionProfile }) {
           }}
           style={input}
         />
-        {birthError ? <AppText>{birthError}</AppText> : null}
+        {birthError ? <AppText style={{ color: accents.pink }}>{birthError}</AppText> : null}
       </Card>
       <Card style={{ gap: 8 }}>
         <AppText variant="label" tone="muted">
@@ -154,9 +154,9 @@ function Form({ profile }: { profile: ProjectionProfile }) {
         <AppText variant="label" tone="muted">
           plus 2% Medicare levy if it applies
         </AppText>
-        {taxError ? <AppText>{taxError}</AppText> : null}
+        {taxError ? <AppText style={{ color: accents.pink }}>{taxError}</AppText> : null}
       </Card>
-      {saveError ? <AppText>{saveError}</AppText> : null}
+      {saveError ? <AppText style={{ color: accents.pink }}>{saveError}</AppText> : null}
       <Button label="Save" disabled={update.isPending} onPress={() => void save()} />
     </>
   );
@@ -164,7 +164,8 @@ function Form({ profile }: { profile: ProjectionProfile }) {
 
 export default function AboutYouScreen() {
   const router = useRouter();
-  const profile = useProjections().data?.profile;
+  const { data, isError } = useProjections();
+  const profile = data?.profile;
   return (
     <Screen>
       <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
@@ -172,6 +173,7 @@ export default function AboutYouScreen() {
       </Pressable>
       <AppText variant="title">About you</AppText>
       <AppText tone="muted">Used to show your age on projections and to take tax off ETF distributions.</AppText>
+      {isError ? <AppText style={{ color: accents.pink }}>Couldn't load your details. Go back and try again.</AppText> : null}
       {profile ? <Form profile={profile} /> : null}
     </Screen>
   );

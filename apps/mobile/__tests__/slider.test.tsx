@@ -52,3 +52,32 @@ it('renders any node from format', async () => {
   await render(<Slider label="Age" accessibilityLabel="Age" value={60} min={40} max={70} step={1} onChange={jest.fn()} format={v => <Text>{`${v} years`}</Text>} />);
   expect(screen.getByText('60 years')).toBeTruthy();
 });
+
+const layout = (w: number) => fireEvent(screen.getByLabelText('Spare cash'), 'layout', { nativeEvent: { layout: { width: w, height: 36, x: 0, y: 0 } } });
+const press = (x: number) =>
+  fireEvent(screen.getByLabelText('Spare cash'), 'responderGrant', { nativeEvent: { locationX: x }, touchHistory: { touchBank: [{ touchActive: true, currentPageX: 0, currentPageY: 0, previousPageX: 0, previousPageY: 0, currentTimeStamp: 0, previousTimeStamp: 0, startPageX: 0, startPageY: 0, startTimeStamp: 0 }], numberActiveTouches: 1, indexOfSingleActiveTouch: 0, mostRecentTimeStamp: 0 } });
+
+it('maps a press on the outer view to a value over the usable width', async () => {
+  const onChange = await setup(0);
+  await layout(222); // usable width 200 (thumb is 22)
+  await press(111); // thumb centre at the middle
+  expect(onChange).toHaveBeenLastCalledWith(50);
+  await press(11);
+  expect(onChange).not.toHaveBeenCalledWith(1);
+});
+
+it('reaches both ends under the finger', async () => {
+  const onChange = await setup(50);
+  await layout(222);
+  await press(211);
+  expect(onChange).toHaveBeenLastCalledWith(100);
+  await press(0);
+  expect(onChange).toHaveBeenLastCalledWith(0);
+});
+
+it('keeps fractional steps clean', async () => {
+  const onChange = jest.fn();
+  await render(<Slider label="Rate" accessibilityLabel="Rate" value={0.2} min={0} max={1} step={0.1} onChange={onChange} format={v => <Text>{String(v)}</Text>} />);
+  fireEvent(screen.getByLabelText('Rate'), 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+  expect(onChange).toHaveBeenLastCalledWith(0.3);
+});

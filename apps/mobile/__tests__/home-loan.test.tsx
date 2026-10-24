@@ -92,3 +92,17 @@ it('shows an inline error when saving fails', async () => {
   await fireEvent.press(screen.getByText('Save'));
   expect(await screen.findByText("Couldn't save. Try again.")).toBeTruthy();
 });
+
+it('rejects a negative rate', async () => {
+  await renderScreen(<HomeLoan />);
+  await fireEvent.changeText(screen.getByLabelText('Interest rate %'), '-1');
+  await fireEvent.press(screen.getByText('Save'));
+  expect(screen.getByText('Enter a rate between 0 and 20')).toBeTruthy();
+  expect(save).not.toHaveBeenCalled();
+});
+
+it('says so when the details fail to load', async () => {
+  mocked.useProjections.mockImplementation((() => ({ data: undefined, isError: true })) as any);
+  await renderScreen(<HomeLoan />);
+  expect(screen.getByText("Couldn't load your details. Go back and try again.")).toBeTruthy();
+});

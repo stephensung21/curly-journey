@@ -17,9 +17,13 @@ type SliderProps = {
   accessibilityLabel: string;
 };
 
+const decimals = (n: number) => (String(n).split('.')[1] ?? '').length;
+
 function snap(v: number, min: number, max: number, step: number): number {
   const stepped = min + Math.round((v - min) / step) * step;
-  return Math.min(max, Math.max(min, stepped));
+  // Round to the precision of the step and min, so 0.2 + 0.1 is 0.3 and not 0.30000000000000004.
+  const clean = Number(stepped.toFixed(Math.max(decimals(step), decimals(min))));
+  return Math.min(max, Math.max(min, clean));
 }
 
 /** Drag slider. Screen readers (and tests) move it a step at a time via increment/decrement actions. */
@@ -38,15 +42,18 @@ export function Slider({ label, value, min, max, step, onChange, format, accessi
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (e) => {
         const c = latest.current;
-        if (c.width <= 0) return;
-        const next = snap(c.min + (e.nativeEvent.locationX / c.width) * (c.max - c.min), c.min, c.max, c.step);
+        const usable = c.width - THUMB;
+        if (usable <= 0) return;
+        // locationX is relative to the outer view because the inner views ignore touches.
+        const next = snap(c.min + ((e.nativeEvent.locationX - THUMB / 2) / usable) * (c.max - c.min), c.min, c.max, c.step);
         startValue.current = next;
         if (next !== c.value) c.onChange(next);
       },
       onPanResponderMove: (_e, g) => {
         const c = latest.current;
-        if (c.width <= 0) return;
-        const next = snap(startValue.current + (g.dx / c.width) * (c.max - c.min), c.min, c.max, c.step);
+        const usable = c.width - THUMB;
+        if (usable <= 0) return;
+        const next = snap(startValue.current + (g.dx / usable) * (c.max - c.min), c.min, c.max, c.step);
         if (next !== c.value) c.onChange(next);
       },
     }),
@@ -77,7 +84,7 @@ export function Slider({ label, value, min, max, step, onChange, format, accessi
         style={{ height: 36, justifyContent: 'center' }}
         {...pan.panHandlers}
       >
-        <View style={{ height: 6, borderRadius: 3, backgroundColor: t.line, overflow: 'hidden' }}>
+        <View pointerEvents="none" style={{ height: 6, borderRadius: 3, backgroundColor: t.line, overflow: 'hidden' }}>
           <View style={{ width: `${frac * 100}%`, height: 6, backgroundColor: accents.lime }} />
         </View>
         <View
