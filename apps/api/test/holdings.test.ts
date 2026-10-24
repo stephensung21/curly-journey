@@ -135,3 +135,47 @@ describe('holdings', () => {
     expect(await db.query('select * from trade_hint_dismissed')).toHaveLength(1);
   });
 });
+
+describe('manual trade then CSV import', () => {
+  const manual = { date: '2026-10-22', side: 'buy', symbol: 'VAS', units: 15, price: '102.45', brokerage: '10.00' };
+  it('matched CSV trade is HAVE; import replaces the manual row with the CSV row', async () => {
+    const { send, db } = await setup();
+    await send('POST', '/holdings/trades', manual);
+    const p = (await (await send('POST', '/holdings/import/preview', { csv: CSV })).json()) as { new: unknown[]; have: unknown[] };
+    expect(p.have).toHaveLength(1);
+    expect(p.new).toHaveLength(0);
+    expect(await (await send('POST', '/holdings/import', { csv: CSV })).json()).toEqual({ imported: 1 });
+    const rows = await db.query<{ source: string; fingerprint: string }>('select source, fingerprint from trade');
+    expect(rows).toEqual([{ source: 'csv', fingerprint: 'ref:C1234567' }]);
+    const s = (await (await send('GET', '/holdings')).json()) as Summary;
+    expect(s.holdings[0]).toMatchObject({ symbol: 'VAS', units: 15 });
+    expect(s.costCents).toBe(154675);
+    // second import: nothing more
+    expect(await (await send('POST', '/holdings/import', { csv: CSV })).json()).toEqual({ imported: 0 });
+  });
+
+  it('leaves unrelated manual trades alone', async () => {
+    const { send, db } = await setup();
+    await send('POST', '/holdings/trades', { ...manual, symbol: 'VGS' });
+    await send('POST', '/holdings/trades', { ...manual, date: '2026-10-10' });
+    const p = (await (await send('POST', '/holdings/import/preview', { csv: CSV })).json()) as { new: unknown[]; have: unknown[] };
+    expect(p.new).toHaveLength(1);
+    await send('POST', '/holdings/import', { csv: CSV });
+    expect(await db.query("select 1 from trade where source = 'manual'")).toHaveLength(2);
+  });
+
+  it('one manual trade is matched by at most one CSV trade', async () => {
+    const { send, db } = await setup();
+    await send('POST', '/holdings/trades', manual);
+    const two = `${CSV}25/10/2026,C999,B 15 VAS @ 103.000000,1555.00,,0.00\n`;
+    await send('POST', '/holdings/import', { csv: two });
+    expect(await db.query("select 1 from trade where source = 'csv'")).toHaveLength(2);
+    expect(await db.query("select 1 from trade where source = 'manual'")).toHaveLength(0);
+  });
+
+  it('rejects unsafe prices', async () => {
+    const { send } = await setup();
+    const r = await send('POST', '/holdings/trades', { ...manual, price: '9999999999999999999' });
+    expect(r.status).toBe(400);
+  });
+});

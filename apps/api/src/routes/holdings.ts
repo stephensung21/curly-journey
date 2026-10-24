@@ -4,6 +4,7 @@ import {
   parseCommSecRows,
   parsePriceToMicros,
   sydneyDate,
+  TRADE_HINT_DAYS,
   tradeFingerprint,
   valueHoldings,
   type ParsedTrade,
@@ -59,8 +60,39 @@ async function buildPreview(repo: HoldingsRepo, csv: string) {
       fresh.push({ ...t, source: 'csv', fingerprint: fp });
     }
   });
-  return { fresh, have, skipped: parsed.skipped, ignored: parsed.ignored };
+
+  // A hand-entered trade the CSV now covers: same side, symbol and units within a few days.
+  // Closest pairs win and each manual trade is used once. The CSV row replaces it.
+  const accountId = fresh.length ? await repo.commsecAccountId() : null;
+  const manual = accountId === null ? [] : (await repo.trades(accountId)).filter((t) => t.source === 'manual');
+  const pairs: { f: number; m: number; gap: number }[] = [];
+  fresh.forEach((f, fi) =>
+    manual.forEach((m, mi) => {
+      const gap = Math.abs(dayNum(f.date) - dayNum(m.date));
+      if (f.side === m.side && f.symbol === m.symbol && f.units === m.units && gap <= TRADE_HINT_DAYS) pairs.push({ f: fi, m: mi, gap });
+    }),
+  );
+  pairs.sort((a, b) => a.gap - b.gap || a.f - b.f || a.m - b.m);
+  const usedF = new Set<number>();
+  const usedM = new Set<number>();
+  for (const p of pairs) {
+    if (usedF.has(p.f) || usedM.has(p.m)) continue;
+    usedF.add(p.f);
+    usedM.add(p.m);
+  }
+  const replacing = fresh.filter((_, i) => usedF.has(i));
+  have.push(...replacing);
+  return {
+    fresh: fresh.filter((_, i) => !usedF.has(i)),
+    replacing,
+    replaceIds: [...usedM].map((i) => manual[i]!.id),
+    have,
+    skipped: parsed.skipped,
+    ignored: parsed.ignored,
+  };
 }
+
+const dayNum = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000;
 
 const SYMBOL = /^[A-Z0-9]{2,6}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -125,8 +157,9 @@ export function holdingsRoutes(deps: Deps) {
   r.post('/holdings/import', async (c) => {
     const p = await buildPreview(repo, await readCsv(c.req.raw));
     let accountId = await repo.commsecAccountId();
-    if (p.fresh.length) accountId = await repo.ensureCommsecAccount(deps.now());
-    const imported = accountId === null ? 0 : await repo.insertTrades(accountId, p.fresh);
+    const rows = [...p.replacing, ...p.fresh];
+    if (rows.length) accountId = await repo.ensureCommsecAccount(deps.now());
+    const imported = accountId === null ? 0 : await repo.insertTrades(accountId, rows, p.replaceIds);
     if (accountId !== null && imported > 0) await refreshBalance(accountId);
     return c.json({ imported });
   });
@@ -153,25 +186,19 @@ export function holdingsRoutes(deps: Deps) {
     } catch {
       return bad;
     }
-    if (priceMicros <= 0) return bad;
+    if (!Number.isSafeInteger(priceMicros) || priceMicros <= 0) return bad;
     const brokerageCents = Math.round(Number(brokerage.trim()) * 100);
+    if (!Number.isSafeInteger(brokerageCents)) return bad;
     const gross = grossCents(units, priceMicros);
     const totalCents = side === 'buy' ? gross + brokerageCents : gross - brokerageCents;
     if (!Number.isSafeInteger(totalCents) || totalCents <= 0) return bad;
 
     const accountId = await repo.ensureCommsecAccount(deps.now());
-    const fingerprint = `manual:${crypto.randomUUID()}`;
-    await repo.insertTrades(accountId, [
-      { date, reference: null, side, symbol, units, priceMicros, brokerageCents, totalCents, source: 'manual', fingerprint },
-    ]);
-    const { trades, holdings } = await valued(accountId);
-    await repo.setCommsecBalance(
-      accountId,
-      holdings.reduce((n, h) => n + h.valueCents, 0),
-      sydneyDate(deps.now()),
-    );
-    // The newest manual row with these fields is the one just inserted (ids only grow).
-    const trade = [...trades].reverse().find((t) => t.source === 'manual' && t.date === date && t.symbol === symbol && t.side === side && t.units === units && t.priceMicros === priceMicros);
+    const trade = await repo.insertTrade(accountId, {
+      date, reference: null, side, symbol, units, priceMicros, brokerageCents, totalCents, source: 'manual',
+      fingerprint: `manual:${crypto.randomUUID()}`,
+    });
+    await refreshBalance(accountId);
     return c.json({ trade }, 201);
   });
 

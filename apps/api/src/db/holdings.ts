@@ -12,7 +12,9 @@ export type HoldingsRepo = {
   /** One query. */
   existingFingerprints(fps: string[]): Promise<Set<string>>;
   /** One bulk insert; returns how many rows were new. */
-  insertTrades(accountId: number, rows: NewTrade[]): Promise<number>;
+  insertTrades(accountId: number, rows: NewTrade[], replaceIds?: number[]): Promise<number>;
+  /** Inserts one trade and returns it. */
+  insertTrade(accountId: number, row: NewTrade): Promise<TradeRow>;
   deleteTrade(id: number): Promise<boolean>;
   /** One query: the newest stored close per symbol. */
   latestCloses(symbols: string[]): Promise<Map<string, Close>>;
@@ -21,6 +23,32 @@ export type HoldingsRepo = {
   setCommsecBalance(accountId: number, valueCents: number, date: string): Promise<void>;
   dismissHint(transactionId: number): Promise<void>;
 };
+
+type TradeSql = {
+  id: number;
+  date: string;
+  side: 'buy' | 'sell';
+  symbol: string;
+  units: number;
+  price_micros: string | number;
+  brokerage_cents: string | number;
+  total_cents: string | number;
+  source: 'csv' | 'manual';
+};
+const TRADE_COLS = `id, to_char(date, 'YYYY-MM-DD') as date, side, symbol, units,
+  price_micros::text as price_micros, brokerage_cents::text as brokerage_cents, total_cents::text as total_cents, source`;
+const toTrade = (r: TradeSql): TradeRow => ({
+  id: r.id,
+  date: r.date,
+  reference: null,
+  side: r.side,
+  symbol: r.symbol,
+  units: r.units,
+  priceMicros: Number(r.price_micros),
+  brokerageCents: Number(r.brokerage_cents),
+  totalCents: Number(r.total_cents),
+  source: r.source,
+});
 
 export function makeHoldingsRepo(db: Db): HoldingsRepo {
   return {
@@ -43,35 +71,8 @@ export function makeHoldingsRepo(db: Db): HoldingsRepo {
     },
 
     async trades(accountId) {
-      const rows = await db.query<{
-        id: number;
-        date: string;
-        side: 'buy' | 'sell';
-        symbol: string;
-        units: number;
-        price_micros: string | number;
-        brokerage_cents: string | number;
-        total_cents: string | number;
-        source: 'csv' | 'manual';
-      }>(
-        `select id, to_char(date, 'YYYY-MM-DD') as date, side, symbol, units,
-                price_micros::text as price_micros, brokerage_cents::text as brokerage_cents,
-                total_cents::text as total_cents, source
-         from trade where account_id = $1 order by date, id`,
-        [accountId],
-      );
-      return rows.map((r) => ({
-        id: r.id,
-        date: r.date,
-        reference: null,
-        side: r.side,
-        symbol: r.symbol,
-        units: r.units,
-        priceMicros: Number(r.price_micros),
-        brokerageCents: Number(r.brokerage_cents),
-        totalCents: Number(r.total_cents),
-        source: r.source,
-      }));
+      const rows = await db.query<TradeSql>(`select ${TRADE_COLS} from trade where account_id = $1 order by date, id`, [accountId]);
+      return rows.map(toTrade);
     },
 
     async existingFingerprints(fps) {
@@ -80,10 +81,12 @@ export function makeHoldingsRepo(db: Db): HoldingsRepo {
       return new Set(rows.map((r) => r.fingerprint));
     },
 
-    async insertTrades(accountId, rows) {
+    async insertTrades(accountId, rows, replaceIds = []) {
       if (!rows.length) return 0;
+      // One statement: the replaced manual rows go in the same step as their CSV rows arrive.
       const inserted = await db.query<{ id: number }>(
-        `insert into trade (account_id, date, side, symbol, units, price_micros, brokerage_cents, total_cents, source, fingerprint)
+        `with gone as (delete from trade where id = any($11::int[]))
+         insert into trade (account_id, date, side, symbol, units, price_micros, brokerage_cents, total_cents, source, fingerprint)
          select $1, t.date, t.side, t.symbol, t.units, t.price_micros, t.brokerage_cents, t.total_cents, t.source, t.fingerprint
          from unnest($2::date[], $3::text[], $4::text[], $5::int[], $6::bigint[], $7::bigint[], $8::bigint[], $9::text[], $10::text[])
            as t(date, side, symbol, units, price_micros, brokerage_cents, total_cents, source, fingerprint)
@@ -100,9 +103,20 @@ export function makeHoldingsRepo(db: Db): HoldingsRepo {
           rows.map((r) => r.totalCents),
           rows.map((r) => r.source),
           rows.map((r) => r.fingerprint),
+          replaceIds,
         ],
       );
       return inserted.length;
+    },
+
+    async insertTrade(accountId, r) {
+      const rows = await db.query<TradeSql>(
+        `insert into trade (account_id, date, side, symbol, units, price_micros, brokerage_cents, total_cents, source, fingerprint)
+         values ($1, $2::date, $3, $4, $5, $6, $7, $8, $9, $10)
+         returning ${TRADE_COLS}`,
+        [accountId, r.date, r.side, r.symbol, r.units, r.priceMicros, r.brokerageCents, r.totalCents, r.source, r.fingerprint],
+      );
+      return toTrade(rows[0]!);
     },
 
     async deleteTrade(id) {
