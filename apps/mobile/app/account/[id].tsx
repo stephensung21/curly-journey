@@ -1,5 +1,5 @@
 import { dayMonthLabel, institutionGroup, monthKey } from '@curly/core';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Dimensions, type LayoutChangeEvent, Pressable, ScrollView, type ScrollViewInstance, View } from 'react-native';
 import { useAccounts, useAccountValues, useCategories, useHoldings, useSetAccountValue, useSpending, useTransactionsQuery } from '../../src/api/hooks';
@@ -317,6 +317,7 @@ export default function AccountDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const accountId = Number(id);
   const account = useAccounts().data?.accounts.find(a => a.id === accountId);
+  if (account?.source === 'commsec') return <Redirect href="/commsec" />;
   if (account?.source === 'manual') return <ManualDetail account={account} />;
   if (account?.source === 'coinspot') return <CoinSpotDetail account={account} />;
   return <BankDetail accountId={accountId} />;

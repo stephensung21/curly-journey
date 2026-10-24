@@ -40,14 +40,14 @@ export function useInputStyle() {
 }
 
 /** The As of row: shows the date, and opens a month grid that disables days after today. */
-export function AsOfField({ asOf, today, onChange }: { asOf: string; today: string; onChange: (iso: string) => void }) {
+export function AsOfField({ asOf, today, onChange, label = 'As of' }: { asOf: string; today: string; onChange: (iso: string) => void; label?: string }) {
   const input = useInputStyle();
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(asOf.slice(0, 7));
   return (
     <View style={{ gap: 6 }}>
       <AppText variant="label" tone="muted">
-        As of
+        {label}
       </AppText>
       <Pressable
         accessibilityRole="button"

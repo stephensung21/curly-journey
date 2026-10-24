@@ -16,7 +16,7 @@ export type AccountKind = 'transaction' | 'savings' | 'credit_card' | 'mortgage'
 
 export type Account = {
   id: number;
-  source: 'pocketsmith' | 'manual' | 'coinspot';
+  source: 'pocketsmith' | 'manual' | 'coinspot' | 'commsec';
   institution: string;
   name: string;
   displayName: string | null;
