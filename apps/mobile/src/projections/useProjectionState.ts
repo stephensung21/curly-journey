@@ -17,6 +17,7 @@ export function useProjectionState(profile: ProjectionProfile, prefill: Projecti
   const [yearsFromNow, setYearsFromNow] = useState(25);
   const [extraMonthlyCents, setExtraMonthlyCents] = useState(0);
   const [rateChangeBps, setRateChangeBps] = useState(0);
+  const [spareCents, setSpareCents] = useState(50_000);
   const [saved, setSaved] = useState<Saved>({
     returnBps: profile.returnBps,
     targetCents: profile.targetCents,
@@ -32,6 +33,7 @@ export function useProjectionState(profile: ProjectionProfile, prefill: Projecti
         setYearsFromNow(25);
         setExtraMonthlyCents(0);
         setRateChangeBps(0);
+        setSpareCents(50_000);
       },
       [],
     ),
@@ -75,6 +77,8 @@ export function useProjectionState(profile: ProjectionProfile, prefill: Projecti
     setExtraMonthlyCents,
     rateChangeBps,
     setRateChangeBps,
+    spareCents,
+    setSpareCents,
     setReturnBps: (v: number) => change('returnBps', v),
     setTargetCents: (v: number) => change('targetCents', v),
     setTargetAge: (v: number) => change('targetAge', v),
