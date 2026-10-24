@@ -173,13 +173,13 @@ describe('growth field', () => {
     expect(screen.getByText('Enter -20 to 20, one decimal.')).toBeTruthy();
   });
 
-  it('shows a save error under the field', async () => {
+  it('shows the save error once on a failed growth save', async () => {
     isError = true;
     await renderScreen(<AccountSettings />);
     const input = screen.getByLabelText('Grows by % a year');
     await fireEvent.changeText(input, '3.5');
     await fireEvent(input, 'blur');
-    expect(screen.getAllByText("Couldn't save. Try again.").length).toBe(2);
+    expect(screen.getAllByText("Couldn't save. Try again.")).toHaveLength(1);
   });
 
   it('blank clears to none', async () => {
