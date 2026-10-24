@@ -186,3 +186,20 @@ it('shows the disclaimer', async () => {
   await open();
   expect(screen.getByText(/General information only/)).toBeTruthy();
 });
+
+it('says the mortgage is paid off first when the loan ends before the ETFs pass it', async () => {
+  prefill.etfStartCents = 0;
+  prefill.etfMonthlyCents = 0;
+  await open();
+  const pay = compareOffset(mortgage()).withOffset.payoffMonth!;
+  expect(pay).toBeGreaterThan(0);
+  expect(screen.getByText(`Mortgage paid off first, in ${addMonthsLabel('2026-10-25', pay)}`)).toBeTruthy();
+  expect(screen.queryByText(/ETFs overtake/)).toBeNull();
+});
+
+it('assumptions line shows the session return after it changes', async () => {
+  await renderScreen(<Projections />);
+  bump('Expected return', 'increment');
+  await fireEvent.press(screen.getByText('Both'));
+  expect(screen.getByText(/^7\.25% return/)).toBeTruthy();
+});

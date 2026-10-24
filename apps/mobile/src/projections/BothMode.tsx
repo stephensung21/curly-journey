@@ -19,7 +19,7 @@ const YEARS_AFTER = 10;
 export function BothMode({ profile, prefill, p }: { profile: ProjectionProfile; prefill: ProjectionPrefill; p: ProjectionState }) {
   const router = useRouter();
   const hidden = useSettings(s => s.hideBalances);
-  const { birthDate, taxRateBps, returnBps, inflationBps, distributionYieldBps } = profile;
+  const { birthDate, taxRateBps, inflationBps, distributionYieldBps } = profile;
   const { today } = prefill;
   const { targetAge, headlineMonth } = ageTarget(profile, prefill, p);
   const years = p.yearsFromNow;
@@ -56,7 +56,15 @@ export function BothMode({ profile, prefill, p }: { profile: ProjectionProfile; 
   const net = etfValue - loanOwing;
   const at = birthDate ? `at ${targetAge}` : `in ${years} years`;
 
-  const headline = cross === 0 ? 'Your ETFs already cover the loan' : cross === null ? 'Not within 50 years' : `ETFs overtake your mortgage in ${addMonthsLabel(today, cross)}`;
+  const paidOffFirst = cross !== null && cross > 0 && cross === cmp.withOffset.payoffMonth;
+  const headline =
+    cross === 0
+      ? 'Your ETFs already cover the loan'
+      : cross === null
+        ? 'Not within 50 years'
+        : paidOffFirst
+          ? `Mortgage paid off first, in ${addMonthsLabel(today, cross)}`
+          : `ETFs overtake your mortgage in ${addMonthsLabel(today, cross)}`;
 
   const neither = cmp.withOffset.payoffMonth === null && vs.monthsSooner === 0;
   const offsetsText = neither
@@ -131,7 +139,7 @@ export function BothMode({ profile, prefill, p }: { profile: ProjectionProfile; 
           </Pressable>
         ) : null}
         <AppText variant="axis" tone="muted">
-          {`${pct(returnBps)} return · ${pct(inflationBps)} inflation · ${pct(distributionYieldBps)} distributions${taxRateBps === null ? '' : ` taxed at ${pct(taxRateBps)}`}`}
+          {`${pct(p.returnBps)} return · ${pct(inflationBps)} inflation · ${pct(distributionYieldBps)} distributions${taxRateBps === null ? '' : ` taxed at ${pct(taxRateBps)}`}`}
         </AppText>
       </Card>
     </>
