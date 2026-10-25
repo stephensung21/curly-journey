@@ -32,6 +32,7 @@ A personal app that combines:
 - PocketSmith refreshes the bank feeds on its own schedule. Our backend **polls incrementally** (e.g. every 2–4 hours, plus pull-to-refresh) using `updated_since`, and de-duplicates on the PocketSmith transaction ID.
 - Feed availability depends on your PocketSmith plan. The free plan has no bank feeds.
 - **Cost (reported Oct 2026, confirm at my.pocketsmith.com/plans):** Foundation is ~A$14.95/mo, or ~A$9.99/mo billed annually (~A$120/yr), and covers 6 banks from one country. Flourish (18 banks, any country) and Fortune (unlimited) cost more. **Foundation is enough here:** CommBank (everyday, offset and mortgage count as one bank), Amex and CommSec make 3 banks, and Up connects directly.
+- **Alternative checked 2026-10-25: Redbark** (CDR through Fiskil). Not adopted, because it can't connect Amex Australia. See `docs/research/2026-10-25-redbark-evaluation.md`.
 - **Decide early:** let PocketSmith own categorisation (simpler) *or* keep our own categories and rules (more control, closer to the CommBank and Amex apps). Recommendation: import PocketSmith's category as a starting point, but our own rules engine has the final say.
 
 ---
