@@ -1,6 +1,7 @@
-import { addMonths } from '@curly/core';
+import { addMonths, monthKey } from '@curly/core';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { now } from '../lib/now';
 import { accents } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AppText } from './AppText';
@@ -15,11 +16,12 @@ export function monthLabel(key: string): string {
   return `${MONTHS[Number(month) - 1]} ${year}`;
 }
 
-/** ‹ Month Year ›. Tapping the label opens a year-by-year grid of months to jump straight to one. */
+/** ‹ Month Year ›. Tapping the label opens a year-by-year grid of months to jump straight to one; the current month is ringed. */
 export function MonthSwitcher({ value, onChange }: { value: string; onChange: (key: string) => void }) {
   const t = useTheme();
   const [open, setOpen] = useState(false);
   const [year, setYear] = useState(Number(value.slice(0, 4)));
+  const current = monthKey(now());
   return (
     <View style={{ gap: 8 }}>
       <View
@@ -50,6 +52,20 @@ export function MonthSwitcher({ value, onChange }: { value: string; onChange: (k
           <AppText variant="bodyStrong">›</AppText>
         </Pressable>
       </View>
+      {value !== current ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to this month"
+          hitSlop={6}
+          onPress={() => {
+            setOpen(false);
+            onChange(current);
+          }}
+          style={{ alignSelf: 'center', backgroundColor: t.surface, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 }}
+        >
+          <AppText variant="label">↩ This month</AppText>
+        </Pressable>
+      ) : null}
       {open && (
         <View style={{ backgroundColor: t.surface, borderRadius: 20, padding: 12, gap: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -66,11 +82,12 @@ export function MonthSwitcher({ value, onChange }: { value: string; onChange: (k
               const key = `${year}-${String(i + 1).padStart(2, '0')}`;
               const short = name.slice(0, 3);
               const selected = key === value;
+              const isCurrent = key === current;
               return (
                 <View key={key} style={{ width: '25%', paddingHorizontal: 4 }}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Pick ${short} ${year}`}
+                    accessibilityLabel={`Pick ${short} ${year}${isCurrent ? ', this month' : ''}`}
                     accessibilityState={{ selected }}
                     onPress={() => {
                       setOpen(false);
@@ -81,6 +98,8 @@ export function MonthSwitcher({ value, onChange }: { value: string; onChange: (k
                       paddingVertical: 10,
                       borderRadius: 999,
                       backgroundColor: selected ? accents.orange : t.surfaceSunken,
+                      borderWidth: isCurrent ? 2 : 0,
+                      borderColor: t.ink,
                     }}
                   >
                     <AppText variant="bodyStrong" style={selected ? { color: t.inkOnAccent } : undefined}>
