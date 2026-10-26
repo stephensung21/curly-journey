@@ -262,7 +262,10 @@ function BankDetail({ accountId }: { accountId: number }) {
             <AppText variant={page === i ? 'bodyStrong' : 'body'} tone={page === i ? 'ink' : 'muted'}>
               {label}
             </AppText>
-            {page === i ? <CrayonUnderline width={label.length * 9} color={accents.lime} seed={i + 3} /> : <View style={{ height: 14 }} />}
+            {/* The same width under both labels, selected or not: a wider underline made the row shift. */}
+            <View testID={`underline-${label}`} style={{ width: label.length * 9, height: 14 }}>
+              {page === i ? <CrayonUnderline width={label.length * 9} color={accents.lime} seed={i + 3} /> : null}
+            </View>
           </Pressable>
         ))}
       </View>

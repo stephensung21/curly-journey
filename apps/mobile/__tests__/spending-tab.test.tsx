@@ -313,3 +313,12 @@ describe('clear search', () => {
     expect(screen.queryByLabelText('Clear search')).toBeNull();
   });
 });
+
+it('the Categories and Transactions labels keep their width when switching, so neither moves', async () => {
+  await renderScreen(<SpendingScreen />);
+  const width = (label: string) => StyleSheet.flatten(screen.getByTestId(`underline-${label}`).props.style).width;
+  const before = [width('Categories'), width('Transactions')];
+  await fireEvent.press(screen.getByText('Transactions'));
+  expect([width('Categories'), width('Transactions')]).toEqual(before);
+  expect(before).toEqual([90, 108]);
+});
