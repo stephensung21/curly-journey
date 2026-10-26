@@ -177,6 +177,23 @@ describe('deleteMissingFeedRows', () => {
   });
 });
 
+describe('deleteMissingFeedRows pending twins', () => {
+  it('removes a missing pending row whose posted copy is kept, even when the safety check skips the rest', async () => {
+    const a = await repo.upsertAccount(acct());
+    await repo.upsertTransactions(a, [
+      tx({ externalId: 'pend', date: '2026-10-18', amountCents: -4500, status: 'pending' }),
+      tx({ externalId: 'post', date: '2026-10-20', amountCents: -4500, status: 'posted' }),
+      tx({ externalId: 'pend-other-amount', date: '2026-10-18', amountCents: -999, status: 'pending' }),
+      ...['m1', 'm2', 'm3', 'm4'].map((externalId) => tx({ externalId, date: '2026-10-19', amountCents: -100 })),
+    ]);
+    const now = new Date('2026-10-23T00:00:00Z');
+    // 6 of 7 rows missing: the guard trips, so only the pending row with a posted twin goes.
+    expect(await repo.deleteMissingFeedRows([a], '2026-10-09', '2026-10-23', ['post'], now)).toEqual({ deleted: 1, carried: 0, skipped: 5 });
+    const left = await db.query<{ external_id: string }>('select external_id from transaction order by external_id');
+    expect(left.map((r) => r.external_id)).toEqual(['m1', 'm2', 'm3', 'm4', 'pend-other-amount', 'post']);
+  });
+});
+
 describe('upsertFeedTransactions', () => {
   it('upserts rows for several accounts in one query', async () => {
     const a = await repo.upsertAccount(acct());

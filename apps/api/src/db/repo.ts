@@ -504,17 +504,23 @@ export function makeRepo(db: Db): Repo {
       if (!accountIds.length) return { deleted: 0, carried: 0, skipped: 0 };
       const rows = await db.query<{ deleted: string | number; carried: string | number; skipped: string | number }>(
         `with w as (
-           select id, external_id <> all($4::text[]) as missing from transaction
-           where account_id = any($1::int[]) and source = 'pocketsmith' and date >= $2::date and date <= $3::date
+           select t.id, t.external_id <> all($4::text[]) as missing,
+             -- A pending row the feed dropped whose posted copy is here: always safe to remove, even past the guard.
+             (t.status = 'pending' and t.external_id <> all($4::text[]) and exists (
+               select 1 from transaction p
+               where p.account_id = t.account_id and p.status = 'posted' and p.amount_cents = t.amount_cents
+                 and abs(p.date - t.date) <= 5 and p.external_id = any($4::text[]))) as twin
+           from transaction t
+           where t.account_id = any($1::int[]) and t.source = 'pocketsmith' and t.date >= $2::date and t.date <= $3::date
          ), s as (
-           select count(*) as total, count(*) filter (where missing) as missing from w
+           select count(*) as total, count(*) filter (where missing) as missing, count(*) filter (where twin) as twins from w
          ), ok as (
-           select s.missing,
+           select s.missing, s.twins,
              not ((cardinality($4::text[]) = 0 and s.total > 0) or (s.missing > 3 and s.missing * 10 > s.total * 3)) as go
            from s
          ), d as (
            delete from transaction t using w, ok
-           where t.id = w.id and w.missing and ok.go
+           where t.id = w.id and w.missing and (ok.go or w.twin)
            returning t.account_id, t.amount_cents, t.date, t.category_id, t.category_source, t.flow, t.flow_source, t.note
          ), c as (
            insert into carried_edit (account_id, amount_cents, date, category_id, category_source, flow, flow_source, note,
@@ -524,7 +530,7 @@ export function makeRepo(db: Db): Repo {
            returning id
          )
          select (select count(*) from d) as deleted, (select count(*) from c) as carried,
-           (select case when go then 0 else missing end from ok) as skipped`,
+           (select case when go then 0 else missing - twins end from ok) as skipped`,
         [accountIds, from, to, keep, now.toISOString()],
       );
       const r = rows[0]!;
