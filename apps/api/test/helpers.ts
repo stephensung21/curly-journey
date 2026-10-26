@@ -29,6 +29,8 @@ export function fakePocketSmith(
     accounts?: PsTransactionAccount[];
     transactions?: Record<number, PsTransaction[]>;
     failOnAccount?: number;
+    /** Only this account's own history pages fail; the all-accounts endpoint still works. */
+    failHistoryOnAccount?: number;
     pageSize?: number;
     /** Every page of this account links to the same next page, to exercise the loop guard. */
     loopOnAccount?: number;
@@ -49,7 +51,7 @@ export function fakePocketSmith(
     async transactionsPage(accountId, opts, pageUrl) {
       const page = pageUrl ? Number(new URL(pageUrl).searchParams.get('page')) : 1;
       calls.push(`transactions:${accountId}:${opts.updatedSince ?? ''}:${opts.startDate ?? ''}:${opts.endDate ?? ''}:${page}`);
-      if (accountId === data.failOnAccount) throw new Error(`PocketSmith failed for account ${accountId}`);
+      if (accountId === data.failOnAccount || accountId === data.failHistoryOnAccount) throw new Error(`PocketSmith failed for account ${accountId}`);
       const base = `https://api.pocketsmith.com/v2/transaction_accounts/${accountId}/transactions`;
       if (accountId === data.loopOnAccount) return { items: [], next: `${base}?page=2` };
       const all = (data.transactions?.[accountId] ?? []).filter(

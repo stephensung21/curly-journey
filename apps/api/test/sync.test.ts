@@ -308,19 +308,23 @@ describe('runSync', () => {
     expect(Number(rows[0]!.n)).toBe(6);
   });
 
-  it('still fails when a page without a saved cursor is rejected', async () => {
+  it('a rejected history page without a saved cursor skips that account and finishes the run', async () => {
     const fake = fakePocketSmith({ accounts: [acct(1, 1)] });
     const ps = { ...fake, transactionsPage: () => Promise.reject(new PocketSmithError(404)) };
     const { db } = await setup(ps);
-    expect(await runSync({ db, pocketsmith: ps, now: () => T0 })).toMatchObject({ status: 'failed' });
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await runSync({ db, pocketsmith: ps, now: () => T0 })).toMatchObject({ status: 'ok', more: true });
+    err.mockRestore();
   });
 
-  it('fails on a pagination loop instead of spinning', async () => {
+  it('stops a pagination loop instead of spinning', async () => {
     const ps = fakePocketSmith({ accounts: [acct(1, 1)], loopOnAccount: 1 });
     const { db } = await setup(ps);
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const r = await runSync({ db, pocketsmith: ps, now: () => T0 });
-    expect(r.status).toBe('failed');
+    expect(r).toMatchObject({ status: 'ok', more: true });
     expect(ps.calls.filter((c) => c.startsWith('transactions:')).length).toBeLessThanOrEqual(3);
+    err.mockRestore();
   });
 
   it('syncDue: never synced, history still loading, or last success 3h50m ago', async () => {
@@ -351,6 +355,23 @@ describe('runSync', () => {
     expect(await makeRepo(db).lastSuccessfulSync()).toEqual(before);
   });
 
+  it('one account whose history keeps failing does not stop the sync, and its saved page is dropped', async () => {
+    const ps = fakePocketSmith({ accounts: [acct(1, 10), acct(2, 20)], failHistoryOnAccount: 2 });
+    const { db } = await setup(ps);
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const repo = makeRepo(db);
+    await runSync({ db, pocketsmith: ps, now: () => T0 });
+    const two = (await repo.listAccounts()).find((a) => a.balanceCents === 2000)!;
+    await repo.setHistoryCursor(two.id, 'https://api.pocketsmith.com/v2/transaction_accounts/2/transactions?page=7');
+    const r = await runSync({ db, pocketsmith: ps, now: () => new Date('2026-10-23T08:00:00Z') });
+    expect(r.status).toBe('ok');
+    expect(r.more).toBe(true);
+    const rows = await db.query<{ history_cursor: string | null }>('select history_cursor from account where id = $1', [two.id]);
+    expect(rows[0]!.history_cursor).toBeNull();
+    expect(JSON.stringify(err.mock.calls)).toContain('history failed');
+    err.mockRestore();
+  });
+
   it('overlap gives 409 and fake never called', async () => {
     const ps = fakePocketSmith({ accounts: [acct(1, 10)] });
     const { db, app, auth } = await setup(ps);
@@ -362,7 +383,8 @@ describe('runSync', () => {
   });
 
   it('POST /sync 502 on failure without message', async () => {
-    const ps = fakePocketSmith({ accounts: [acct(1, 10)], failOnAccount: 1 });
+    const fake = fakePocketSmith({ accounts: [acct(1, 10)] });
+    const ps = { ...fake, me: () => Promise.reject(new Error('PocketSmith down')) };
     const { app, auth } = await setup(ps);
     const res = await app.request('/sync', { method: 'POST', headers: auth });
     expect(res.status).toBe(502);

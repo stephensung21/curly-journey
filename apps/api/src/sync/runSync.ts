@@ -182,10 +182,12 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
       (b.historyFrom ?? '9999-12-31').localeCompare(a.historyFrom ?? '9999-12-31') ||
       Number(b.historyCursor !== null) - Number(a.historyCursor !== null);
     let more = false;
+    // Accounts whose history failed this run: skipped until the next run, so one bad account can't stop the sync.
+    const failed = new Set<number>();
     outer: for (
       let pending = states.filter((s) => !s.historyDone).sort(order);
       pending.length;
-      pending = pending.filter((s) => !s.historyDone)
+      pending = pending.filter((s) => !s.historyDone && !failed.has(s.id))
     ) {
       for (const s of pending) {
         const endDate = s.historyFrom ? addDays(s.historyFrom, -1) : today;
@@ -195,13 +197,27 @@ export async function runSync(deps: Deps, opts: { maxCalls?: number } = {}): Pro
           fetchAll((u) => ps.transactionsPage(s.psId, query, u), () => s.id, { mustFinish: false, cursor: s.historyCursor });
         let res: Awaited<ReturnType<typeof fetchAll>>;
         try {
-          res = await fetchWindow();
+          try {
+            res = await fetchWindow();
+          } catch (e) {
+            if (!(e instanceof StaleCursor)) throw e;
+            // Otherwise every run would fail on the same page: restart the window instead.
+            await repo.setHistoryCursor(s.id, null);
+            s.historyCursor = null;
+            res = await fetchWindow();
+          }
         } catch (e) {
-          if (!(e instanceof StaleCursor)) throw e;
-          // Otherwise every run would fail on the same page: restart the window instead.
-          await repo.setHistoryCursor(s.id, null);
-          s.historyCursor = null;
-          res = await fetchWindow();
+          if (e instanceof BudgetExhausted) throw e;
+          // Old history is nice to have; recent rows already came in above. Log, drop any saved page so the next try
+          // starts the window afresh, and carry on with the other accounts.
+          console.error('history failed', e instanceof PocketSmithError ? e.status : 'error');
+          if (s.historyCursor !== null && left() > 0) {
+            await repo.setHistoryCursor(s.id, null);
+            s.historyCursor = null;
+          }
+          failed.add(s.id);
+          more = true;
+          continue;
         }
         if (!res.complete) {
           if (res.pages && res.next) await repo.setHistoryCursor(s.id, res.next);
