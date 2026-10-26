@@ -201,6 +201,8 @@ export type CommsecResponse = {
   gainBps: number;
   priceDate: string | null;
   missingPrices: string[];
+  /** Held ETFs past the 10 the daily job prices. */
+  notUpdated?: string[];
   holdings: ValuedEtfHolding[];
   trades: Trade[];
 };

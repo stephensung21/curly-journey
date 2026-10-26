@@ -62,6 +62,15 @@ describe('runDaily', () => {
     expect(await db.query('select 1 from net_worth_snapshot')).toHaveLength(1);
   });
 
+  it('dates the CommSec balance by its oldest held price, not today, when prices fail', async () => {
+    const { db, holdings, accountId } = await setup();
+    await holdings.upsertPrices([{ symbol: 'VAS', date: '2026-10-20', closeMicros: 105_000_000 }]);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await runDaily(deps(db, { closes: vi.fn(async () => { throw new Error('down'); }) }));
+    const r = await db.query<{ d: string }>("select to_char(balance_date, 'YYYY-MM-DD') d from account where id = $1", [accountId]);
+    expect(r[0]!.d).toBe('2026-10-20');
+  });
+
   it('one symbol failing does not stop the others', async () => {
     const { db } = await setup(['AAA', 'BBB']);
     vi.spyOn(console, 'error').mockImplementation(() => {});

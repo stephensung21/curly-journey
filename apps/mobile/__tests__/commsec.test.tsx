@@ -85,15 +85,21 @@ describe('commsec screen', () => {
     expect(screen.getByText('Buy VGS')).toBeTruthy();
   });
 
-  it('says nothing about price date when it is the last weekday', async () => {
+  it('always says which day the prices are from', async () => {
     await renderScreen(<CommsecScreen />);
-    expect(screen.queryByText(/price as of/)).toBeNull(); // Fri 23 is the last weekday
+    expect(screen.getByText('Prices from 23 Oct')).toBeTruthy();
   });
 
-  it('says price as of when the price is older than the last weekday', async () => {
+  it('says the prices are old when they are from before the last weekday', async () => {
     commsec = { ...data, priceDate: '2026-10-21' };
     await renderScreen(<CommsecScreen />);
-    expect(screen.getByText('price as of 21 Oct')).toBeTruthy();
+    expect(screen.getByText('Prices from 21 Oct (not updated since)')).toBeTruthy();
+  });
+
+  it('names ETFs past the 10 that get daily prices', async () => {
+    commsec = { ...data, notUpdated: ['VTS', 'VEU'] };
+    await renderScreen(<CommsecScreen />);
+    expect(screen.getByText('Prices update for 10 ETFs a day. Not updated: VTS, VEU.')).toBeTruthy();
   });
 
   it('lists symbols with no price and says they are valued at cost', async () => {

@@ -44,7 +44,7 @@ describe('holdings', () => {
   it('GET /holdings is empty before any import', async () => {
     const { send } = await setup();
     const r = (await (await send('GET', '/holdings')).json()) as Summary;
-    expect(r).toEqual({ accountId: null, valueCents: 0, costCents: 0, gainCents: 0, gainBps: 0, priceDate: null, missingPrices: [], holdings: [], trades: [] });
+    expect(r).toEqual({ accountId: null, valueCents: 0, costCents: 0, gainCents: 0, gainBps: 0, priceDate: null, missingPrices: [], notUpdated: [], holdings: [], trades: [] });
   });
 
   it('preview then import, creating the CommSec account; re-import inserts nothing', async () => {
@@ -139,6 +139,15 @@ describe('holdings', () => {
     const s = (await (await send('GET', '/holdings')).json()) as Summary;
     expect(s.priceDate).toBe('2026-10-20');
     expect(s.missingPrices).toEqual(['VDHG']);
+  });
+
+  it('names held ETFs past the 10 that get daily prices', async () => {
+    const { send } = await setup();
+    const symbols = Array.from({ length: 12 }, (_, i) => `E${String(i).padStart(2, '0')}`);
+    const csv = [HEADER, ...symbols.map((s, i) => `24/10/2026,C${i},B 1 ${s} @ 10.000000,10.00,,0.00`)].join('\n') + '\n';
+    await send('POST', '/holdings/import', { csv });
+    const s = (await (await send('GET', '/holdings')).json()) as Summary & { notUpdated: string[] };
+    expect(s.notUpdated).toEqual(['E10', 'E11']);
   });
 
   it('missingPrices is empty when every holding has a price', async () => {

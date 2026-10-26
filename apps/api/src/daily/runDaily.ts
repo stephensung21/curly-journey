@@ -10,7 +10,8 @@ import { PriceError } from '../prices/yahoo';
  * CommSec account and trades, 1 for stored price coverage, up to 10 price fetches, 3 to store prices and the balance, 2 for the snapshot.
  */
 export const MAX_DAILY_CALLS = 20;
-const MAX_SYMBOLS = 10;
+/** ETFs priced per run. Held ones come first, in symbol order, so any past this many are the last alphabetically. */
+export const MAX_SYMBOLS = 10;
 
 export async function runDaily(deps: Deps): Promise<{ prices: number; snapshot: boolean }> {
   let used = 0;
@@ -59,8 +60,11 @@ export async function runDaily(deps: Deps): Promise<{ prices: number; snapshot: 
       }
       await holdings.upsertPrices(rows);
       const closes = await holdings.latestCloses(held.map((h) => h.symbol));
-      const value = valueHoldings(held, closes).reduce((n, h) => n + h.valueCents, 0);
-      await holdings.setCommsecBalance(accountId, value, today);
+      const valued = valueHoldings(held, closes);
+      const value = valued.reduce((n, h) => n + h.valueCents, 0);
+      // Dated by the oldest price behind it, so a failed price fetch doesn't pass old prices off as today's.
+      const dates = valued.map((h) => h.priceDate).filter((d): d is string => d !== null);
+      await holdings.setCommsecBalance(accountId, value, dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : today);
     }
   } catch (e) {
     console.error('prices failed', e instanceof PriceError ? e.status : 'error');
