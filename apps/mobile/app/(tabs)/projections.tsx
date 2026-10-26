@@ -13,6 +13,7 @@ import { HandNote } from '../../src/components/doodles/HandNote';
 import { ProjectionChart } from '../../src/components/ProjectionChart';
 import { PageTitle } from '../../src/components/PageTitle';
 import { Screen } from '../../src/components/Screen';
+import { TabSwipe } from '../../src/components/TabSwipe';
 import { Segmented } from '../../src/components/Segmented';
 import { Slider } from '../../src/components/Slider';
 import { Toggle } from '../../src/components/Toggle';
@@ -176,11 +177,15 @@ export default function ProjectionsScreen() {
   const data = q.data;
 
   return (
-    <Screen>
-      <PageTitle>Projections</PageTitle>
-      {q.isError ? <AppText tone="muted">Couldn't load projections. Try again later.</AppText> : null}
-      {data ? <Loaded profile={data.profile} prefill={data.prefill} /> : null}
-      <Disclaimer />
-    </Screen>
+    <TabSwipe tab="projections">
+      <View style={{ flex: 1 }}>
+        <Screen>
+          <PageTitle>Projections</PageTitle>
+          {q.isError ? <AppText tone="muted">Couldn't load projections. Try again later.</AppText> : null}
+          {data ? <Loaded profile={data.profile} prefill={data.prefill} /> : null}
+          <Disclaimer />
+        </Screen>
+      </View>
+    </TabSwipe>
   );
 }

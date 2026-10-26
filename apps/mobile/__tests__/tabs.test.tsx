@@ -1,5 +1,8 @@
 import { renderRouter } from 'expo-router/testing-library';
 
+// The router harness swaps in its own Reanimated mock, which gesture detectors can't use. Tab swipes have their own tests.
+jest.mock('../src/components/TabSwipe', () => ({ TabSwipe: ({ children }: { children: unknown }) => children }));
+
 it('shows the four tabs in order', async () => {
   const view = await renderRouter('./app', { initialUrl: '/' });
   const tabs = await view.findAllByLabelText(/, tab, \d+ of \d+$/);

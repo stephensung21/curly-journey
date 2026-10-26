@@ -8,6 +8,7 @@ import { Card } from '../../src/components/Card';
 import { IconTile } from '../../src/components/IconTile';
 import { PageTitle } from '../../src/components/PageTitle';
 import { Screen } from '../../src/components/Screen';
+import { TabSwipe } from '../../src/components/TabSwipe';
 import { Toggle } from '../../src/components/Toggle';
 import { useSettings } from '../../src/settings/store';
 import { now } from '../../src/lib/now';
@@ -107,63 +108,67 @@ export default function MoreScreen() {
   const coming = occurrences.filter((o) => o.status === null && o.date >= today && o.date <= weekEnd).length;
 
   return (
-    <Screen>
-      <PageTitle>More</PageTitle>
-      <Group
-        rows={[
-          { emoji: '📅', color: accents.yellow, label: 'Bills & dates', subline: coming > 0 ? `${coming} coming up this week` : 'Nothing this week', href: '/calendar' },
-          { emoji: '⬆', color: accents.blue, label: 'Import', subline: 'CommBank or Amex CSV', href: '/import' },
-        ]}
-      />
-      <Group
-        rows={[
-          { emoji: '💰', color: accents.lime, label: 'Net worth', href: '/networth' },
-          {
-            emoji: '📈', color: accents.lime, label: 'CommSec', href: '/commsec',
-            ...(hasCommsec ? { sublineCents: commsec.valueCents } : { subline: 'Import your trades' }),
-          },
-        ]}
-      />
-      <Group
-        heading="Money settings"
-        rows={[
-          { emoji: '🚦', color: accents.lime, label: 'Spending limits', subline: limitsSubline(limits), href: '/limits' },
-          {
-            emoji: '🪄', color: accents.purple, label: 'Rules',
-            subline: autoPercent === undefined ? undefined : `${autoPercent}% auto-sorted`, href: '/rules',
-          },
-          { emoji: '🎂', color: accents.pink, label: 'About you', subline: 'Birth date and tax rate', href: '/about-you' },
-          { emoji: '🏦', color: accents.blue, label: 'Home loan', subline: 'Rate, repayment and term', href: '/home-loan' },
-          { emoji: '🦘', color: accents.orange, label: 'Add super or home value', href: '/account/new' },
-        ]}
-      />
-      <View style={{ gap: 6 }}>
-        <AppText variant="label" tone="muted">
-          Totals
-        </AppText>
-        <Card>
-          <SwitchRow
-            label="Spending includes mortgage and Amex payments"
-            subline="Off: only what you bought counts"
-            value={settings.spendingIncludesPayments}
-            onChange={settings.setSpendingIncludesPayments}
+    <TabSwipe tab="more">
+      <View style={{ flex: 1 }}>
+        <Screen>
+          <PageTitle>More</PageTitle>
+          <Group
+            rows={[
+              { emoji: '📅', color: accents.yellow, label: 'Bills & dates', subline: coming > 0 ? `${coming} coming up this week` : 'Nothing this week', href: '/calendar' },
+              { emoji: '⬆', color: accents.blue, label: 'Import', subline: 'CommBank or Amex CSV', href: '/import' },
+            ]}
           />
-          <SwitchRow
-            label="Net worth includes the home loan"
-            subline="Off: the loan is left out of net worth"
-            value={settings.netWorthIncludesLoans}
-            onChange={settings.setNetWorthIncludesLoans}
+          <Group
+            rows={[
+              { emoji: '💰', color: accents.lime, label: 'Net worth', href: '/networth' },
+              {
+                emoji: '📈', color: accents.lime, label: 'CommSec', href: '/commsec',
+                ...(hasCommsec ? { sublineCents: commsec.valueCents } : { subline: 'Import your trades' }),
+              },
+            ]}
           />
-        </Card>
+          <Group
+            heading="Money settings"
+            rows={[
+              { emoji: '🚦', color: accents.lime, label: 'Spending limits', subline: limitsSubline(limits), href: '/limits' },
+              {
+                emoji: '🪄', color: accents.purple, label: 'Rules',
+                subline: autoPercent === undefined ? undefined : `${autoPercent}% auto-sorted`, href: '/rules',
+              },
+              { emoji: '🎂', color: accents.pink, label: 'About you', subline: 'Birth date and tax rate', href: '/about-you' },
+              { emoji: '🏦', color: accents.blue, label: 'Home loan', subline: 'Rate, repayment and term', href: '/home-loan' },
+              { emoji: '🦘', color: accents.orange, label: 'Add super or home value', href: '/account/new' },
+            ]}
+          />
+          <View style={{ gap: 6 }}>
+            <AppText variant="label" tone="muted">
+              Totals
+            </AppText>
+            <Card>
+              <SwitchRow
+                label="Spending includes mortgage and Amex payments"
+                subline="Off: only what you bought counts"
+                value={settings.spendingIncludesPayments}
+                onChange={settings.setSpendingIncludesPayments}
+              />
+              <SwitchRow
+                label="Net worth includes the home loan"
+                subline="Off: the loan is left out of net worth"
+                value={settings.netWorthIncludesLoans}
+                onChange={settings.setNetWorthIncludesLoans}
+              />
+            </Card>
+          </View>
+          <Group
+            heading="App"
+            rows={[
+              { emoji: '🔔', color: accents.pink, label: 'Notifications', href: '/notifications' },
+              { emoji: '⚙️', color: accents.blue, label: 'Settings', href: '/settings' },
+              { emoji: '🎨', color: accents.yellow, label: 'Design system', href: '/design-system' },
+            ]}
+          />
+        </Screen>
       </View>
-      <Group
-        heading="App"
-        rows={[
-          { emoji: '🔔', color: accents.pink, label: 'Notifications', href: '/notifications' },
-          { emoji: '⚙️', color: accents.blue, label: 'Settings', href: '/settings' },
-          { emoji: '🎨', color: accents.yellow, label: 'Design system', href: '/design-system' },
-        ]}
-      />
-    </Screen>
+    </TabSwipe>
   );
 }

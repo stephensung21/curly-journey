@@ -1,7 +1,7 @@
 import { limitMessage, monthKey, WHOLE_MONTH_LABEL } from '@curly/core';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Dimensions, type LayoutChangeEvent, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, TextInput, View } from 'react-native';
+import { Dimensions, type HostInstance, type LayoutChangeEvent, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, TextInput, View } from 'react-native';
 import { useAccounts, useCategories, useLimits, useSpending, useSyncNow, useTransactionsQuery } from '../../src/api/hooks';
 import type { SpendingQuery } from '../../src/api/types';
 import { Amount } from '../../src/components/Amount';
@@ -14,6 +14,7 @@ import { MoreLessNote } from '../../src/components/MoreLessNote';
 import { MonthSwitcher } from '../../src/components/MonthSwitcher';
 import { PageTitle } from '../../src/components/PageTitle';
 import { Screen } from '../../src/components/Screen';
+import { TabSwipe } from '../../src/components/TabSwipe';
 import { TransactionList } from '../../src/components/TransactionList';
 import { sydneyDate } from '../../src/lib/days';
 import { now } from '../../src/lib/now';
@@ -72,6 +73,11 @@ export default function SpendingScreen() {
   const pagerHeight = swiping ? Math.max(...heights) : heights[page];
   const [width, setWidth] = useState(() => Dimensions.get('window').width - 32);
   const pager = useRef<ScrollViewInstance>(null);
+  const pagerBox = useRef<HostInstance>(null);
+  const pagerY = useRef({ top: 0, bottom: 0 });
+  // A swipe over the pager flips Categories/Transactions; past either end it carries on to the next tab.
+  const keepPagerSwipe = (y: number, direction: 'left' | 'right') =>
+    y >= pagerY.current.top && y <= pagerY.current.bottom && (direction === 'left' ? page === 0 : page === 1);
   const limitsQ = useLimits(month);
   const sync = useSyncNow();
   const [refreshing, setRefreshing] = useState(false);
@@ -119,210 +125,222 @@ export default function SpendingScreen() {
   const empty = s && s.totalCents === 0 && s.byCategory.length === 0;
 
   return (
-    <Screen testID="spending-scroll" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-      <PageTitle>Spending</PageTitle>
-      <MonthSwitcher value={month} onChange={setMonth} />
-      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-        <Chip label="All" selected={!institution} onPress={() => setInstitution(undefined)} />
-        {INSTITUTIONS.map(i => (
-          <Chip key={i} label={i} selected={institution === i} onPress={() => setInstitution(i)} />
-        ))}
-      </View>
+    <TabSwipe tab="spending" ignore={keepPagerSwipe}>
+      <View style={{ flex: 1 }}>
+        <Screen testID="spending-scroll" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+          <PageTitle>Spending</PageTitle>
+          <MonthSwitcher value={month} onChange={setMonth} />
+          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            <Chip label="All" selected={!institution} onPress={() => setInstitution(undefined)} />
+            {INSTITUTIONS.map(i => (
+              <Chip key={i} label={i} selected={institution === i} onPress={() => setInstitution(i)} />
+            ))}
+          </View>
 
-      {spendingQ.isError ? <AppText tone="muted">Couldn't load spending. Pull to try again.</AppText> : null}
+          {spendingQ.isError ? <AppText tone="muted">Couldn't load spending. Pull to try again.</AppText> : null}
 
-      {s ? (
-        <View style={{ gap: 2 }}>
-          <Amount cents={s.totalCents + extra} variant="hero" />
-          <CrayonUnderline width={150} color={accents.orange} />
-          <MoreLessNote month={month} totalCents={s.totalCents + extra} prevTotalCents={s.prevTotalCents + prevExtra} />
-          <AppText variant="bodyStrong" style={{ marginTop: 6 }}>
-            Money in <Amount cents={s.moneyInCents} decimals="never" inline /> · Money out{' '}
-            <Amount cents={(s.outCents ?? s.totalCents) + extra} decimals="never" inline />
-          </AppText>
-          <AppText variant="label" tone="muted">
-            {(s.backCents ?? 0) > 0 ? (
-              <>
-                Spending is money out less <Amount cents={s.backCents} decimals="never" inline /> of refunds and paybacks.{' '}
-              </>
-            ) : null}
-            {includePayments ? (
-              <>
-                Includes mortgage <Amount cents={mortgage} decimals="never" inline /> and Amex payments{' '}
-                <Amount cents={card} decimals="never" inline />.
-              </>
-            ) : (
-              'Mortgage and Amex payments not included (change in More).'
-            )}
-          </AppText>
-        </View>
-      ) : null}
-
-      <View style={{ flexDirection: 'row', gap: 20 }}>
-        {PAGES.map((label, i) => (
-          <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: page === i }} onPress={() => goTo(i)}>
-            {/* Same weight on both: a bold selected label is wider and made the row shift while swiping. */}
-            <AppText variant="bodyStrong" tone={page === i ? 'ink' : 'muted'}>
-              {label}
-            </AppText>
-            {page === i ? <CrayonUnderline width={label.length * 9} color={accents.lime} seed={i + 3} /> : <View style={{ height: 14 }} />}
-          </Pressable>
-        ))}
-      </View>
-
-      <View onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}>
-        <ScrollView
-          ref={pager}
-          testID="spending-pager"
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          style={pagerHeight ? { height: pagerHeight } : undefined}
-          onScrollBeginDrag={() => setSwiping(true)}
-          onMomentumScrollEnd={e => {
-            setPage(Math.round(e.nativeEvent.contentOffset.x / width));
-            setSwiping(false);
-          }}
-        >
-          <View testID="spending-page-0" onLayout={measurePage(0)} style={{ width, gap: 14, alignSelf: 'flex-start' }}>
-            {s ? (
-              <>
-                {warnings.map(l => (
-                  <AppText key={l.id}>{limitMessage(nameOf(l.categoryId), l.percent)}</AppText>
-                ))}
-
-                {s.byInstitution.length > 0 ? (
-                  <AppText tone="muted">
-                    {s.byInstitution.map((b, i) => (
-                      <AppText key={b.institution} tone="muted">
-                        {i > 0 ? ' · ' : ''}
-                        {b.institution} <Amount cents={b.cents} decimals="never" inline />
-                      </AppText>
-                    ))}
-                  </AppText>
+          {s ? (
+            <View style={{ gap: 2 }}>
+              <Amount cents={s.totalCents + extra} variant="hero" />
+              <CrayonUnderline width={150} color={accents.orange} />
+              <MoreLessNote month={month} totalCents={s.totalCents + extra} prevTotalCents={s.prevTotalCents + prevExtra} />
+              <AppText variant="bodyStrong" style={{ marginTop: 6 }}>
+                Money in <Amount cents={s.moneyInCents} decimals="never" inline /> · Money out{' '}
+                <Amount cents={(s.outCents ?? s.totalCents) + extra} decimals="never" inline />
+              </AppText>
+              <AppText variant="label" tone="muted">
+                {(s.backCents ?? 0) > 0 ? (
+                  <>
+                    Spending is money out less <Amount cents={s.backCents} decimals="never" inline /> of refunds and paybacks.{' '}
+                  </>
                 ) : null}
+                {includePayments ? (
+                  <>
+                    Includes mortgage <Amount cents={mortgage} decimals="never" inline /> and Amex payments{' '}
+                    <Amount cents={card} decimals="never" inline />.
+                  </>
+                ) : (
+                  'Mortgage and Amex payments not included (change in More).'
+                )}
+              </AppText>
+            </View>
+          ) : null}
 
-                {s.uncategorisedCount > 0 ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => router.push('/inbox')}
-                    style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.inkMuted, borderRadius: 14, padding: 12 }}
-                  >
-                    <AppText variant="bodyStrong">
-                      {`${s.uncategorisedCount} to sort this month · Sort ›`}
-                    </AppText>
+          <View style={{ flexDirection: 'row', gap: 20 }}>
+            {PAGES.map((label, i) => (
+              <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: page === i }} onPress={() => goTo(i)}>
+                {/* Same weight on both: a bold selected label is wider and made the row shift while swiping. */}
+                <AppText variant="bodyStrong" tone={page === i ? 'ink' : 'muted'}>
+                  {label}
+                </AppText>
+                {page === i ? <CrayonUnderline width={label.length * 9} color={accents.lime} seed={i + 3} /> : <View style={{ height: 14 }} />}
+              </Pressable>
+            ))}
+          </View>
+
+          <View
+            ref={pagerBox}
+            onLayout={(e: LayoutChangeEvent) => {
+              setWidth(e.nativeEvent.layout.width);
+              pagerBox.current?.measureInWindow((_x, y, _w, h) => {
+                pagerY.current = { top: y, bottom: y + h };
+              });
+            }}
+          >
+            <ScrollView
+              ref={pager}
+              testID="spending-pager"
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              style={pagerHeight ? { height: pagerHeight } : undefined}
+              onScrollBeginDrag={() => setSwiping(true)}
+              onMomentumScrollEnd={e => {
+                setPage(Math.round(e.nativeEvent.contentOffset.x / width));
+                setSwiping(false);
+              }}
+            >
+              <View testID="spending-page-0" onLayout={measurePage(0)} style={{ width, gap: 14, alignSelf: 'flex-start' }}>
+                {s ? (
+                  <>
+                    {warnings.map(l => (
+                      <AppText key={l.id}>{limitMessage(nameOf(l.categoryId), l.percent)}</AppText>
+                    ))}
+
+                    {s.byInstitution.length > 0 ? (
+                      <AppText tone="muted">
+                        {s.byInstitution.map((b, i) => (
+                          <AppText key={b.institution} tone="muted">
+                            {i > 0 ? ' · ' : ''}
+                            {b.institution} <Amount cents={b.cents} decimals="never" inline />
+                          </AppText>
+                        ))}
+                      </AppText>
+                    ) : null}
+
+                    {s.uncategorisedCount > 0 ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => router.push('/inbox')}
+                        style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.inkMuted, borderRadius: 14, padding: 12 }}
+                      >
+                        <AppText variant="bodyStrong">
+                          {`${s.uncategorisedCount} to sort this month · Sort ›`}
+                        </AppText>
+                      </Pressable>
+                    ) : null}
+
+                    {empty ? <AppText tone="muted">No spending this month.</AppText> : null}
+
+                    {s.byCategory.length > 0 ? (
+                      <Card style={{ gap: 12 }}>
+                        {s.byCategory.map(c => {
+                          const cat = c.categoryId === null ? undefined : byId.get(c.categoryId);
+                          const limit = limitByCategory.get(c.categoryId);
+                          return (
+                            <CategoryBar
+                              key={c.categoryId ?? 'none'}
+                              emoji={c.categoryId === null ? '?' : (cat?.emoji ?? '?')}
+                              color={c.categoryId === null ? t.line : cat ? categoryColor(cat.color, t) : t.line}
+                              name={c.categoryId === null ? 'Uncategorised' : (cat?.name ?? 'Unknown')}
+                              cents={c.cents}
+                              fraction={c.cents / max}
+                              limitFraction={limit ? limit.amountCents / max : undefined}
+                              onPress={() => drill(c.categoryId)}
+                            />
+                          );
+                        })}
+                      </Card>
+                    ) : null}
+
+                    {notCounted.length > 0 ? (
+                      <Card style={{ gap: 8 }}>
+                        <AppText variant="label" tone="muted">
+                          Not counted as spending
+                        </AppText>
+                        {notCounted.map(n => (
+                          <View key={n.flow} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <AppText>{NOT_COUNTED[n.flow]}</AppText>
+                            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                              <AppText tone="muted">{n.count}</AppText>
+                              <Amount cents={n.cents} decimals="never" />
+                            </View>
+                          </View>
+                        ))}
+                      </Card>
+                    ) : null}
+                  </>
+                ) : null}
+              </View>
+              <View testID="spending-page-1" onLayout={measurePage(1)} style={{ width, gap: 10, alignSelf: 'flex-start' }}>
+                <View style={{ justifyContent: 'center' }}>
+                  <TextInput
+                    accessibilityLabel="Search transactions"
+                    placeholder="Search merchant, category, note or amount"
+                    placeholderTextColor={t.inkFaded}
+                    value={search}
+                    onChangeText={setSearch}
+                    autoCorrect={false}
+                    style={{
+                      backgroundColor: t.surface,
+                      color: t.ink,
+                      fontFamily: fonts.medium,
+                      fontSize: 14,
+                      borderRadius: 12,
+                      paddingLeft: 12,
+                      // Room for the clear button so text never runs under it.
+                      paddingRight: 40,
+                      paddingVertical: 10,
+                    }}
+                  />
+                  {search ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear search"
+                      hitSlop={8}
+                      onPress={() => setSearch('')}
+                      style={{
+                        position: 'absolute',
+                        right: 8,
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        backgroundColor: t.line,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <AppText variant="label">✕</AppText>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
+                {txQ.data && allTxns.length === 0 ? <AppText tone="muted">No transactions this month.</AppText> : null}
+                {search.trim().length >= 3 && shownTxns.length > 0 ? (
+                  <Pressable accessibilityRole="button" onPress={() => setBulk(true)} hitSlop={6}>
+                    <AppText variant="label" tone="muted">{`Categorise everything named "${search.trim()}" →`}</AppText>
                   </Pressable>
                 ) : null}
-
-                {empty ? <AppText tone="muted">No spending this month.</AppText> : null}
-
-                {s.byCategory.length > 0 ? (
-                  <Card style={{ gap: 12 }}>
-                    {s.byCategory.map(c => {
-                      const cat = c.categoryId === null ? undefined : byId.get(c.categoryId);
-                      const limit = limitByCategory.get(c.categoryId);
-                      return (
-                        <CategoryBar
-                          key={c.categoryId ?? 'none'}
-                          emoji={c.categoryId === null ? '?' : (cat?.emoji ?? '?')}
-                          color={c.categoryId === null ? t.line : cat ? categoryColor(cat.color, t) : t.line}
-                          name={c.categoryId === null ? 'Uncategorised' : (cat?.name ?? 'Unknown')}
-                          cents={c.cents}
-                          fraction={c.cents / max}
-                          limitFraction={limit ? limit.amountCents / max : undefined}
-                          onPress={() => drill(c.categoryId)}
-                        />
-                      );
-                    })}
-                  </Card>
-                ) : null}
-
-                {notCounted.length > 0 ? (
-                  <Card style={{ gap: 8 }}>
-                    <AppText variant="label" tone="muted">
-                      Not counted as spending
-                    </AppText>
-                    {notCounted.map(n => (
-                      <View key={n.flow} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <AppText>{NOT_COUNTED[n.flow]}</AppText>
-                        <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                          <AppText tone="muted">{n.count}</AppText>
-                          <Amount cents={n.cents} decimals="never" />
-                        </View>
-                      </View>
-                    ))}
-                  </Card>
-                ) : null}
-              </>
-            ) : null}
+                {allTxns.length > 0 && shownTxns.length === 0 ? <AppText tone="muted">{`No transactions match "${search.trim()}".`}</AppText> : null}
+                <TransactionList
+                  transactions={shownTxns}
+                  categories={categories}
+                  today={sydneyDate(now())}
+                  onPressTxn={x => router.push(`/transaction/${x.id}`)}
+                  accounts={accounts}
+                />
+              </View>
+            </ScrollView>
           </View>
-          <View testID="spending-page-1" onLayout={measurePage(1)} style={{ width, gap: 10, alignSelf: 'flex-start' }}>
-            <View style={{ justifyContent: 'center' }}>
-              <TextInput
-                accessibilityLabel="Search transactions"
-                placeholder="Search merchant, category, note or amount"
-                placeholderTextColor={t.inkFaded}
-                value={search}
-                onChangeText={setSearch}
-                autoCorrect={false}
-                style={{
-                  backgroundColor: t.surface,
-                  color: t.ink,
-                  fontFamily: fonts.medium,
-                  fontSize: 14,
-                  borderRadius: 12,
-                  paddingLeft: 12,
-                  // Room for the clear button so text never runs under it.
-                  paddingRight: 40,
-                  paddingVertical: 10,
-                }}
-              />
-              {search ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear search"
-                  hitSlop={8}
-                  onPress={() => setSearch('')}
-                  style={{
-                    position: 'absolute',
-                    right: 8,
-                    width: 24,
-                    height: 24,
-                    borderRadius: 12,
-                    backgroundColor: t.line,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <AppText variant="label">✕</AppText>
-                </Pressable>
-              ) : null}
-            </View>
-            {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
-            {txQ.data && allTxns.length === 0 ? <AppText tone="muted">No transactions this month.</AppText> : null}
-            {search.trim().length >= 3 && shownTxns.length > 0 ? (
-              <Pressable accessibilityRole="button" onPress={() => setBulk(true)} hitSlop={6}>
-                <AppText variant="label" tone="muted">{`Categorise everything named "${search.trim()}" →`}</AppText>
-              </Pressable>
-            ) : null}
-            {allTxns.length > 0 && shownTxns.length === 0 ? <AppText tone="muted">{`No transactions match "${search.trim()}".`}</AppText> : null}
-            <TransactionList
-              transactions={shownTxns}
-              categories={categories}
-              today={sydneyDate(now())}
-              onPressTxn={x => router.push(`/transaction/${x.id}`)}
-              accounts={accounts}
-            />
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+            {PAGES.map((label, i) => (
+              <View key={label} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === i ? accents.lime : t.line }} />
+            ))}
           </View>
-        </ScrollView>
+          <BulkCategoriseSheet visible={bulk} initialText={search} categories={categories} onClose={() => setBulk(false)} />
+        </Screen>
       </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
-        {PAGES.map((label, i) => (
-          <View key={label} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === i ? accents.lime : t.line }} />
-        ))}
-      </View>
-      <BulkCategoriseSheet visible={bulk} initialText={search} categories={categories} onClose={() => setBulk(false)} />
-    </Screen>
+    </TabSwipe>
   );
 }
