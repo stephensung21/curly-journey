@@ -14,12 +14,15 @@ export function netWorthRoutes(deps: Deps) {
   r.get('/networth', async (c) => {
     const range = c.req.query('range') ?? '6M';
     if (!RANGES.includes(range)) return c.json({ error: 'bad_range' }, 400);
+    // loans=0 leaves home loans out (the app's default); anything else keeps them.
+    const withLoans = c.req.query('loans') !== '0';
     const today = sydneyDate(deps.now());
-    const [accounts, earliest, commsecAccountId] = await Promise.all([
+    const [all, earliest, commsecAccountId] = await Promise.all([
       repo.accounts(),
       range === 'All' ? repo.earliestDate() : Promise.resolve(null),
       holdings.commsecAccountId(),
     ]);
+    const accounts = withLoans ? all : all.filter((a) => a.kind !== 'mortgage');
     const live = netWorth(accounts, today);
     // Past points are rebuilt from today's balances, so data added late still counts back to when it happened.
     const dates = historyDates(range as NwRange, today, earliest);

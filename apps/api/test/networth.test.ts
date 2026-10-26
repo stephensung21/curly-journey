@@ -82,6 +82,19 @@ describe('GET /networth', () => {
     ]);
   });
 
+  it('leaves the home loan out with loans=0, now and in history', async () => {
+    const { db, get, acct } = await setup();
+    await acct('pocketsmith', '1', 'Everyday', 500_000);
+    await acct('pocketsmith', '2', 'Home loan', -60_000_000);
+    await db.query("update account set kind = 'mortgage' where name = 'Home loan'");
+    const b = (await (await get('/networth?range=1M&loans=0')).json()) as Body;
+    expect(b.totalCents).toBe(500_000);
+    expect(b.owe).toEqual([]);
+    expect(b.history.every((p) => p.totalCents === 500_000)).toBe(true);
+    const withLoan = (await (await get('/networth?range=1M&loans=1')).json()) as Body;
+    expect(withLoan.totalCents).toBe(-59_500_000);
+  });
+
   it('groups offsets into one line', async () => {
     const { get, acct } = await setup();
     await acct('pocketsmith', '1', 'Offset A', 10_000, true);
