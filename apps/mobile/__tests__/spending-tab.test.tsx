@@ -281,9 +281,9 @@ describe('pager height', () => {
     await renderScreen(<SpendingScreen />);
     await fireEvent(screen.getByTestId('spending-page-0'), 'layout', layout(400));
     await fireEvent(screen.getByTestId('spending-page-1'), 'layout', layout(2000));
-    await fireEvent(screen.getByTestId('spending-pager'), 'scrollBeginDrag');
+    await fireEvent(screen.getByTestId('spending-pager'), 'pageScrollStateChanged', { nativeEvent: { pageScrollState: 'dragging' } });
     expect(pagerHeight()).toBe(2000);
-    await fireEvent(screen.getByTestId('spending-pager'), 'momentumScrollEnd', { nativeEvent: { contentOffset: { x: 0, y: 0 } } });
+    await fireEvent(screen.getByTestId('spending-pager'), 'pageScrollStateChanged', { nativeEvent: { pageScrollState: 'idle' } });
     expect(pagerHeight()).toBe(400);
   });
 });

@@ -56,3 +56,24 @@ jest.mock('expo-notifications', () => ({
   getLastNotificationResponseAsync: jest.fn(async () => null),
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
 }));
+
+// The native pager behind the swipeable tabs and the Spending pager doesn't exist in Jest. Pages render side by side;
+// setPage reports the new page the way a finished swipe does.
+jest.mock('react-native-pager-view', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  // A class, because the tab view wraps it in an animated component that needs an instance ref.
+  class PagerView extends React.Component {
+    setPage(position) {
+      this.props.onPageSelected?.({ nativeEvent: { position } });
+    }
+    setPageWithoutAnimation(position) {
+      this.setPage(position);
+    }
+    setScrollEnabled() {}
+    render() {
+      return React.createElement(View, this.props);
+    }
+  }
+  return { __esModule: true, default: PagerView };
+});

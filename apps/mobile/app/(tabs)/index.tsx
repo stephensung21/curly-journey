@@ -18,7 +18,6 @@ import { NetWorthRow } from '../../src/components/NetWorthRow';
 import { OpenBankAppLink } from '../../src/components/OpenBankApp';
 import { IconTile } from '../../src/components/IconTile';
 import { Screen } from '../../src/components/Screen';
-import { TabSwipe } from '../../src/components/TabSwipe';
 import { SortableList } from '../../src/components/SortableList';
 import { SyncBanner } from '../../src/components/SyncBanner';
 import { UpcomingEvents } from '../../src/components/UpcomingEvents';
@@ -169,122 +168,120 @@ export default function AccountsScreen() {
   };
 
   return (
-    <TabSwipe tab="index">
-      <View style={{ flex: 1 }}>
-        <Screen testID="accounts-scroll" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <AppText variant="title">Accounts</AppText>
-              <Pressable accessibilityRole="button" hitSlop={8} onPress={draft ? finishEditing : startEditing}>
-                <AppText variant="label" tone="muted">
-                  {draft ? 'Done' : 'Edit order'}
-                </AppText>
-              </Pressable>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <BirdLogo />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Refresh"
-                disabled={refreshing}
-                onPress={() => void onRefresh()}
-                hitSlop={8}
-                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.surface, alignItems: 'center', justifyContent: 'center' }}
-              >
-                {refreshing ? <ActivityIndicator size="small" color={t.ink} /> : <AppText variant="title">↻</AppText>}
-              </Pressable>
-            </View>
-          </View>
-          {bankLine ? (
-            <AppText variant="label" tone="muted">
-              {bankLine}
-            </AppText>
-          ) : null}
-          {refreshing ? <AppText tone="muted">Syncing…</AppText> : null}
-          {bannerText ? <SyncBanner text={bannerText} /> : null}
-          {error ? <AppText tone="muted">Sync failed. Try again soon.</AppText> : null}
-          <HeroCard>
-            <AppText variant="label" tone="onAccent">
-              You've spent this month
-            </AppText>
-            <Amount cents={spendingQ.data?.totalCents ?? 0} variant="hero" tone="onAccent" />
-            <CrayonUnderline width={150} color={t.inkOnAccent} />
-            {chipText ? (
-              <View style={{ marginTop: 8, alignItems: 'flex-start' }}>
-                <Chip label={chipText} onPress={() => router.push('/limits')} />
-              </View>
-            ) : null}
-            <View style={{ marginTop: 10 }}>
-              {homeChart === 'sixMonths' ? (
-                <InOutChart mode="sixMonths" data={inOutQ.data ?? []} hideBalances={hideBalances} onHero />
-              ) : (
-                <InOutChart mode="thisMonth" data={dailyQ.data ?? []} daysInMonth={daysIn(month)} hideBalances={hideBalances} onHero />
-              )}
-            </View>
-          </HeroCard>
-          <NetWorthRow />
-          <UpcomingEvents />
-          {accounts.length === 0 && !accountsQ.isLoading ? (
-            <AppText tone="muted">No accounts yet. Connect PocketSmith in the backend, then pull to refresh.</AppText>
-          ) : null}
-          {shown.map(([institution, rows], groupIndex) => (
-            <Card key={institution}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <BankLogo institution={institution} />
-                  <AppText variant="label" tone="muted">
-                    {institution}
-                  </AppText>
-                  <OpenBankAppLink institution={institution} />
-                </View>
-                {draft && groupIndex > 0 ? (
-                  <Pressable accessibilityRole="button" accessibilityLabel="Move bank up" accessibilityHint={institution} onPress={() => moveBank(groupIndex, groupIndex - 1)} hitSlop={4} style={arrow}>
-                    <AppText>↑</AppText>
-                  </Pressable>
-                ) : null}
-                {draft && groupIndex < shown.length - 1 ? (
-                  <Pressable accessibilityRole="button" accessibilityLabel="Move bank down" accessibilityHint={institution} onPress={() => moveBank(groupIndex, groupIndex + 1)} hitSlop={4} style={arrow}>
-                    <AppText>↓</AppText>
-                  </Pressable>
-                ) : null}
-              </View>
-              {draft ? (
-                <SortableList
-                  items={rows}
-                  keyOf={a => a.id}
-                  onReorder={next => setGroup(institution, next)}
-                  renderItem={(a, { index, handle }) => (
-                    <ReorderRow
-                      account={a}
-                      handle={handle}
-                      onUp={index > 0 ? () => setGroup(institution, moveItem(rows, index, index - 1)) : undefined}
-                      onDown={index < rows.length - 1 ? () => setGroup(institution, moveItem(rows, index, index + 1)) : undefined}
-                    />
-                  )}
-                />
-              ) : (
-                rows.map(a => <AccountRow key={a.id} account={a} lastSuccessAt={lastSuccessAt} />)
-              )}
-            </Card>
-          ))}
-          {draft || hiddenCount === 0 ? null : (
-            <Pressable accessibilityRole="button" hitSlop={6} onPress={() => setShowHidden(v => !v)} style={{ alignSelf: 'center' }}>
+    <View style={{ flex: 1 }}>
+      <Screen testID="accounts-scroll" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <AppText variant="title">Accounts</AppText>
+            <Pressable accessibilityRole="button" hitSlop={8} onPress={draft ? finishEditing : startEditing}>
               <AppText variant="label" tone="muted">
-                {showHidden ? 'Hide hidden accounts' : `Show ${hiddenCount} hidden ${hiddenCount === 1 ? 'account' : 'accounts'}`}
+                {draft ? 'Done' : 'Edit order'}
               </AppText>
             </Pressable>
-          )}
-          {draft ? null : (
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <BirdLogo />
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push('/account/new')}
-              style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.inkMuted, borderRadius: 14, padding: 12, alignItems: 'center' }}
+              accessibilityLabel="Refresh"
+              disabled={refreshing}
+              onPress={() => void onRefresh()}
+              hitSlop={8}
+              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.surface, alignItems: 'center', justifyContent: 'center' }}
             >
-              <AppText tone="muted">+ Add super or home value</AppText>
+              {refreshing ? <ActivityIndicator size="small" color={t.ink} /> : <AppText variant="title">↻</AppText>}
             </Pressable>
-          )}
-        </Screen>
-      </View>
-    </TabSwipe>
+          </View>
+        </View>
+        {bankLine ? (
+          <AppText variant="label" tone="muted">
+            {bankLine}
+          </AppText>
+        ) : null}
+        {refreshing ? <AppText tone="muted">Syncing…</AppText> : null}
+        {bannerText ? <SyncBanner text={bannerText} /> : null}
+        {error ? <AppText tone="muted">Sync failed. Try again soon.</AppText> : null}
+        <HeroCard>
+          <AppText variant="label" tone="onAccent">
+            You've spent this month
+          </AppText>
+          <Amount cents={spendingQ.data?.totalCents ?? 0} variant="hero" tone="onAccent" />
+          <CrayonUnderline width={150} color={t.inkOnAccent} />
+          {chipText ? (
+            <View style={{ marginTop: 8, alignItems: 'flex-start' }}>
+              <Chip label={chipText} onPress={() => router.push('/limits')} />
+            </View>
+          ) : null}
+          <View style={{ marginTop: 10 }}>
+            {homeChart === 'sixMonths' ? (
+              <InOutChart mode="sixMonths" data={inOutQ.data ?? []} hideBalances={hideBalances} onHero />
+            ) : (
+              <InOutChart mode="thisMonth" data={dailyQ.data ?? []} daysInMonth={daysIn(month)} hideBalances={hideBalances} onHero />
+            )}
+          </View>
+        </HeroCard>
+        <NetWorthRow />
+        <UpcomingEvents />
+        {accounts.length === 0 && !accountsQ.isLoading ? (
+          <AppText tone="muted">No accounts yet. Connect PocketSmith in the backend, then pull to refresh.</AppText>
+        ) : null}
+        {shown.map(([institution, rows], groupIndex) => (
+          <Card key={institution}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <BankLogo institution={institution} />
+                <AppText variant="label" tone="muted">
+                  {institution}
+                </AppText>
+                <OpenBankAppLink institution={institution} />
+              </View>
+              {draft && groupIndex > 0 ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Move bank up" accessibilityHint={institution} onPress={() => moveBank(groupIndex, groupIndex - 1)} hitSlop={4} style={arrow}>
+                  <AppText>↑</AppText>
+                </Pressable>
+              ) : null}
+              {draft && groupIndex < shown.length - 1 ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Move bank down" accessibilityHint={institution} onPress={() => moveBank(groupIndex, groupIndex + 1)} hitSlop={4} style={arrow}>
+                  <AppText>↓</AppText>
+                </Pressable>
+              ) : null}
+            </View>
+            {draft ? (
+              <SortableList
+                items={rows}
+                keyOf={a => a.id}
+                onReorder={next => setGroup(institution, next)}
+                renderItem={(a, { index, handle }) => (
+                  <ReorderRow
+                    account={a}
+                    handle={handle}
+                    onUp={index > 0 ? () => setGroup(institution, moveItem(rows, index, index - 1)) : undefined}
+                    onDown={index < rows.length - 1 ? () => setGroup(institution, moveItem(rows, index, index + 1)) : undefined}
+                  />
+                )}
+              />
+            ) : (
+              rows.map(a => <AccountRow key={a.id} account={a} lastSuccessAt={lastSuccessAt} />)
+            )}
+          </Card>
+        ))}
+        {draft || hiddenCount === 0 ? null : (
+          <Pressable accessibilityRole="button" hitSlop={6} onPress={() => setShowHidden(v => !v)} style={{ alignSelf: 'center' }}>
+            <AppText variant="label" tone="muted">
+              {showHidden ? 'Hide hidden accounts' : `Show ${hiddenCount} hidden ${hiddenCount === 1 ? 'account' : 'accounts'}`}
+            </AppText>
+          </Pressable>
+        )}
+        {draft ? null : (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/account/new')}
+            style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.inkMuted, borderRadius: 14, padding: 12, alignItems: 'center' }}
+          >
+            <AppText tone="muted">+ Add super or home value</AppText>
+          </Pressable>
+        )}
+      </Screen>
+    </View>
   );
 }

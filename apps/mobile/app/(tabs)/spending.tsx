@@ -1,7 +1,8 @@
 import { limitMessage, monthKey, WHOLE_MONTH_LABEL } from '@curly/core';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Dimensions, type HostInstance, type LayoutChangeEvent, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, TextInput, View } from 'react-native';
+import { type LayoutChangeEvent, Pressable, RefreshControl, TextInput, View } from 'react-native';
+import PagerView from 'react-native-pager-view';
 import { useAccounts, useCategories, useLimits, useSpending, useSyncNow, useTransactionsQuery } from '../../src/api/hooks';
 import type { SpendingQuery } from '../../src/api/types';
 import { Amount } from '../../src/components/Amount';
@@ -14,7 +15,6 @@ import { MoreLessNote } from '../../src/components/MoreLessNote';
 import { MonthSwitcher } from '../../src/components/MonthSwitcher';
 import { PageTitle } from '../../src/components/PageTitle';
 import { Screen } from '../../src/components/Screen';
-import { TabSwipe } from '../../src/components/TabSwipe';
 import { TransactionList } from '../../src/components/TransactionList';
 import { sydneyDate } from '../../src/lib/days';
 import { now } from '../../src/lib/now';
@@ -62,8 +62,8 @@ export default function SpendingScreen() {
   const [search, setSearch] = useState('');
   const [bulk, setBulk] = useState(false);
   const [page, setPage] = useState(0);
-  // A horizontal ScrollView is as tall as its tallest page, which let the short page scroll into blank space.
-  // So the pager takes the height of the page on screen, and the taller one only while swiping between them.
+  // The pager is as tall as the page on screen, and as the taller page only while swiping between them,
+  // so the short page never scrolls into blank space.
   const [heights, setHeights] = useState<[number, number]>([0, 0]);
   const [swiping, setSwiping] = useState(false);
   const measurePage = (i: 0 | 1) => (e: LayoutChangeEvent) => {
@@ -71,13 +71,7 @@ export default function SpendingScreen() {
     setHeights(prev => (prev[i] === h ? prev : i === 0 ? [h, prev[1]] : [prev[0], h]));
   };
   const pagerHeight = swiping ? Math.max(...heights) : heights[page];
-  const [width, setWidth] = useState(() => Dimensions.get('window').width - 32);
-  const pager = useRef<ScrollViewInstance>(null);
-  const pagerBox = useRef<HostInstance>(null);
-  const pagerY = useRef({ top: 0, bottom: 0 });
-  // A swipe over the pager flips Categories/Transactions; past either end it carries on to the next tab.
-  const keepPagerSwipe = (y: number, direction: 'left' | 'right') =>
-    y >= pagerY.current.top && y <= pagerY.current.bottom && (direction === 'left' ? page === 0 : page === 1);
+  const pager = useRef<PagerView>(null);
   const limitsQ = useLimits(month);
   const sync = useSyncNow();
   const [refreshing, setRefreshing] = useState(false);
@@ -108,7 +102,7 @@ export default function SpendingScreen() {
   const shownTxns = useMemo(() => searchTransactions(allTxns, search, byId), [allTxns, search, byId]);
   const goTo = (i: number) => {
     setPage(i);
-    pager.current?.scrollTo({ x: i * width, animated: true });
+    pager.current?.setPage(i);
   };
   // Limits only apply to the whole picture, not to a single institution's slice.
   const limits = institution ? [] : (limitsQ.data?.limits ?? []);
@@ -125,83 +119,68 @@ export default function SpendingScreen() {
   const empty = s && s.totalCents === 0 && s.byCategory.length === 0;
 
   return (
-    <TabSwipe tab="spending" ignore={keepPagerSwipe}>
-      <View style={{ flex: 1 }}>
-        <Screen testID="spending-scroll" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-          <PageTitle>Spending</PageTitle>
-          <MonthSwitcher value={month} onChange={setMonth} />
-          <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-            <Chip label="All" selected={!institution} onPress={() => setInstitution(undefined)} />
-            {INSTITUTIONS.map(i => (
-              <Chip key={i} label={i} selected={institution === i} onPress={() => setInstitution(i)} />
-            ))}
+    <View style={{ flex: 1 }}>
+      <Screen testID="spending-scroll" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        <PageTitle>Spending</PageTitle>
+        <MonthSwitcher value={month} onChange={setMonth} />
+        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          <Chip label="All" selected={!institution} onPress={() => setInstitution(undefined)} />
+          {INSTITUTIONS.map(i => (
+            <Chip key={i} label={i} selected={institution === i} onPress={() => setInstitution(i)} />
+          ))}
+        </View>
+
+        {spendingQ.isError ? <AppText tone="muted">Couldn't load spending. Pull to try again.</AppText> : null}
+
+        {s ? (
+          <View style={{ gap: 2 }}>
+            <Amount cents={s.totalCents + extra} variant="hero" />
+            <CrayonUnderline width={150} color={accents.orange} />
+            <MoreLessNote month={month} totalCents={s.totalCents + extra} prevTotalCents={s.prevTotalCents + prevExtra} />
+            <AppText variant="bodyStrong" style={{ marginTop: 6 }}>
+              Money in <Amount cents={s.moneyInCents} decimals="never" inline /> · Money out{' '}
+              <Amount cents={(s.outCents ?? s.totalCents) + extra} decimals="never" inline />
+            </AppText>
+            <AppText variant="label" tone="muted">
+              {(s.backCents ?? 0) > 0 ? (
+                <>
+                  Spending is money out less <Amount cents={s.backCents} decimals="never" inline /> of refunds and paybacks.{' '}
+                </>
+              ) : null}
+              {includePayments ? (
+                <>
+                  Includes mortgage <Amount cents={mortgage} decimals="never" inline /> and Amex payments{' '}
+                  <Amount cents={card} decimals="never" inline />.
+                </>
+              ) : (
+                'Mortgage and Amex payments not included (change in More).'
+              )}
+            </AppText>
           </View>
+        ) : null}
 
-          {spendingQ.isError ? <AppText tone="muted">Couldn't load spending. Pull to try again.</AppText> : null}
-
-          {s ? (
-            <View style={{ gap: 2 }}>
-              <Amount cents={s.totalCents + extra} variant="hero" />
-              <CrayonUnderline width={150} color={accents.orange} />
-              <MoreLessNote month={month} totalCents={s.totalCents + extra} prevTotalCents={s.prevTotalCents + prevExtra} />
-              <AppText variant="bodyStrong" style={{ marginTop: 6 }}>
-                Money in <Amount cents={s.moneyInCents} decimals="never" inline /> · Money out{' '}
-                <Amount cents={(s.outCents ?? s.totalCents) + extra} decimals="never" inline />
+        <View style={{ flexDirection: 'row', gap: 20 }}>
+          {PAGES.map((label, i) => (
+            <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: page === i }} onPress={() => goTo(i)}>
+              {/* Same weight on both: a bold selected label is wider and made the row shift while swiping. */}
+              <AppText variant="bodyStrong" tone={page === i ? 'ink' : 'muted'}>
+                {label}
               </AppText>
-              <AppText variant="label" tone="muted">
-                {(s.backCents ?? 0) > 0 ? (
-                  <>
-                    Spending is money out less <Amount cents={s.backCents} decimals="never" inline /> of refunds and paybacks.{' '}
-                  </>
-                ) : null}
-                {includePayments ? (
-                  <>
-                    Includes mortgage <Amount cents={mortgage} decimals="never" inline /> and Amex payments{' '}
-                    <Amount cents={card} decimals="never" inline />.
-                  </>
-                ) : (
-                  'Mortgage and Amex payments not included (change in More).'
-                )}
-              </AppText>
-            </View>
-          ) : null}
+              {page === i ? <CrayonUnderline width={label.length * 9} color={accents.lime} seed={i + 3} /> : <View style={{ height: 14 }} />}
+            </Pressable>
+          ))}
+        </View>
 
-          <View style={{ flexDirection: 'row', gap: 20 }}>
-            {PAGES.map((label, i) => (
-              <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: page === i }} onPress={() => goTo(i)}>
-                {/* Same weight on both: a bold selected label is wider and made the row shift while swiping. */}
-                <AppText variant="bodyStrong" tone={page === i ? 'ink' : 'muted'}>
-                  {label}
-                </AppText>
-                {page === i ? <CrayonUnderline width={label.length * 9} color={accents.lime} seed={i + 3} /> : <View style={{ height: 14 }} />}
-              </Pressable>
-            ))}
-          </View>
-
-          <View
-            ref={pagerBox}
-            onLayout={(e: LayoutChangeEvent) => {
-              setWidth(e.nativeEvent.layout.width);
-              pagerBox.current?.measureInWindow((_x, y, _w, h) => {
-                pagerY.current = { top: y, bottom: y + h };
-              });
-            }}
-          >
-            <ScrollView
-              ref={pager}
-              testID="spending-pager"
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              style={pagerHeight ? { height: pagerHeight } : undefined}
-              onScrollBeginDrag={() => setSwiping(true)}
-              onMomentumScrollEnd={e => {
-                setPage(Math.round(e.nativeEvent.contentOffset.x / width));
-                setSwiping(false);
-              }}
-            >
-              <View testID="spending-page-0" onLayout={measurePage(0)} style={{ width, gap: 14, alignSelf: 'flex-start' }}>
+        <PagerView
+          ref={pager}
+          testID="spending-pager"
+          style={{ height: pagerHeight || 400 }}
+          onPageScrollStateChanged={e => setSwiping(e.nativeEvent.pageScrollState !== 'idle')}
+          onPageSelected={e => setPage(e.nativeEvent.position)}
+        >
+          {/* PagerView stretches each page to its own height, so the content inside is what gets measured. */}
+          <View key="categories" collapsable={false}>
+            <View testID="spending-page-0" onLayout={measurePage(0)} style={{ gap: 14 }}>
                 {s ? (
                   <>
                     {warnings.map(l => (
@@ -272,8 +251,10 @@ export default function SpendingScreen() {
                     ) : null}
                   </>
                 ) : null}
-              </View>
-              <View testID="spending-page-1" onLayout={measurePage(1)} style={{ width, gap: 10, alignSelf: 'flex-start' }}>
+            </View>
+          </View>
+          <View key="transactions" collapsable={false}>
+            <View testID="spending-page-1" onLayout={measurePage(1)} style={{ gap: 10 }}>
                 <View style={{ justifyContent: 'center' }}>
                   <TextInput
                     accessibilityLabel="Search transactions"
@@ -330,17 +311,16 @@ export default function SpendingScreen() {
                   onPressTxn={x => router.push(`/transaction/${x.id}`)}
                   accounts={accounts}
                 />
-              </View>
-            </ScrollView>
+            </View>
           </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
-            {PAGES.map((label, i) => (
-              <View key={label} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === i ? accents.lime : t.line }} />
-            ))}
-          </View>
-          <BulkCategoriseSheet visible={bulk} initialText={search} categories={categories} onClose={() => setBulk(false)} />
-        </Screen>
-      </View>
-    </TabSwipe>
+        </PagerView>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+          {PAGES.map((label, i) => (
+            <View key={label} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === i ? accents.lime : t.line }} />
+          ))}
+        </View>
+        <BulkCategoriseSheet visible={bulk} initialText={search} categories={categories} onClose={() => setBulk(false)} />
+      </Screen>
+    </View>
   );
 }

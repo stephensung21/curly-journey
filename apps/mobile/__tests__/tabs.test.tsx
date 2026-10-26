@@ -1,7 +1,4 @@
-import { renderRouter } from 'expo-router/testing-library';
-
-// The router harness swaps in its own Reanimated mock, which gesture detectors can't use. Tab swipes have their own tests.
-jest.mock('../src/components/TabSwipe', () => ({ TabSwipe: ({ children }: { children: unknown }) => children }));
+import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 it('shows the four tabs in order', async () => {
   const view = await renderRouter('./app', { initialUrl: '/' });
@@ -37,4 +34,12 @@ it('renders every tab up front so switching never shows a blank first frame', as
   const view = await renderRouter('./app', { initialUrl: '/' });
   await view.findAllByLabelText(/, tab, \d+ of \d+$/);
   expect(view.getByTestId('spending-scroll', { includeHiddenElements: true })).toBeTruthy();
+}, 60_000);
+
+it('tapping a tab moves to it', async () => {
+  const view = await renderRouter('./app', { initialUrl: '/' });
+  const spending = (await view.findAllByLabelText(/^Spending, tab, 2 of 4$/))[0]!;
+  await fireEvent.press(spending);
+  expect(screen).toHavePathname('/spending');
+  expect(spending.props.accessibilityState).toEqual({ selected: true });
 }, 60_000);
