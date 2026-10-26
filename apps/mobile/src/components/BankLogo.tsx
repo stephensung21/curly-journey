@@ -7,6 +7,9 @@ const logos: Record<string, ImageSourcePropType> = {
   Up: require('../../assets/banks/up.png'),
 };
 
+/** Whether `BankLogo` draws anything for this institution. */
+export const hasBankLogo = (institution: string): boolean => institutionGroup(institution) in logos;
+
 /** Small bank icon for a known institution; nothing for any other. */
 export function BankLogo({ institution, size = 18 }: { institution: string; size?: number }) {
   const source = logos[institutionGroup(institution)];

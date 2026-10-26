@@ -2,7 +2,7 @@ import { limitMessage, monthKey, WHOLE_MONTH_LABEL } from '@curly/core';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Dimensions, type LayoutChangeEvent, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, TextInput, View } from 'react-native';
-import { useCategories, useLimits, useSpending, useSyncNow, useTransactionsQuery } from '../../src/api/hooks';
+import { useAccounts, useCategories, useLimits, useSpending, useSyncNow, useTransactionsQuery } from '../../src/api/hooks';
 import type { SpendingQuery } from '../../src/api/types';
 import { Amount } from '../../src/components/Amount';
 import { AppText, fonts } from '../../src/components/AppText';
@@ -54,6 +54,7 @@ export default function SpendingScreen() {
   // Same scope as the total: accounts that count towards spending, every flow, labelled by the row.
   const txQ = useTransactionsQuery(query);
   const categories = useCategories().data ?? [];
+  const accounts = useAccounts().data?.accounts;
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [width, setWidth] = useState(() => Dimensions.get('window').width - 32);
@@ -230,6 +231,7 @@ export default function SpendingScreen() {
               categories={categories}
               today={sydneyDate(now())}
               onPressTxn={x => router.push(`/transaction/${x.id}`)}
+              accounts={accounts}
             />
           </View>
         </ScrollView>

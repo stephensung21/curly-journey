@@ -58,6 +58,8 @@ export default function CategoryScreen() {
         categories={categories}
         today={sydneyDate(now())}
         onPressTxn={t => router.push(`/transaction/${t.id}`)}
+        // One account means one bank: the badge would say nothing.
+        accounts={accountId ? undefined : accounts}
       />
     </Screen>
   );

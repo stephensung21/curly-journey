@@ -121,3 +121,25 @@ it('TransactionList groups by day and resolves categories', async () => {
   await fireEvent.press(screen.getByText('Cafe'));
   expect(onPressTxn).toHaveBeenCalledWith(expect.objectContaining({ id: 2 }));
 });
+
+describe('bank badge', () => {
+  it('shows the bank logo on the tile when an institution is given', async () => {
+    await renderScreen(<TransactionRow txn={txn()} category={groceries} institution="CommBank" />);
+    expect(screen.getByTestId('bank-badge')).toBeTruthy();
+  });
+
+  it('shows no badge without an institution, or for a bank with no logo', async () => {
+    await renderScreen(<TransactionRow txn={txn()} category={groceries} />);
+    expect(screen.queryByTestId('bank-badge')).toBeNull();
+    await renderScreen(<TransactionRow txn={txn()} category={groceries} institution="CoinSpot" />);
+    expect(screen.queryByTestId('bank-badge')).toBeNull();
+  });
+
+  it('TransactionList badges each row from its account', async () => {
+    const accounts = [{ id: 7, institution: 'Amex' }, { id: 8, institution: 'Up' }] as never;
+    await renderScreen(
+      <TransactionList transactions={[txn(), txn({ id: 2, accountId: 8 }), txn({ id: 3, accountId: 99 })]} categories={[groceries]} today="2026-10-22" accounts={accounts} />,
+    );
+    expect(screen.getAllByTestId('bank-badge')).toHaveLength(2);
+  });
+});

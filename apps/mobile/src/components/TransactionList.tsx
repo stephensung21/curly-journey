@@ -1,21 +1,23 @@
 import { useMemo } from 'react';
-import type { Category, Transaction } from '../api/types';
+import type { Account, Category, Transaction } from '../api/types';
 import { dayHeader } from '../lib/days';
 import { AppText } from './AppText';
 import { Card } from './Card';
 import { TransactionRow } from './TransactionRow';
 
-/** Transactions grouped into one card per day, newest first. */
+/** Transactions grouped into one card per day, newest first. With `accounts`, each row shows its bank's logo. */
 export function TransactionList({
   transactions,
   categories,
   today,
   onPressTxn,
+  accounts,
 }: {
   transactions: Transaction[];
   categories: Category[];
   today: string;
   onPressTxn?: (txn: Transaction) => void;
+  accounts?: Pick<Account, 'id' | 'institution'>[];
 }) {
   const groups = useMemo(() => {
     const map = new Map<string, Transaction[]>();
@@ -24,6 +26,7 @@ export function TransactionList({
     return [...map.entries()];
   }, [transactions]);
   const byId = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+  const bankOf = useMemo(() => new Map((accounts ?? []).map(a => [a.id, a.institution])), [accounts]);
 
   return (
     <>
@@ -38,6 +41,7 @@ export function TransactionList({
               txn={t}
               category={t.categoryId === null ? undefined : byId.get(t.categoryId)}
               onPress={onPressTxn ? () => onPressTxn(t) : undefined}
+              institution={bankOf.get(t.accountId)}
             />
           ))}
         </Card>

@@ -54,6 +54,7 @@ beforeEach(() => {
   (mocked.useLimits as jest.Mock).mockImplementation(() => ({ data: { limits } }));
   (mocked.useSpending as jest.Mock).mockImplementation(() => ({ data: summary, isLoading: false, refetch: jest.fn() }));
   (mocked.useSyncNow as jest.Mock).mockReturnValue({ mutateAsync: jest.fn() });
+  (mocked.useAccounts as jest.Mock).mockReturnValue({ data: { accounts: [{ id: 1, institution: 'CommBank' }], lastSuccessAt: null } });
   (mocked.useTransactionsQuery as jest.Mock).mockImplementation(() => ({ data: { transactions: txns }, isLoading: false, isError: false, refetch: jest.fn() }));
   (mocked.useCategories as jest.Mock).mockReturnValue({
     data: [
@@ -190,6 +191,12 @@ describe('Transactions page', () => {
     expect(screen.queryByText('Woolworths')).toBeNull();
     await fireEvent.changeText(screen.getByLabelText('Search transactions'), 'zzz');
     expect(screen.getByText('No transactions match "zzz".')).toBeTruthy();
+  });
+
+  it('badges each row with its bank', async () => {
+    await renderScreen(<SpendingScreen />);
+    await fireEvent.press(screen.getByText('Transactions'));
+    expect(screen.getAllByTestId('bank-badge').length).toBeGreaterThan(0);
   });
 
   it('opens a transaction', async () => {

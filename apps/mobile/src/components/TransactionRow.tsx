@@ -4,6 +4,7 @@ import { categoryColor } from '../theme/categoryColor';
 import { useTheme } from '../theme/useTheme';
 import { Amount } from './Amount';
 import { AppText } from './AppText';
+import { BankLogo, hasBankLogo } from './BankLogo';
 import { IconTile } from './IconTile';
 
 /** What a row shows besides the amount: the tile, the subline, and whether it is dimmed or needs sorting. */
@@ -19,15 +20,20 @@ function describe(txn: Transaction, category: Category | undefined) {
   return { emoji: category?.emoji ?? '?', text: category?.name ?? '', dim: false, todo: false, plain: !category };
 }
 
-/** One transaction: merchant, a category subline and the amount. Money in is lime and signed, money out is red. */
+/**
+ * One transaction: merchant, a category subline and the amount. Money in is lime and signed, money out is red.
+ * With an `institution`, a small bank logo sits on the corner of the tile.
+ */
 export function TransactionRow({
   txn,
   category,
   onPress,
+  institution,
 }: {
   txn: Transaction;
   category: Category | undefined;
   onPress?: () => void;
+  institution?: string;
 }) {
   const t = useTheme();
   const d = describe(txn, category);
@@ -38,7 +44,14 @@ export function TransactionRow({
 
   const content = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, opacity: d.dim ? 0.6 : 1 }}>
-      <IconTile emoji={d.emoji} color={tile} />
+      <View>
+        <IconTile emoji={d.emoji} color={tile} />
+        {institution && hasBankLogo(institution) ? (
+          <View testID="bank-badge" style={{ position: 'absolute', right: -4, bottom: -4, borderRadius: 5, borderWidth: 1.5, borderColor: t.surface }}>
+            <BankLogo institution={institution} size={13} />
+          </View>
+        ) : null}
+      </View>
       <View style={{ flex: 1, gap: 2 }}>
         <AppText variant="bodyStrong" numberOfLines={1}>
           {name}
