@@ -262,3 +262,23 @@ export type ProjectionPrefill = {
   today: string;
 };
 export type ProjectionsResponse = { profile: ProjectionProfile; prefill: ProjectionPrefill };
+
+export type GoalBody = {
+  name: string;
+  emoji: string;
+  targetCents: number;
+  /** ISO date, or null for no deadline. */
+  targetDate: string | null;
+  /** Empty: tracks net worth. */
+  accountIds: number[];
+};
+export type Goal = GoalBody & {
+  id: number;
+  currentCents: number;
+  percent: number;
+  remainingCents: number;
+  monthsLeft: number | null;
+  monthlyNeededCents: number | null;
+  reached: boolean;
+};
+export type FiProgress = { yearlySpendingCents: number; fiNumberCents: number; investedCents: number; percent: number };

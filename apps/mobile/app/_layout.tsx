@@ -40,6 +40,7 @@ function AppStack() {
           <Stack.Screen name="rules" options={{ headerShown: false }} />
           <Stack.Screen name="import" options={{ headerShown: false }} />
           <Stack.Screen name="limits" options={{ headerShown: false }} />
+          <Stack.Screen name="goals" options={{ headerShown: false }} />
           <Stack.Screen name="notifications" options={{ headerShown: false }} />
           <Stack.Screen name="calendar" options={{ headerShown: false }} />
           <Stack.Screen name="event/[id]" options={{ headerShown: false }} />

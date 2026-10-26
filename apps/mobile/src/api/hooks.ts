@@ -9,6 +9,9 @@ import { useConnectionStore } from './connectionStore';
 import type {
   Account,
   AccountSettings,
+  FiProgress,
+  Goal,
+  GoalBody,
   AccountValue,
   AccountsResponse,
   CategorisationStats,
@@ -703,5 +706,42 @@ export function useUpdateProfile() {
     mutationFn: (patch: Partial<ProjectionProfile>) =>
       apiFetch<ProjectionProfile>(conn, '/projections/profile', { method: 'PUT', body: JSON.stringify(patch) }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['projections'] }),
+  });
+}
+
+export function useGoals() {
+  const conn = useConn();
+  return useQuery({
+    queryKey: ['goals'],
+    enabled: !!conn.url,
+    queryFn: () => apiFetch<{ goals: Goal[]; fi: FiProgress }>(conn, '/goals'),
+  });
+}
+
+export function useCreateGoal() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: GoalBody) => apiFetch<Goal>(conn, '/goals', { method: 'POST', body: JSON.stringify(body) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['goals'] }),
+  });
+}
+
+export function useUpdateGoal() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: GoalBody & { id: number }) =>
+      apiFetch<Goal>(conn, `/goals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['goals'] }),
+  });
+}
+
+export function useDeleteGoal() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<void>(conn, `/goals/${id}`, { method: 'DELETE' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['goals'] }),
   });
 }
