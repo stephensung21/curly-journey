@@ -1,4 +1,4 @@
-import { fireEvent, renderRouter, screen } from 'expo-router/testing-library';
+import { act, fireEvent, renderRouter, screen } from 'expo-router/testing-library';
 
 it('shows the four tabs in order', async () => {
   const view = await renderRouter('./app', { initialUrl: '/' });
@@ -70,4 +70,20 @@ it('a finger on a slider holds the tabs still until it lifts', async () => {
   expect(tabPagerScroll()).toBe(false);
   await fireEvent(track, 'touchEnd');
   expect(tabPagerScroll()).toBe(true);
+}, 60_000);
+
+it('back on Accounts opens the app-style exit sheet', async () => {
+  const { BackHandler } = require('react-native');
+  const listeners: (() => boolean)[] = [];
+  const add = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_e: unknown, fn: unknown) => {
+    listeners.push(fn as () => boolean);
+    return { remove: () => {} };
+  });
+  const view = await renderRouter('./app', { initialUrl: '/' });
+  await view.findAllByLabelText(/, tab, \d+ of \d+$/);
+  await act(() => {
+    listeners.at(-1)!();
+  });
+  expect(view.getByText('Exit Curly Journey?')).toBeTruthy();
+  add.mockRestore();
 }, 60_000);

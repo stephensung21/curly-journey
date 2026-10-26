@@ -3,8 +3,9 @@ import { useNavigation, usePathname } from 'expo-router';
 import { TopTabs } from 'expo-router/js-top-tabs';
 import { useEffect, useState, type ComponentProps } from 'react';
 import { BackHandler, type ColorValue, Dimensions } from 'react-native';
+import { ExitSheet } from '../../src/components/ExitSheet';
 import { TabBar } from '../../src/components/TabBar';
-import { confirmExit, shouldConfirmExit } from '../../src/lib/exitConfirm';
+import { shouldConfirmExit } from '../../src/lib/exitConfirm';
 import { SwipeLock } from '../../src/lib/swipeLock';
 import { useTheme } from '../../src/theme/useTheme';
 
@@ -21,11 +22,12 @@ export default function TabLayout() {
   const navigation = useNavigation();
   const pathname = usePathname();
   const [swipeLocked, setSwipeLocked] = useState(false);
+  const [exiting, setExiting] = useState(false);
   // Back on Accounts would close the app; ask first. Other tabs go back to Accounts as before.
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (!shouldConfirmExit(navigation.isFocused(), pathname)) return false;
-      confirmExit();
+      setExiting(true);
       return true;
     });
     return () => sub.remove();
@@ -54,6 +56,7 @@ export default function TabLayout() {
         />
         <TopTabs.Screen name="more" options={{ title: 'More', tabBarIcon: tabIcon('more', 'ellipsis-horizontal-circle-outline') }} />
       </TopTabs>
+      <ExitSheet visible={exiting} onClose={() => setExiting(false)} />
     </SwipeLock.Provider>
   );
 }
