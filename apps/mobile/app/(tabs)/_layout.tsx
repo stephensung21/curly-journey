@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Tabs } from 'expo-router';
-import type { ComponentProps } from 'react';
-import type { ColorValue } from 'react-native';
+import { Tabs, useNavigation, usePathname } from 'expo-router';
+import { useEffect, type ComponentProps } from 'react';
+import { BackHandler, type ColorValue } from 'react-native';
+import { confirmExit, shouldConfirmExit } from '../../src/lib/exitConfirm';
 import { tabBarColors } from '../../src/theme/chrome';
 import { useTheme } from '../../src/theme/useTheme';
 
@@ -16,6 +17,17 @@ function tabIcon(testName: string, name: IconName) {
 export default function TabLayout() {
   const t = useTheme();
   const tint = tabBarColors(t);
+  const navigation = useNavigation();
+  const pathname = usePathname();
+  // Back on Accounts would close the app; ask first. Other tabs go back to Accounts as before.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!shouldConfirmExit(navigation.isFocused(), pathname)) return false;
+      confirmExit();
+      return true;
+    });
+    return () => sub.remove();
+  }, [navigation, pathname]);
   return (
     <Tabs
       screenOptions={{
