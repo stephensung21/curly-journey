@@ -230,15 +230,47 @@ export default function SpendingScreen() {
             ) : null}
           </View>
           <View testID="spending-page-1" onLayout={measurePage(1)} style={{ width, gap: 10, alignSelf: 'flex-start' }}>
-            <TextInput
-              accessibilityLabel="Search transactions"
-              placeholder="Search merchant, category, note or amount"
-              placeholderTextColor={t.inkFaded}
-              value={search}
-              onChangeText={setSearch}
-              autoCorrect={false}
-              style={{ backgroundColor: t.surface, color: t.ink, fontFamily: fonts.medium, fontSize: 14, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 }}
-            />
+            <View style={{ justifyContent: 'center' }}>
+              <TextInput
+                accessibilityLabel="Search transactions"
+                placeholder="Search merchant, category, note or amount"
+                placeholderTextColor={t.inkFaded}
+                value={search}
+                onChangeText={setSearch}
+                autoCorrect={false}
+                style={{
+                  backgroundColor: t.surface,
+                  color: t.ink,
+                  fontFamily: fonts.medium,
+                  fontSize: 14,
+                  borderRadius: 12,
+                  paddingLeft: 12,
+                  // Room for the clear button so text never runs under it.
+                  paddingRight: 40,
+                  paddingVertical: 10,
+                }}
+              />
+              {search ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
+                  hitSlop={8}
+                  onPress={() => setSearch('')}
+                  style={{
+                    position: 'absolute',
+                    right: 8,
+                    width: 24,
+                    height: 24,
+                    borderRadius: 12,
+                    backgroundColor: t.line,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <AppText variant="label">✕</AppText>
+                </Pressable>
+              ) : null}
+            </View>
             {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
             {txQ.data && allTxns.length === 0 ? <AppText tone="muted">No transactions this month.</AppText> : null}
             {search.trim().length >= 3 && shownTxns.length > 0 ? (

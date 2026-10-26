@@ -261,3 +261,17 @@ describe('categorise by name', () => {
     expect(screen.getByLabelText('Name contains').props.value).toBe('salary');
   });
 });
+
+describe('clear search', () => {
+  it('shows an X only while there is a search, and tapping it clears it', async () => {
+    await renderScreen(<SpendingScreen />);
+    await fireEvent.press(screen.getByText('Transactions'));
+    expect(screen.queryByLabelText('Clear search')).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Search transactions'), 'salary');
+    expect(screen.queryByText('Woolworths')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Clear search'));
+    expect(screen.getByLabelText('Search transactions').props.value).toBe('');
+    expect(screen.getByText('Woolworths')).toBeTruthy();
+    expect(screen.queryByLabelText('Clear search')).toBeNull();
+  });
+});
