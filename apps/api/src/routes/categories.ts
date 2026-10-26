@@ -77,5 +77,12 @@ export function categoryRoutes(deps: Deps) {
     return c.json({ ok: true });
   });
 
+  r.delete('/categories/:id', async (c) => {
+    const id = parseId(c.req.param('id'));
+    if (id === null) return c.json({ error: 'bad_id' }, 400);
+    if (!(await repo.deleteCategory(id))) return c.json({ error: 'category_not_found' }, 404);
+    return c.json({ ok: true });
+  });
+
   return r;
 }

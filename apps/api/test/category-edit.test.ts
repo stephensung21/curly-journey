@@ -155,3 +155,40 @@ describe('categoryIdByName', () => {
     expect(map.get('Tea')).toBe(3);
   });
 });
+
+describe('DELETE /categories/:id', () => {
+  it('deletes the category; its transactions, splits, rules and limit are cleared, not lost', async () => {
+    const { call, cat, add, row, repo, db, categories } = await setup();
+    const coffee = cat('Coffee');
+    const plain = await add(row('a', -500, 'CAFE'));
+    await repo.patchTransaction(plain, { categoryId: coffee });
+    const split = await add(row('b', -1000, 'BRUNCH'));
+    await call('PUT', `/transactions/${split}/splits`, { splits: [{ categoryId: coffee, amountCents: -400 }, { categoryId: cat('Dining out'), amountCents: -600 }] });
+    await call('POST', '/rules', { origin: 'user', matchText: 'cafe', categoryId: coffee, applyToPast: false });
+    await call('POST', '/limits', { categoryId: coffee, amountCents: 10000 });
+
+    const res = await call('DELETE', `/categories/${coffee}`);
+    expect(res.status).toBe(200);
+    expect((await categories()).some((c) => c.id === coffee)).toBe(false);
+    const txns = await db.query<{ id: string; category_id: number | null }>('select id::text, category_id from transaction');
+    expect(txns.every((t) => t.category_id === null)).toBe(true);
+    expect(await db.query('select 1 from transaction_split')).toEqual([]);
+    expect(await db.query(`select 1 from rule where match_text = 'cafe'`)).toEqual([]);
+    expect(await db.query('select 1 from spending_limit')).toEqual([]);
+    expect((await (await call('GET', `/transactions/${plain}`)).json()) as object).toMatchObject({ categoryId: null });
+  });
+
+  it('keeps a rule that also sets a flow, without its category', async () => {
+    const { call, cat, db } = await setup();
+    await call('POST', '/rules', { origin: 'user', matchText: 'gift card', categoryId: cat('Coffee'), flow: 'not_spending', applyToPast: false });
+    await call('DELETE', `/categories/${cat('Coffee')}`);
+    const rules = await db.query<{ category_id: number | null; flow: string }>(`select category_id, flow from rule where match_text = 'gift card'`);
+    expect(rules).toEqual([{ category_id: null, flow: 'not_spending' }]);
+  });
+
+  it('404s on an unknown id and 401s without a token', async () => {
+    const { call, app } = await setup();
+    expect((await call('DELETE', '/categories/99999')).status).toBe(404);
+    expect((await app.request('/categories/1', { method: 'DELETE' })).status).toBe(401);
+  });
+});

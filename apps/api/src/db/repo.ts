@@ -206,6 +206,11 @@ export interface Repo {
    * the job. False if either id is unknown.
    */
   mergeCategory(from: number, into: number): Promise<boolean>;
+  /**
+   * Deletes a category. Its transactions (split ones whole) become uncategorised and go back through the pipeline;
+   * its rules and limit go, except a rule that also sets a flow keeps the flow. False if unknown.
+   */
+  deleteCategory(id: number): Promise<boolean>;
   /** Renumbers sort 1..n with `ids` first and the rest after in their old order; false (nothing written) if an id is unknown or repeated. */
   setCategoryOrder(ids: number[]): Promise<boolean>;
   listRules(): Promise<Rule[]>;
@@ -954,6 +959,25 @@ export function makeRepo(db: Db): Repo {
         [into],
       );
       await db.query('delete from category where id = $1', [from]);
+      return true;
+    },
+
+    async deleteCategory(id) {
+      if (!(await db.query('select 1 from category where id = $1', [id])).length) return false;
+      // A split with a part in this category no longer adds up, so the whole row starts over.
+      await db.query(
+        `with gone as (
+           delete from transaction_split where transaction_id in (select transaction_id from transaction_split where category_id = $1)
+           returning transaction_id)
+         update transaction t set category_id = null, category_source = null, categorised = false
+         where t.id in (select transaction_id from gone)`,
+        [id],
+      );
+      await db.query('update transaction set category_id = null, category_source = null, categorised = false where category_id = $1', [id]);
+      await db.query('update rule set category_id = null where category_id = $1 and flow is not null', [id]);
+      await db.query('delete from rule where category_id = $1', [id]);
+      await db.query('delete from spending_limit where category_id = $1', [id]);
+      await db.query('delete from category where id = $1', [id]);
       return true;
     },
 
