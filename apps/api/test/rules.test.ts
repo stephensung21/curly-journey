@@ -69,6 +69,33 @@ describe('rules', () => {
     expect((await get(a)).categorySource).toBe('rule');
   });
 
+  it('preview counts hand-sorted rows separately', async () => {
+    const { call, add, repo, cat } = await setup();
+    await add('1', 'Starbucks Sydney');
+    const user = await add('2', 'STARBUCKS Pitt St');
+    const userSame = await add('3', 'Starbucks George');
+    await repo.patchTransaction(user, { categoryId: cat('Groceries') });
+    await repo.patchTransaction(userSame, { categoryId: cat('Coffee') });
+    const res = (await (await call('GET', `/rules/preview?matchText=starbucks&categoryId=${cat('Coffee')}`)).json()) as {
+      matches: number;
+      handSorted: number;
+    };
+    expect(res).toEqual({ matches: 1, handSorted: 1 });
+  });
+
+  it('includeHandSorted also moves rows the owner sorted by hand, and they stay hand-sorted', async () => {
+    const { call, add, get, repo, cat } = await setup();
+    const a = await add('1', 'Starbucks Sydney');
+    const user = await add('2', 'Starbucks George');
+    await repo.patchTransaction(user, { categoryId: cat('Groceries') });
+    const res = await call('POST', '/rules', { origin: 'user', matchText: 'starbucks', categoryId: cat('Coffee'), applyToPast: true, includeHandSorted: true });
+    expect(((await res.json()) as { updated: number }).updated).toBe(2);
+    expect(await get(a)).toMatchObject({ categoryId: cat('Coffee'), categorySource: 'rule' });
+    expect(await get(user)).toMatchObject({ categoryId: cat('Coffee'), categorySource: 'user' });
+    const bad = await call('POST', '/rules', { origin: 'user', matchText: 'starbucks', categoryId: cat('Coffee'), applyToPast: true, includeHandSorted: 'yes' });
+    expect(bad.status).toBe(400);
+  });
+
   it('a flow rule skips rows whose flow the owner set', async () => {
     const { call, add, get } = await setup();
     const a = await add('1', 'Payment to savings');

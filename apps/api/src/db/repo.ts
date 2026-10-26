@@ -178,9 +178,13 @@ export interface Repo {
   /** Every rule with how many transactions it matches. */
   listRulesWithMatches(): Promise<(Rule & { matches: number })[]>;
   /** Rows the rule would change: not user-categorised, and not already in `categoryId`. */
-  previewRule(m: RuleMatch, categoryId: number | null): Promise<number>;
-  /** Creates the rule; with `applyToPast`, also applies it to matching rows the owner has not set. */
-  createRule(r: NewRule, applyToPast: boolean): Promise<{ rule: Rule; updated: number }>;
+  /** Rows a new rule would change, and separately the hand-sorted rows it would change only if asked. */
+  previewRule(m: RuleMatch, categoryId: number | null): Promise<{ matches: number; handSorted: number }>;
+  /**
+   * Creates the rule; with `applyToPast`, also applies it to matching rows the owner has not set, and with
+   * `includeHandSorted` to rows the owner categorised by hand too (they stay hand-sorted).
+   */
+  createRule(r: NewRule, applyToPast: boolean, includeHandSorted?: boolean): Promise<{ rule: Rule; updated: number }>;
   deleteRule(id: number): Promise<boolean>;
   transactionsNear(accountId: number, from: string, to: string): Promise<ImportedRow[]>;
   startSync(now: Date): Promise<number | null>;
@@ -801,16 +805,17 @@ export function makeRepo(db: Db): Repo {
     },
 
     async previewRule(m, categoryId) {
-      const rows = await db.query<{ n: string | number }>(
-        `select count(*) as n from transaction t
-         where ${RULE_MATCH_SQL} and t.category_source is distinct from 'user'
-           and ($4::int is null or t.category_id is distinct from $4::int)`,
+      const rows = await db.query<{ n: string | number; hand: string | number }>(
+        `select count(*) filter (where t.category_source is distinct from 'user') as n,
+           count(*) filter (where t.category_source = 'user' and $4::int is not null) as hand
+         from transaction t
+         where ${RULE_MATCH_SQL} and ($4::int is null or t.category_id is distinct from $4::int)`,
         [m.matchText, m.accountId, m.amountCents, categoryId],
       );
-      return Number(rows[0]!.n);
+      return { matches: Number(rows[0]!.n), handSorted: Number(rows[0]!.hand) };
     },
 
-    async createRule(r, applyToPast) {
+    async createRule(r, applyToPast, includeHandSorted = false) {
       const created = await db.query<RuleSql>(
         `insert into rule (origin, match_text, account_id, amount_cents, category_id, flow)
          values ($1, $2, $3, $4, $5, $6) returning ${RULE_COLS}`,
@@ -818,17 +823,20 @@ export function makeRepo(db: Db): Repo {
       );
       const rule = toRule(created[0]!);
       if (!applyToPast) return { rule, updated: 0 };
-      // Rows the owner categorised are skipped entirely; a row whose flow the owner set keeps that flow.
+      // Rows the owner categorised are skipped unless asked for, and then keep their 'user' source; a row whose
+      // flow the owner set keeps that flow.
       const rows = await db.query(
         `update transaction t set
            category_id = case when $4::int is not null then $4::int else t.category_id end,
-           category_source = case when $4::int is not null then $5::text else t.category_source end,
+           category_source = case when $4::int is not null and t.category_source is distinct from 'user' then $5::text
+             else t.category_source end,
            flow = case when $6::text is not null and t.flow_source <> 'user' then $6::text else t.flow end,
            pair_id = case when $6::text is not null and t.flow_source <> 'user' then null else t.pair_id end,
            flow_source = case when $6::text is not null and t.flow_source <> 'user' then 'rule' else t.flow_source end
-         where ${RULE_MATCH_SQL} and t.category_source is distinct from 'user'
+         where ${RULE_MATCH_SQL}
+           and (t.category_source is distinct from 'user' or ($7::boolean and $4::int is not null))
          returning t.id`,
-        [r.matchText, r.accountId, r.amountCents, r.categoryId, r.origin === 'learned' ? 'learned' : 'rule', r.flow],
+        [r.matchText, r.accountId, r.amountCents, r.categoryId, r.origin === 'learned' ? 'learned' : 'rule', r.flow, includeHandSorted],
       );
       return { rule, updated: rows.length };
     },

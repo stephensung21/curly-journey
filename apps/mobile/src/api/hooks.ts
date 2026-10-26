@@ -369,7 +369,7 @@ export function useRulePreview(params: RulePreviewParams, enabled: boolean) {
   return useQuery({
     queryKey: ['rulePreview', params],
     enabled: enabled && !!conn.url,
-    queryFn: () => apiFetch<{ matches: number }>(conn, `/rules/preview${qs({ ...params })}`),
+    queryFn: () => apiFetch<{ matches: number; handSorted?: number }>(conn, `/rules/preview${qs({ ...params })}`),
   });
 }
 

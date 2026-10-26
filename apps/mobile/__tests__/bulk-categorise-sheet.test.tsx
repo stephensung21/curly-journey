@@ -48,3 +48,16 @@ it('needs at least 3 letters and a category', async () => {
   await fireEvent.press(screen.getByText('Categorise'));
   expect(create).not.toHaveBeenCalled();
 });
+
+it('can also change ones sorted by hand, but only when asked', async () => {
+  (hooks.useRulePreview as jest.Mock).mockImplementation((_p: unknown, enabled: boolean) => ({ data: enabled ? { matches: 12, handSorted: 3 } : undefined }));
+  await renderScreen(<BulkCategoriseSheet visible initialText="beem" categories={cats} onClose={onClose} />);
+  await fireEvent.press(screen.getByText('Choose a category'));
+  await fireEvent.press(screen.getByText('Dining out'));
+  const hand = screen.getByLabelText('Also change the 3 you sorted by hand');
+  expect(hand.props.value).toBe(false);
+  await fireEvent(hand, 'valueChange', true);
+  expect(screen.getByText('New transactions with this in their name will go here too. Ones you sorted by hand change too.')).toBeTruthy();
+  await fireEvent.press(screen.getByText('Categorise'));
+  expect(create).toHaveBeenCalledWith({ origin: 'user', matchText: 'beem', categoryId: 1, applyToPast: true, includeHandSorted: true });
+});

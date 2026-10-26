@@ -33,7 +33,7 @@ export function ruleRoutes(deps: Deps) {
     if (accountId === undefined || amountCents === undefined || categoryId === undefined) {
       return c.json({ error: 'bad_rule' }, 400);
     }
-    return c.json({ matches: await repo.previewRule({ matchText, accountId, amountCents }, categoryId) });
+    return c.json(await repo.previewRule({ matchText, accountId, amountCents }, categoryId));
   });
 
   r.post('/rules', async (c) => {
@@ -52,7 +52,8 @@ export function ruleRoutes(deps: Deps) {
       accountId === undefined || amountCents === undefined || categoryId === undefined ||
       (flow !== null && (typeof flow !== 'string' || !FLOWS.includes(flow as Flow))) ||
       (categoryId === null && flow === null) ||
-      typeof body.applyToPast !== 'boolean'
+      typeof body.applyToPast !== 'boolean' ||
+      (body.includeHandSorted !== undefined && typeof body.includeHandSorted !== 'boolean')
     ) {
       return c.json({ error: 'bad_rule' }, 400);
     }
@@ -62,7 +63,7 @@ export function ruleRoutes(deps: Deps) {
     if (accountId !== null && !(await repo.getAccount(accountId))) return c.json({ error: 'account_not_found' }, 404);
 
     const rule: NewRule = { origin: body.origin, matchText, accountId, amountCents, categoryId, flow: flow as Flow | null };
-    return c.json(await repo.createRule(rule, body.applyToPast), 201);
+    return c.json(await repo.createRule(rule, body.applyToPast, body.includeHandSorted === true), 201);
   });
 
   r.delete('/rules/:id', async (c) => {

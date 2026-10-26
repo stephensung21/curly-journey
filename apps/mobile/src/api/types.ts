@@ -97,6 +97,8 @@ export type NewRule = {
   categoryId?: number | null;
   flow?: Flow | null;
   applyToPast: boolean;
+  /** Also change matching rows the owner categorised by hand. */
+  includeHandSorted?: boolean;
 };
 export type RulePreviewParams = { matchText: string; accountId?: number; amountCents?: number; categoryId?: number };
 

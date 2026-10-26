@@ -14,7 +14,7 @@ const MIN = 3;
 
 /**
  * Categorise every transaction whose name contains some text (e.g. "beem"): makes a rule, so new ones follow,
- * and optionally applies it to earlier ones. Transactions the owner categorised by hand are left alone.
+ * and optionally applies it to earlier ones. Transactions the owner categorised by hand are left alone unless asked.
  */
 export function BulkCategoriseSheet({
   visible,
@@ -32,6 +32,7 @@ export function BulkCategoriseSheet({
   const [text, setText] = useState(initialText.trim());
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [past, setPast] = useState(true);
+  const [handToo, setHandToo] = useState(false);
   const [picking, setPicking] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export function BulkCategoriseSheet({
     setText(initialText.trim());
     setCategoryId(null);
     setPast(true);
+    setHandToo(false);
     setResult(null);
     setError(null);
   }, [visible, initialText]);
@@ -49,12 +51,21 @@ export function BulkCategoriseSheet({
   const valid = matchText.length >= MIN;
   const preview = useRulePreview({ matchText, ...(categoryId !== null ? { categoryId } : {}) }, valid);
   const earlier = preview.data?.matches ?? 0;
+  // Only counted once a category is chosen: rows already in it don't need changing.
+  const handSorted = categoryId !== null ? (preview.data?.handSorted ?? 0) : 0;
+  const includeHand = handToo && handSorted > 0;
   const category = categories.find(c => c.id === categoryId);
 
   async function submit() {
     if (!valid || categoryId === null || !category) return;
     try {
-      const res = await create.mutateAsync({ origin: 'user', matchText, categoryId, applyToPast: past && earlier > 0 });
+      const res = await create.mutateAsync({
+        origin: 'user',
+        matchText,
+        categoryId,
+        applyToPast: (past && earlier > 0) || includeHand,
+        ...(includeHand ? { includeHandSorted: true } : {}),
+      });
       const n = res.updated;
       setResult(`Done: ${n} ${n === 1 ? 'transaction' : 'transactions'} moved to ${category.name}. New ones will follow.`);
     } catch {
@@ -106,8 +117,14 @@ export function BulkCategoriseSheet({
                 </View>
               </>
             ) : null}
+            {valid && handSorted > 0 ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <AppText style={{ flex: 1 }}>{`Also change the ${handSorted} you sorted by hand`}</AppText>
+                <Toggle accessibilityLabel={`Also change the ${handSorted} you sorted by hand`} value={handToo} onChange={setHandToo} />
+              </View>
+            ) : null}
             <AppText variant="label" tone="muted">
-              New transactions with this in their name will go here too. Ones you sorted by hand stay as they are.
+              {`New transactions with this in their name will go here too. Ones you sorted by hand ${includeHand ? 'change too' : 'stay as they are'}.`}
             </AppText>
             {error ? <AppText tone="muted">{error}</AppText> : null}
             <Button label="Categorise" onPress={() => void submit()} disabled={!valid || categoryId === null || create.isPending} />
