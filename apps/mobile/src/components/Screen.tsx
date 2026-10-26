@@ -13,7 +13,13 @@ export function Screen({ children, style, refreshControl, testID, ...rest }: Vie
   const insets = useSafeAreaInsets();
   return (
     <ImageBackground source={grain[t.mode]} resizeMode="repeat" fadeDuration={0} style={{ flex: 1, backgroundColor: t.bg }} {...rest}>
-      <ScrollView testID={testID} refreshControl={refreshControl} contentContainerStyle={[{ padding: 16, paddingTop: insets.top + 12, gap: 10 }, style]}>
+      {/* The status-bar inset is a margin outside the ScrollView, so content scrolls up to it, not under it. */}
+      <ScrollView
+        testID={testID}
+        refreshControl={refreshControl}
+        style={{ marginTop: insets.top }}
+        contentContainerStyle={[{ padding: 16, paddingTop: 12, gap: 10 }, style]}
+      >
         {children}
       </ScrollView>
     </ImageBackground>
