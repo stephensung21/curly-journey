@@ -23,6 +23,7 @@ beforeEach(() => {
   (mocked.useReorderCategories as jest.Mock).mockReturnValue({ mutate: jest.fn() });
   (mocked.useUpdateCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   (mocked.useMergeCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useDeleteCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   mockParams = { id: '1', month: '2026-10', institution: 'Amex' };
   (mocked.useAccounts as jest.Mock).mockReturnValue({ data: { accounts: [{ id: 7, name: 'Everyday', displayName: 'Daily' }] } });
   (mocked.useCategories as jest.Mock).mockReturnValue({

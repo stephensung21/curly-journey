@@ -2,7 +2,7 @@ import type { CategoryColor } from '@curly/core';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, TextInput, View } from 'react-native';
 import { ApiError } from '../api/client';
-import { useMergeCategory, useUpdateCategory } from '../api/hooks';
+import { useDeleteCategory, useMergeCategory, useUpdateCategory } from '../api/hooks';
 import type { Category } from '../api/types';
 import { categoryColor } from '../theme/categoryColor';
 import { useTheme } from '../theme/useTheme';
@@ -13,13 +13,14 @@ import { Sheet } from './Sheet';
 
 const COLORS: CategoryColor[] = ['orange', 'lime', 'blue', 'yellow', 'pink', 'purple', 'line'];
 
-/** Rename or restyle a category, or move everything in it to another category (which deletes it). */
+/** Rename or restyle a category (name, emoji, tile colour), move everything in it to another category, or delete it. */
 export function CategoryEditSheet({
   visible,
   category,
   categories,
   onClose,
   onMerged,
+  onDeleted,
 }: {
   visible: boolean;
   category: Category;
@@ -27,10 +28,13 @@ export function CategoryEditSheet({
   onClose: () => void;
   /** Called with the category everything moved to; this one no longer exists. */
   onMerged: (into: number) => void;
+  /** Called once the category is deleted. */
+  onDeleted: () => void;
 }) {
   const t = useTheme();
   const update = useUpdateCategory();
   const merge = useMergeCategory();
+  const del = useDeleteCategory();
   const [name, setName] = useState(category.name);
   const [emoji, setEmoji] = useState(category.emoji);
   const [color, setColor] = useState<CategoryColor>(category.color);
@@ -93,6 +97,29 @@ export function CategoryEditSheet({
     );
   }
 
+  function confirmDelete() {
+    Alert.alert(
+      `Delete ${category.name}?`,
+      `Its transactions become uncategorised, and its rules and limit are removed. To keep them, use Move everything instead. This can't be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await del.mutateAsync(category.id);
+            } catch {
+              setError("Couldn't delete. Try again.");
+              return;
+            }
+            onDeleted();
+          },
+        },
+      ],
+    );
+  }
+
   return (
     <>
       <Sheet visible={visible && !picking} onClose={onClose}>
@@ -139,6 +166,7 @@ export function CategoryEditSheet({
         {error ? <AppText tone="muted">{error}</AppText> : null}
         <Button label="Save" onPress={() => void save()} disabled={update.isPending} />
         <Button kind="secondary" label="Move everything to another category" onPress={() => setPicking(true)} disabled={merge.isPending} />
+        <Button kind="secondary" label="Delete category" onPress={confirmDelete} disabled={del.isPending} />
       </Sheet>
       <CategoryPicker
         visible={visible && picking}

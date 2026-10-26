@@ -12,6 +12,8 @@ const coffee: Category = { id: 2, name: 'Coffee', emoji: '☕', color: 'orange',
 const cats: Category[] = [{ id: 1, name: 'Dining out', emoji: '🍜', color: 'orange', kind: 'spending', sort: 1 }, coffee];
 const update = jest.fn();
 const merge = jest.fn();
+const del = jest.fn();
+const onDeleted = jest.fn();
 const onClose = jest.fn();
 const onMerged = jest.fn();
 
@@ -21,11 +23,13 @@ beforeEach(() => {
   merge.mockResolvedValue({ ok: true });
   (hooks.useUpdateCategory as jest.Mock).mockReturnValue({ mutateAsync: update, isPending: false });
   (hooks.useMergeCategory as jest.Mock).mockReturnValue({ mutateAsync: merge, isPending: false });
+  del.mockResolvedValue({ ok: true });
+  (hooks.useDeleteCategory as jest.Mock).mockReturnValue({ mutateAsync: del, isPending: false });
   (hooks.useCreateCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   (hooks.useReorderCategories as jest.Mock).mockReturnValue({ mutate: jest.fn() });
 });
 
-const open = () => renderScreen(<CategoryEditSheet visible category={coffee} categories={cats} onClose={onClose} onMerged={onMerged} />);
+const open = () => renderScreen(<CategoryEditSheet visible category={coffee} categories={cats} onClose={onClose} onMerged={onMerged} onDeleted={onDeleted} />);
 
 it('saves a new name, emoji and colour', async () => {
   await open();
@@ -55,4 +59,13 @@ it('merges into a picked category after confirming', async () => {
   expect(alert.mock.calls[0]![0]).toBe('Move everything from Coffee to Dining out?');
   expect(merge).toHaveBeenCalledWith({ id: 2, into: 1 });
   expect(onMerged).toHaveBeenCalledWith(1);
+});
+
+it('deletes the category after confirming', async () => {
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation((_t, _m, buttons) => buttons?.find(b => b.style === 'destructive')?.onPress?.());
+  await open();
+  await fireEvent.press(screen.getByText('Delete category'));
+  expect(alert.mock.calls[0]![0]).toBe('Delete Coffee?');
+  expect(del).toHaveBeenCalledWith(2);
+  expect(onDeleted).toHaveBeenCalled();
 });

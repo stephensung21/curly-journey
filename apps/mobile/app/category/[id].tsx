@@ -83,6 +83,10 @@ export default function CategoryScreen() {
             setEditing(false);
             router.back();
           }}
+          onDeleted={() => {
+            setEditing(false);
+            router.back();
+          }}
         />
       ) : null}
     </Screen>

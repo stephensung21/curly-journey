@@ -21,12 +21,15 @@ beforeEach(() => {
   mutateAsync.mockResolvedValue({ id: 9, name: 'Pets', emoji: '🐶', color: 'line', kind: 'spending', sort: 9 });
   (hooks.useCreateCategory as jest.Mock).mockReturnValue({ mutateAsync, isPending: false });
   (hooks.useReorderCategories as jest.Mock).mockReturnValue({ mutate: reorder });
+  (hooks.useUpdateCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (hooks.useMergeCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (hooks.useDeleteCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
 });
 
 describe('reorder', () => {
   it('moves a category with the arrows and saves the new order on Done', async () => {
     await open();
-    await fireEvent.press(screen.getByText('Reorder'));
+    await fireEvent.press(screen.getByText('Edit'));
     expect(screen.queryByLabelText('Search categories')).toBeNull();
     await fireEvent.press(screen.getByLabelText('Move Transport up'));
     await fireEvent.press(screen.getByLabelText('Move Groceries down'));
@@ -38,27 +41,28 @@ describe('reorder', () => {
 
   it('has no up arrow on the first row and no down arrow on the last', async () => {
     await open();
-    await fireEvent.press(screen.getByText('Reorder'));
+    await fireEvent.press(screen.getByText('Edit'));
     expect(screen.queryByLabelText('Move Groceries up')).toBeNull();
     expect(screen.queryByLabelText('Move Transport down')).toBeNull();
   });
 
   it('saves nothing when the order did not change or on Cancel', async () => {
     await open();
-    await fireEvent.press(screen.getByText('Reorder'));
+    await fireEvent.press(screen.getByText('Edit'));
     await fireEvent.press(screen.getByText('Done'));
-    await fireEvent.press(screen.getByText('Reorder'));
+    await fireEvent.press(screen.getByText('Edit'));
     await fireEvent.press(screen.getByLabelText('Move Coffee up'));
     await fireEvent.press(screen.getByText('Cancel'));
     expect(reorder).not.toHaveBeenCalled();
     expect(screen.getAllByText(/Groceries|Coffee|Transport/).map(n => n.props.children)).toEqual(['Groceries', 'Coffee', 'Transport']);
   });
 
-  it('does not pick a category while reordering', async () => {
+  it('tapping a category while editing opens its edit sheet instead of picking it', async () => {
     await open();
-    await fireEvent.press(screen.getByText('Reorder'));
-    await fireEvent.press(screen.getByText('Coffee'));
+    await fireEvent.press(screen.getByText('Edit'));
+    await fireEvent.press(screen.getByLabelText('Edit Coffee'));
     expect(pickSpy).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Category name').props.value).toBe('Coffee');
   });
 });
 

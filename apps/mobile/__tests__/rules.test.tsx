@@ -25,6 +25,7 @@ beforeEach(() => {
   (mocked.useReorderCategories as jest.Mock).mockReturnValue({ mutate: jest.fn() });
   (mocked.useUpdateCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   (mocked.useMergeCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useDeleteCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   mutate = jest.fn();
   rules = [
     { ...rule, id: 1, origin: 'learned', matchText: 'OLD CAFE', categoryId: 2, createdAt: '2026-09-01T00:00:00Z', matches: 1 },

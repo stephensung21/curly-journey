@@ -253,6 +253,17 @@ export function useMergeCategory() {
   });
 }
 
+/** Deletes a category; its transactions become uncategorised. */
+export function useDeleteCategory() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiFetch<{ ok: true }>(conn, `/categories/${id}`, { method: 'DELETE' }),
+    onSettled: () =>
+      Promise.all([qc.invalidateQueries({ queryKey: ['categories'] }), qc.invalidateQueries({ queryKey: ['rules'] }), invalidateSpending(qc)]),
+  });
+}
+
 /** Saves a new category order. `ids` may be a subset (a filtered picker); the other categories keep their places. */
 export function useReorderCategories() {
   const conn = useConn();

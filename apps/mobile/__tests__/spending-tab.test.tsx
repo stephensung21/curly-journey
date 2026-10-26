@@ -57,6 +57,7 @@ beforeEach(() => {
   (mocked.useReorderCategories as jest.Mock).mockReturnValue({ mutate: jest.fn() });
   (mocked.useUpdateCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   (mocked.useMergeCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useDeleteCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   summary = base;
   limits = [];
   (mocked.useLimits as jest.Mock).mockImplementation(() => ({ data: { limits } }));
