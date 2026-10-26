@@ -309,7 +309,20 @@ describe('bank data line', () => {
     // now() is 22 Oct, 1pm Sydney.
     status = { ...status, bankData: [{ institution: 'CommBank', at: '2026-10-21T20:41:00Z' }, { institution: 'Amex', at: '2026-10-21T10:02:00Z' }] };
     await renderScreen(<AccountsScreen />);
-    expect(screen.getByText('Bank data: CommBank today 7:41am · Amex yesterday 9:02pm')).toBeTruthy();
+    expect(screen.getByText('Bank data: CommBank 7:41am · Amex yesterday')).toBeTruthy();
+  });
+
+  it('shows when PocketSmith last checked each bank only after tapping the line', async () => {
+    status = {
+      ...status,
+      bankData: [{ institution: 'CommBank', at: '2026-10-21T20:41:00Z', checkedAt: '2026-10-22T01:15:00Z' }],
+    };
+    await renderScreen(<AccountsScreen />);
+    expect(screen.queryByText(/^Checked by PocketSmith/)).toBeNull();
+    await fireEvent.press(screen.getByText('Bank data: CommBank 7:41am'));
+    expect(screen.getByText('Checked by PocketSmith: CommBank today 12:15pm')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Bank data: CommBank 7:41am'));
+    expect(screen.queryByText(/^Checked by PocketSmith/)).toBeNull();
   });
 
   it('shows nothing before any bank data or from an older server', async () => {

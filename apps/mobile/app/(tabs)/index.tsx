@@ -127,6 +127,7 @@ export default function AccountsScreen() {
   // When the banks last delivered to PocketSmith, not when we last pulled from it.
   const bankLine = bankDataLine(statusQ.data?.bankData ?? [], now());
   const checkedLine = bankCheckedLine(statusQ.data?.bankData ?? [], now());
+  const [showChecked, setShowChecked] = useState(false);
   const bannerText =
     statusQ.data?.lastStatus === 'failed'
       ? 'Sync failed ·'
@@ -195,11 +196,20 @@ export default function AccountsScreen() {
           </View>
         </View>
         {bankLine ? (
-          <AppText variant="label" tone="muted">
-            {bankLine}
-          </AppText>
+          // Tap for when PocketSmith last checked each bank; hidden otherwise to keep the top short.
+          <Pressable
+            accessibilityRole="button"
+            accessibilityHint="Shows when PocketSmith last checked each bank"
+            disabled={!checkedLine}
+            onPress={() => setShowChecked(v => !v)}
+            hitSlop={6}
+          >
+            <AppText variant="label" tone="muted" numberOfLines={1}>
+              {bankLine}
+            </AppText>
+          </Pressable>
         ) : null}
-        {checkedLine ? (
+        {showChecked && checkedLine ? (
           <AppText variant="label" tone="muted">
             {checkedLine}
           </AppText>

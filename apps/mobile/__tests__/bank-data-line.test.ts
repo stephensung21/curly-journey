@@ -4,7 +4,7 @@ import { bankCheckedLine, bankDataLine } from '../src/lib/bankDataLine';
 const now = new Date('2026-10-25T07:30:00Z');
 
 describe('bankDataLine', () => {
-  it('names each bank with when PocketSmith last got its data, in Sydney time', () => {
+  it('fits one line: the time if today, else yesterday or the date, in Sydney time', () => {
     expect(
       bankDataLine(
         [
@@ -14,7 +14,7 @@ describe('bankDataLine', () => {
         ],
         now,
       ),
-    ).toBe('Bank data: CommBank today 7:41am · Amex yesterday 9:02pm · Up Tue 20 Oct 3:10pm');
+    ).toBe('Bank data: CommBank 7:41am · Amex yesterday · Up 20 Oct');
   });
 
   it('is null with no bank data yet', () => {
