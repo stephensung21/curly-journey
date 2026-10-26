@@ -1,9 +1,9 @@
 import * as DocumentPicker from 'expo-document-picker';
-import { File } from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useCommsecImport, useCommsecPreview } from '../src/api/hooks';
+import { readTextFile } from '../src/lib/readTextFile';
 import type { TradePreview } from '../src/api/types';
 import { Amount } from '../src/components/Amount';
 import { AppText } from '../src/components/AppText';
@@ -95,7 +95,7 @@ export default function CommsecImportScreen() {
         setError(TOO_BIG);
         return;
       }
-      const text = await new File(asset.uri).text();
+      const text = await readTextFile(asset.uri);
       if (text.length > MAX_BYTES) {
         setError(TOO_BIG);
         return;

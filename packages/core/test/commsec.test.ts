@@ -56,7 +56,12 @@ describe('parseCommSecRows', () => {
   it('returns one skipped entry when there is no header', () => {
     const r = parseCommSecRows('24/10/2026,C1,B 15 VAS @ 102.45,1546.75,,0.00\n24/10/2026,C2,B 1 VGS @ 1,1.00,,0.00\n');
     expect(r.trades).toEqual([]);
-    expect(r.skipped).toEqual([{ line: 1, reason: 'No CommSec header row' }]);
+    expect(r.skipped).toEqual([{ line: 1, reason: 'No CommSec header row (looking for Date, Details, Debit and Credit columns)' }]);
+  });
+
+  it('says so when the file is a web page rather than a CSV', () => {
+    const r = parseCommSecRows('<!DOCTYPE html>\n<html><body>Session expired</body></html>\n');
+    expect(r.skipped).toEqual([{ line: 1, reason: 'This is a web page, not a CSV. Download the CSV from CommSec again.' }]);
   });
 
   it('skips a trade-looking row it cannot read', () => {

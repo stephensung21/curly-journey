@@ -8,10 +8,15 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack }) }));
 jest.mock('../src/api/hooks');
 
 let mockText = '';
+// Raw bytes when a test needs a non-UTF-8 file; otherwise the bytes of mockText.
+let mockBytes: Uint8Array | null = null;
 jest.mock('expo-file-system', () => ({
   File: class {
     text() {
       return Promise.resolve(mockText);
+    }
+    bytes() {
+      return Promise.resolve(mockBytes ?? new TextEncoder().encode(mockText));
     }
   },
 }));

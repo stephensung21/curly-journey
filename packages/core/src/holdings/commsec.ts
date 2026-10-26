@@ -91,7 +91,12 @@ export function parseCommSecRows(text: string): { trades: ParsedTrade[]; skipped
     if (cols) headerAt = i;
   }
   if (!cols) {
-    return { trades, skipped: records.length ? [{ line: records[0]!.line, reason: 'No CommSec header row' }] : [], ignored };
+    if (!records.length) return { trades, skipped: [], ignored };
+    const webPage = /^\s*</.test(records[0]!.cells[0] ?? '');
+    const reason = webPage
+      ? 'This is a web page, not a CSV. Download the CSV from CommSec again.'
+      : 'No CommSec header row (looking for Date, Details, Debit and Credit columns)';
+    return { trades, skipped: [{ line: records[0]!.line, reason }], ignored };
   }
   for (const { line, cells } of records.slice(headerAt + 1)) {
     const details = (cells[cols.details] ?? '').trim();

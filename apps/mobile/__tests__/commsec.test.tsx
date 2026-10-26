@@ -23,10 +23,15 @@ jest.mock('../src/lib/now', () => ({ now: () => new Date('2026-10-24T02:00:00Z')
 jest.mock('../src/api/hooks');
 
 let mockText = '';
+// Raw bytes when a test needs a non-UTF-8 file; otherwise the bytes of mockText.
+let mockBytes: Uint8Array | null = null;
 jest.mock('expo-file-system', () => ({
   File: class {
     text() {
       return Promise.resolve(mockText);
+    }
+    bytes() {
+      return Promise.resolve(mockBytes ?? new TextEncoder().encode(mockText));
     }
   },
 }));
@@ -249,6 +254,16 @@ describe('import flow', () => {
     importM.mockResolvedValue({ imported: 2 });
     (mocked.useCommsecPreview as jest.Mock).mockReturnValue({ mutateAsync: previewM });
     (mocked.useCommsecImport as jest.Mock).mockReturnValue({ mutateAsync: importM });
+  });
+
+  it('reads a UTF-16 file (as Excel saves "Unicode text") as text', async () => {
+    const text = 'Date,Reference';
+    mockBytes = new Uint8Array([0xff, 0xfe, ...[...text].flatMap(ch => [ch.charCodeAt(0), 0])]);
+    await renderScreen(<CommsecImport />);
+    await fireEvent.press(screen.getByText('Choose CSV file'));
+    await screen.findByText('Import 2 trades');
+    expect(previewM).toHaveBeenCalledWith('Date,Reference');
+    mockBytes = null;
   });
 
   it('walks pick, check, done', async () => {
