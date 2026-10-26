@@ -198,7 +198,8 @@ export interface Repo {
   lastOkSync(): Promise<{ startedAt: Date; more: boolean } | null>;
   lastSyncStatus(): Promise<'ok' | 'failed' | 'running' | null>;
   /** Per PocketSmith institution, the newest time PocketSmith received a transaction from the bank; newest first. */
-  bankDataTimes(): Promise<{ institution: string; at: string }[]>;
+  /** Per bank: the newest transaction PocketSmith received (`at`), and when it last updated the accounts (`checkedAt`). */
+  bankDataTimes(): Promise<{ institution: string; at: string; checkedAt: string | null }[]>;
   listCategories(): Promise<CategoryDto[]>;
   /** Every name each category answers to, for the built-in name mappings. */
   categoryNames(): Promise<{ id: number; name: string; aliases: string[] }[]>;
@@ -417,9 +418,9 @@ export function makeRepo(db: Db): Repo {
         const i = params.length;
         params.push(
           row.source, row.externalId, row.institution, row.name, row.kind, row.balanceCents, row.balanceDate,
-          counts.countsSpending, counts.countsNetWorth, counts.projections,
+          counts.countsSpending, counts.countsNetWorth, counts.projections, row.feedUpdatedAt ?? null,
         );
-        return `(${Array.from({ length: 10 }, (_, k) => `$${i + k + 1}`).join(', ')})`;
+        return `(${Array.from({ length: 11 }, (_, k) => `$${i + k + 1}`).join(', ')}::timestamptz)`;
       });
       const res = await db.query<{
         id: number;
@@ -430,11 +431,12 @@ export function makeRepo(db: Db): Repo {
         history_cursor: string | null;
       }>(
         `insert into account (source, external_id, institution, name, kind, balance_cents, balance_date,
-           counts_spending, counts_net_worth, projections)
+           counts_spending, counts_net_worth, projections, feed_updated_at)
          values ${values.join(', ')}
          on conflict (source, external_id) do update set
            institution = excluded.institution, name = excluded.name, kind = excluded.kind,
-           balance_cents = excluded.balance_cents, balance_date = excluded.balance_date
+           balance_cents = excluded.balance_cents, balance_date = excluded.balance_date,
+           feed_updated_at = coalesce(excluded.feed_updated_at, account.feed_updated_at)
          returning id, source, external_id, to_char(history_from, 'YYYY-MM-DD') as history_from, history_done,
            history_cursor`,
         params,
@@ -904,8 +906,9 @@ export function makeRepo(db: Db): Repo {
     },
 
     async bankDataTimes() {
-      return db.query<{ institution: string; at: string }>(
-        `select a.institution, to_char(max(t.feed_created_at) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at
+      return db.query<{ institution: string; at: string; checkedAt: string | null }>(
+        `select a.institution, to_char(max(t.feed_created_at) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at,
+           to_char(max(a.feed_updated_at) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "checkedAt"
          from transaction t join account a on a.id = t.account_id
          where a.source = 'pocketsmith' and t.feed_created_at is not null
          group by a.institution

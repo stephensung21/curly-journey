@@ -52,8 +52,15 @@ describe('mapAccount', () => {
       institution: { id: 1, title: 'CommBank' },
     })).toEqual({
       source: 'pocketsmith', externalId: '9', institution: 'CommBank', name: 'Mortgage',
-      kind: 'mortgage', balanceCents: -50000055, balanceDate: '2026-10-22',
+      kind: 'mortgage', balanceCents: -50000055, balanceDate: '2026-10-22', feedUpdatedAt: null,
     });
+  });
+  it('keeps when PocketSmith last updated the account', () => {
+    const a = {
+      id: 9, name: 'Everyday', number: null, type: 'bank', currency_code: 'aud', current_balance: 1, current_balance_date: '2026-10-22',
+      updated_at: '2026-10-22T05:00:00Z', institution: { id: 1, title: 'CommBank' },
+    };
+    expect(mapAccount(a).feedUpdatedAt).toBe('2026-10-22T05:00:00Z');
   });
 });
 

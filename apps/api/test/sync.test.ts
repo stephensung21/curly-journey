@@ -410,7 +410,7 @@ describe('runSync', () => {
   });
 
   it('status gives, per bank, when PocketSmith last received a transaction (not when we synced)', async () => {
-    const amex = { ...acct(2, 20), institution: { id: 2, title: 'American Express' } };
+    const amex = { ...acct(2, 20), institution: { id: 2, title: 'American Express' }, updated_at: '2026-10-22T05:00:00Z' };
     const ps = fakePocketSmith({
       accounts: [acct(1, 10), amex],
       transactions: {
@@ -421,9 +421,10 @@ describe('runSync', () => {
     const { app, auth } = await setup(ps);
     await app.request('/sync', { method: 'POST', headers: auth });
     const s = (await (await app.request('/sync/status', { headers: auth })).json()) as { bankData: { institution: string; at: string }[] };
+    // checkedAt: when PocketSmith last updated the account itself (its updated_at), null if it never said.
     expect(s.bankData).toEqual([
-      { institution: 'Bank', at: '2026-10-21T20:41:00.000Z' },
-      { institution: 'American Express', at: '2026-10-18T09:02:00.000Z' },
+      { institution: 'Bank', at: '2026-10-21T20:41:00.000Z', checkedAt: null },
+      { institution: 'American Express', at: '2026-10-18T09:02:00.000Z', checkedAt: '2026-10-22T05:00:00.000Z' },
     ]);
   });
 

@@ -131,7 +131,8 @@ export type SyncResult = {
 };
 
 /** When PocketSmith last received a transaction from this bank (an ISO instant). */
-export type BankDataTime = { institution: string; at: string };
+/** Per bank: newest transaction PocketSmith received (`at`), and when it last updated the accounts (`checkedAt`). */
+export type BankDataTime = { institution: string; at: string; checkedAt?: string | null };
 export type SyncStatus = {
   lastSuccessAt: string | null;
   lastStatus: 'ok' | 'failed' | 'running' | null;

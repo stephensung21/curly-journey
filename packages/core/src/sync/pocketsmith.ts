@@ -13,6 +13,8 @@ export type PsTransactionAccount = {
   currency_code: string;
   current_balance: number;
   current_balance_date: string;
+  /** When PocketSmith last changed the account record, e.g. a new balance from the bank feed. */
+  updated_at?: string;
   institution: { id: number; title: string };
 };
 
@@ -39,6 +41,8 @@ export type AccountRow = {
   kind: AccountKind;
   balanceCents: Cents;
   balanceDate: string;
+  /** PocketSmith's updated_at for the account, when given. */
+  feedUpdatedAt?: string | null;
 };
 
 export type TransactionRow = {
@@ -100,6 +104,7 @@ export function mapAccount(a: PsTransactionAccount): AccountRow {
     kind: kindFromPocketSmithType(a.type, a.name),
     balanceCents: toCents(a.current_balance),
     balanceDate: a.current_balance_date,
+    feedUpdatedAt: a.updated_at ?? null,
   };
 }
 
