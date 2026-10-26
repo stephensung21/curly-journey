@@ -231,6 +231,28 @@ export function useCreateCategory() {
   });
 }
 
+export function useUpdateCategory() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: { id: number } & Partial<Pick<Category, 'name' | 'emoji' | 'color'>>) =>
+      apiFetch<Category>(conn, `/categories/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: ['categories'] }), invalidateSpending(qc)]),
+  });
+}
+
+/** Moves everything in category `id` into `into` and deletes `id`. */
+export function useMergeCategory() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, into }: { id: number; into: number }) =>
+      apiFetch<{ ok: true }>(conn, `/categories/${id}/merge`, { method: 'POST', body: JSON.stringify({ into }) }),
+    onSettled: () =>
+      Promise.all([qc.invalidateQueries({ queryKey: ['categories'] }), qc.invalidateQueries({ queryKey: ['rules'] }), invalidateSpending(qc)]),
+  });
+}
+
 /** Saves a new category order. `ids` may be a subset (a filtered picker); the other categories keep their places. */
 export function useReorderCategories() {
   const conn = useConn();

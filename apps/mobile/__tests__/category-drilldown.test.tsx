@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react-native';
+import { fireEvent, screen } from '@testing-library/react-native';
 import { renderScreen } from '../test-utils/renderScreen';
 import CategoryScreen from '../app/category/[id]';
 import * as hooks from '../src/api/hooks';
@@ -16,6 +16,13 @@ const full = { accountId: 7, merchant: '', categoryId: 1, categorySource: null, 
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // The categorise-by-name and edit-category sheets are mounted (hidden) on this screen.
+  (mocked.useCreateRule as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useRulePreview as jest.Mock).mockReturnValue({ data: undefined });
+  (mocked.useCreateCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useReorderCategories as jest.Mock).mockReturnValue({ mutate: jest.fn() });
+  (mocked.useUpdateCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useMergeCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   mockParams = { id: '1', month: '2026-10', institution: 'Amex' };
   (mocked.useAccounts as jest.Mock).mockReturnValue({ data: { accounts: [{ id: 7, name: 'Everyday', displayName: 'Daily' }] } });
   (mocked.useCategories as jest.Mock).mockReturnValue({
@@ -83,4 +90,13 @@ it('statement period passes through and shows the range', async () => {
   expect(mocked.useTransactionsQuery).toHaveBeenLastCalledWith({ month: '2026-10', categoryId: 1, accountId: 7, period: 'statement' });
   expect(screen.getByText('26 Sep – 25 Oct')).toBeTruthy();
   expect(screen.queryByText('October 2026')).toBeNull();
+});
+
+it('opens the edit sheet for a category, and offers no Edit for Uncategorised', async () => {
+  await renderScreen(<CategoryScreen />);
+  await fireEvent.press(screen.getByLabelText('Edit category'));
+  expect(screen.getByLabelText('Category name').props.value).toBe('Groceries');
+  mockParams = { id: 'none', month: '2026-10' };
+  await renderScreen(<CategoryScreen />);
+  expect(screen.queryByLabelText('Edit category')).toBeNull();
 });

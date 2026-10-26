@@ -6,6 +6,7 @@ import { useAccounts, useCategories, useLimits, useSpending, useSyncNow, useTran
 import type { SpendingQuery } from '../../src/api/types';
 import { Amount } from '../../src/components/Amount';
 import { AppText, fonts } from '../../src/components/AppText';
+import { BulkCategoriseSheet } from '../../src/components/BulkCategoriseSheet';
 import { Card } from '../../src/components/Card';
 import { CategoryBar } from '../../src/components/CategoryBar';
 import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
@@ -56,6 +57,7 @@ export default function SpendingScreen() {
   const categories = useCategories().data ?? [];
   const accounts = useAccounts().data?.accounts;
   const [search, setSearch] = useState('');
+  const [bulk, setBulk] = useState(false);
   const [page, setPage] = useState(0);
   // A horizontal ScrollView is as tall as its tallest page, which let the short page scroll into blank space.
   // So the pager takes the height of the page on screen, and the taller one only while swiping between them.
@@ -239,6 +241,11 @@ export default function SpendingScreen() {
             />
             {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
             {txQ.data && allTxns.length === 0 ? <AppText tone="muted">No transactions this month.</AppText> : null}
+            {search.trim().length >= 3 && shownTxns.length > 0 ? (
+              <Pressable accessibilityRole="button" onPress={() => setBulk(true)} hitSlop={6}>
+                <AppText variant="label" tone="muted">{`Categorise everything named "${search.trim()}" →`}</AppText>
+              </Pressable>
+            ) : null}
             {allTxns.length > 0 && shownTxns.length === 0 ? <AppText tone="muted">{`No transactions match "${search.trim()}".`}</AppText> : null}
             <TransactionList
               transactions={shownTxns}
@@ -255,6 +262,7 @@ export default function SpendingScreen() {
           <View key={label} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === i ? accents.lime : t.line }} />
         ))}
       </View>
+      <BulkCategoriseSheet visible={bulk} initialText={search} categories={categories} onClose={() => setBulk(false)} />
     </Screen>
   );
 }

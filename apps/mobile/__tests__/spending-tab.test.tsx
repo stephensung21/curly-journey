@@ -50,6 +50,13 @@ const base = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // The categorise-by-name and edit-category sheets are mounted (hidden) on this screen.
+  (mocked.useCreateRule as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useRulePreview as jest.Mock).mockReturnValue({ data: undefined });
+  (mocked.useCreateCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useReorderCategories as jest.Mock).mockReturnValue({ mutate: jest.fn() });
+  (mocked.useUpdateCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useMergeCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   summary = base;
   limits = [];
   (mocked.useLimits as jest.Mock).mockImplementation(() => ({ data: { limits } }));
@@ -239,5 +246,17 @@ describe('pager height', () => {
     expect(pagerHeight()).toBe(2000);
     await fireEvent(screen.getByTestId('spending-pager'), 'momentumScrollEnd', { nativeEvent: { contentOffset: { x: 0, y: 0 } } });
     expect(pagerHeight()).toBe(400);
+  });
+});
+
+describe('categorise by name', () => {
+  it('offers to categorise everything matching a search of 3+ letters', async () => {
+    await renderScreen(<SpendingScreen />);
+    await fireEvent.press(screen.getByText('Transactions'));
+    await fireEvent.changeText(screen.getByLabelText('Search transactions'), 'sa');
+    expect(screen.queryByText(/^Categorise everything named/)).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Search transactions'), 'salary');
+    await fireEvent.press(screen.getByText('Categorise everything named "salary" →'));
+    expect(screen.getByLabelText('Name contains').props.value).toBe('salary');
   });
 });

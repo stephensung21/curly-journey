@@ -1,9 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useAccounts, useCategories, useTransactionsQuery } from '../../src/api/hooks';
 import type { TransactionQuery } from '../../src/api/types';
 import { Amount } from '../../src/components/Amount';
 import { AppText } from '../../src/components/AppText';
+import { CategoryEditSheet } from '../../src/components/CategoryEditSheet';
 import { monthLabel } from '../../src/components/MonthSwitcher';
 import { Screen } from '../../src/components/Screen';
 import { TransactionList } from '../../src/components/TransactionList';
@@ -19,6 +21,7 @@ export default function CategoryScreen() {
     period?: string;
   }>();
   const router = useRouter();
+  const [editing, setEditing] = useState(false);
   const categories = useCategories().data ?? [];
   const uncategorised = id === 'none';
   const categoryId = uncategorised ? 'none' : Number(id);
@@ -41,9 +44,18 @@ export default function CategoryScreen() {
 
   return (
     <Screen>
-      <Pressable accessibilityLabel="Back" accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
-        <AppText variant="title">‹</AppText>
-      </Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Pressable accessibilityLabel="Back" accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
+          <AppText variant="title">‹</AppText>
+        </Pressable>
+        {category ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Edit category" hitSlop={8} onPress={() => setEditing(true)}>
+            <AppText variant="label" tone="muted">
+              Edit
+            </AppText>
+          </Pressable>
+        ) : null}
+      </View>
       <View style={{ gap: 4 }}>
         <AppText variant="title" accessibilityRole="header">
           {title}
@@ -61,6 +73,18 @@ export default function CategoryScreen() {
         // One account means one bank: the badge would say nothing.
         accounts={accountId ? undefined : accounts}
       />
+      {category ? (
+        <CategoryEditSheet
+          visible={editing}
+          category={category}
+          categories={categories}
+          onClose={() => setEditing(false)}
+          onMerged={() => {
+            setEditing(false);
+            router.back();
+          }}
+        />
+      ) : null}
     </Screen>
   );
 }

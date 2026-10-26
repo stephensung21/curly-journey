@@ -18,6 +18,13 @@ let mutate: jest.Mock;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // The categorise-by-name and edit-category sheets are mounted (hidden) on this screen.
+  (mocked.useCreateRule as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useRulePreview as jest.Mock).mockReturnValue({ data: undefined });
+  (mocked.useCreateCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useReorderCategories as jest.Mock).mockReturnValue({ mutate: jest.fn() });
+  (mocked.useUpdateCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
+  (mocked.useMergeCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   mutate = jest.fn();
   rules = [
     { ...rule, id: 1, origin: 'learned', matchText: 'OLD CAFE', categoryId: 2, createdAt: '2026-09-01T00:00:00Z', matches: 1 },
@@ -59,4 +66,10 @@ it('shows the empty state', async () => {
   rules = [];
   await renderScreen(<Rules />);
   expect(screen.getByText('No rules yet. Recategorise a transaction and choose "Always" to make one.')).toBeTruthy();
+});
+
+it('opens categorise by name', async () => {
+  await renderScreen(<Rules />);
+  await fireEvent.press(screen.getByText('Categorise by name'));
+  expect(screen.getByLabelText('Name contains')).toBeTruthy();
 });
