@@ -726,27 +726,23 @@ export function makeRepo(db: Db): Repo {
       }
       if (patch.flow !== undefined) {
         params.push(patch.flow);
-        sets.push(`flow = $${params.length}::text`, `flow_source = 'user'`, 'pair_id = null');
+        sets.push(`flow = $${params.length}::text`, `flow_source = 'user'`);
       }
       if (patch.note !== undefined) {
         params.push(patch.note);
         sets.push(`note = $${params.length}::text`);
       }
       if (sets.length) {
-        // One statement. A flow edit on a paired row also frees the partner (keeping its flow if the owner set it) and
-        // marks it uncategorised so the next pipeline run re-detects it. The CTE reads the pair_id from before the update.
-        const unpair = patch.flow !== undefined
-          ? `, freed as (
-               update transaction p set
-                 flow = case when p.flow_source = 'user' then p.flow else 'normal' end,
-                 flow_source = case when p.flow_source = 'user' then p.flow_source else 'auto' end,
-                 pair_id = null,
-                 categorised = case when p.flow_source = 'user' then p.categorised else false end
+        // One statement. A flow edit on a paired row gives the partner the same flow, so a transfer's two halves
+        // never disagree (one half counting as spending). The pair stays linked for the next edit.
+        const partner = patch.flow !== undefined
+          ? `, partner as (
+               update transaction p set flow = $${params.indexOf(patch.flow) + 1}::text, flow_source = 'user'
                from old where p.id = old.pair_id
              )`
           : '';
         const done = await db.query(
-          `with old as (select pair_id from transaction where id = $1 and pair_id is not null)${unpair},
+          `with old as (select pair_id from transaction where id = $1 and pair_id is not null)${partner},
            upd as (update transaction set ${sets.join(', ')} where id = $1 returning id)
            select id from upd`,
           params,

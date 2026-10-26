@@ -172,22 +172,25 @@ describe('PATCH /transactions/:id', () => {
     return { a, b, get };
   }
 
-  it('unpairs the partner when the owner changes one half flow', async () => {
+  it('changes both halves of a transfer together and keeps them linked', async () => {
     const ctx = await setup();
     const { a, b, get } = await pair(ctx);
     expect(await get(a)).toMatchObject({ flow: 'transfer', pair_id: b });
     await ctx.call('PATCH', `/transactions/${a}`, { flow: 'normal' });
-    expect(await get(a)).toMatchObject({ flow: 'normal', flow_source: 'user', pair_id: null });
-    expect(await get(b)).toMatchObject({ flow: 'normal', flow_source: 'auto', pair_id: null, categorised: false });
+    expect(await get(a)).toMatchObject({ flow: 'normal', flow_source: 'user', pair_id: b });
+    expect(await get(b)).toMatchObject({ flow: 'normal', flow_source: 'user', pair_id: a });
+    await ctx.call('PATCH', `/transactions/${b}`, { flow: 'transfer' });
+    expect(await get(a)).toMatchObject({ flow: 'transfer', flow_source: 'user' });
+    expect(await get(b)).toMatchObject({ flow: 'transfer', flow_source: 'user' });
   });
 
-  it('leaves an owner-set partner alone when unpairing', async () => {
+  it('a pipeline run after the change leaves both halves as the owner set them', async () => {
     const ctx = await setup();
     const { a, b, get } = await pair(ctx);
-    await ctx.db.query("update transaction set flow_source = 'user', categorised = true where id = $1", [b]);
-    await ctx.call('PATCH', `/transactions/${a}`, { flow: 'normal' });
-    expect(await get(a)).toMatchObject({ flow: 'normal', flow_source: 'user', pair_id: null });
-    expect(await get(b)).toMatchObject({ flow: 'transfer', flow_source: 'user', pair_id: null, categorised: true });
+    await ctx.call('PATCH', `/transactions/${a}`, { flow: 'not_spending' });
+    await runPipeline(ctx.repo, { since: '2026-10-01', now: T0 });
+    expect(await get(a)).toMatchObject({ flow: 'not_spending', flow_source: 'user' });
+    expect(await get(b)).toMatchObject({ flow: 'not_spending', flow_source: 'user' });
   });
 
   it('validates and 404s', async () => {
