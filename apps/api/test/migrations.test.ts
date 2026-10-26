@@ -50,3 +50,13 @@ describe('migration 0007', () => {
     await db.query(`update projection_profile set term_set_on = '2026-10-24'`);
   });
 });
+
+describe('migration 0008', () => {
+  it('gives every existing category its own name as an alias, and is idempotent', async () => {
+    const db = await pgliteDb();
+    const sql = readFileSync(join(__dirname, '..', 'migrations', '0008_category_aliases.sql'), 'utf8');
+    for (let i = 0; i < 2; i++) for (const stmt of sql.split(';').filter((x) => x.trim().replace(/^--.*$/gm, '').trim())) await db.query(stmt);
+    const rows = await db.query<{ name: string; aliases: string[] }>(`select name, aliases from category where name = 'Coffee'`);
+    expect(rows[0]!.aliases).toEqual(['Coffee']);
+  });
+});

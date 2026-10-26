@@ -194,6 +194,16 @@ export interface Repo {
   /** Per PocketSmith institution, the newest time PocketSmith received a transaction from the bank; newest first. */
   bankDataTimes(): Promise<{ institution: string; at: string }[]>;
   listCategories(): Promise<CategoryDto[]>;
+  /** Every name each category answers to, for the built-in name mappings. */
+  categoryNames(): Promise<{ id: number; name: string; aliases: string[] }[]>;
+  /** Renames or restyles; a rename keeps the old name as an alias. Null if unknown, 'exists' if the name is taken. */
+  updateCategory(id: number, patch: Partial<Pick<CategoryDto, 'name' | 'emoji' | 'color'>>): Promise<CategoryDto | null | 'exists'>;
+  /**
+   * Moves everything from `from` into `into` (transactions, splits, rules, carried edits, the limit unless `into`
+   * has one, and its names as aliases), then deletes `from`. Steps are ordered so a retry after a failure finishes
+   * the job. False if either id is unknown.
+   */
+  mergeCategory(from: number, into: number): Promise<boolean>;
   /** Renumbers sort 1..n with `ids` first and the rest after in their old order; false (nothing written) if an id is unknown or repeated. */
   setCategoryOrder(ids: number[]): Promise<boolean>;
   listRules(): Promise<Rule[]>;
@@ -880,6 +890,66 @@ export function makeRepo(db: Db): Repo {
     async listCategories() {
       const rows = await db.query<CategoryDto>('select id, name, emoji, color, kind, sort from category order by sort, id');
       return rows.map((r) => ({ ...r, id: Number(r.id), sort: Number(r.sort) }));
+    },
+
+    async categoryNames() {
+      const rows = await db.query<{ id: number; name: string; aliases: string[] }>('select id, name, aliases from category');
+      return rows.map((r) => ({ ...r, id: Number(r.id) }));
+    },
+
+    async updateCategory(id, patch) {
+      const taken = patch.name === undefined ? [] : await db.query('select 1 from category where name = $1 and id <> $2', [patch.name, id]);
+      if (taken.length) return 'exists';
+      const rows = await db.query<CategoryDto>(
+        `update category set
+           aliases = case when $2::text is not null and $2::text <> name and not (name = any(aliases)) then aliases || name else aliases end,
+           name = coalesce($2::text, name), emoji = coalesce($3::text, emoji), color = coalesce($4::text, color)
+         where id = $1
+         returning id, name, emoji, color, kind, sort`,
+        [id, patch.name ?? null, patch.emoji ?? null, patch.color ?? null],
+      );
+      return rows[0] ? { ...rows[0], id: Number(rows[0].id), sort: Number(rows[0].sort) } : null;
+    },
+
+    async mergeCategory(from, into) {
+      const found = await db.query<{ n: string | number }>('select count(*) as n from category where id = any($1::int[])', [[from, into]]);
+      if (Number(found[0]!.n) !== 2) return false;
+      await db.query('update transaction set category_id = $2 where category_id = $1', [from, into]);
+      await db.query('update transaction_split set category_id = $2 where category_id = $1', [from, into]);
+      await db.query('update rule set category_id = $2 where category_id = $1', [from, into]);
+      await db.query('update carried_edit set category_id = $2 where category_id = $1', [from, into]);
+      await db.query(
+        `update spending_limit set category_id = $2 where category_id = $1 and not exists (select 1 from spending_limit where category_id = $2)`,
+        [from, into],
+      );
+      await db.query('delete from spending_limit where category_id = $1', [from]);
+      await db.query(
+        `update category t set aliases = array(select distinct unnest(t.aliases || f.aliases || f.name))
+         from category f where t.id = $2 and f.id = $1`,
+        [from, into],
+      );
+      // A split that now has two parts in `into` gets them added together.
+      await db.query(
+        `with dup as (
+           delete from transaction_split where category_id = $1 and transaction_id in
+             (select transaction_id from transaction_split where category_id = $1 group by transaction_id having count(*) > 1)
+           returning transaction_id, amount_cents)
+         insert into transaction_split (transaction_id, category_id, amount_cents)
+         select transaction_id, $1, sum(amount_cents) from dup group by transaction_id`,
+        [into],
+      );
+      // A split left with one part is a plain row again.
+      await db.query(
+        `with lone as (
+           delete from transaction_split where transaction_id in
+             (select transaction_id from transaction_split group by transaction_id having count(*) = 1)
+             and category_id = $1
+           returning transaction_id)
+         update transaction t set category_id = $1 from lone where t.id = lone.transaction_id`,
+        [into],
+      );
+      await db.query('delete from category where id = $1', [from]);
+      return true;
     },
 
     async setCategoryOrder(ids) {

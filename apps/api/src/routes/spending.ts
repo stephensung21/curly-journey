@@ -13,6 +13,7 @@ import {
 import { Hono } from 'hono';
 import type { Deps } from '../app';
 import { makeRepo } from '../db/repo';
+import { categoryIdByName } from '../spending/categoryNames';
 import { parseId } from './http';
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -84,9 +85,9 @@ export function spendingRoutes(deps: Deps) {
     const [userByMerchant, top, categories] = await Promise.all([
       repo.userCategoryByMerchant([...new Set(items.map((t) => t.merchant).filter(Boolean))]),
       repo.topCategoriesSince(since, MAX_GUESSES),
-      repo.listCategories(),
+      repo.categoryNames(),
     ]);
-    const byName = new Map(categories.map((cat) => [cat.name, cat.id]));
+    const byName = categoryIdByName(categories);
     const named = (name: string | null) => (name === null ? null : (byName.get(name) ?? null));
 
     const withGuesses = items.map((t) => {

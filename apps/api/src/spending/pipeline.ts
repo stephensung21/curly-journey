@@ -1,5 +1,6 @@
 import { categorise, cleanMerchant, detectFlows, type Flow } from '@curly/core';
 import type { Repo } from '../db/repo';
+import { categoryIdByName } from './categoryNames';
 
 /**
  * Calls the pipeline makes in a normal run (8), with room for extra flow chunks. Callers only start it with at least
@@ -27,14 +28,14 @@ export async function runPipeline(
 ): Promise<{ categorised: number; flowsChanged: number; more: boolean }> {
   // First, so the pipeline sees the carried categories and flows as the owner's.
   await repo.applyCarriedEdits(opts.now);
-  const categories = await repo.listCategories();
+  const categories = await repo.categoryNames();
   const rules = await repo.listRules();
   const pastByMerchant = await repo.pastByMerchant();
 
   const batch = await repo.uncategorisedForPipeline(BATCH + 1);
   const more = batch.length > BATCH;
   const todo = batch.slice(0, BATCH);
-  const ctx = { rules, pastByMerchant, categoryIdByName: new Map(categories.map((c) => [c.name, c.id])) };
+  const ctx = { rules, pastByMerchant, categoryIdByName: categoryIdByName(categories) };
   if (todo.length) {
     await repo.applyCategorisation(
       todo.map((t) => {
