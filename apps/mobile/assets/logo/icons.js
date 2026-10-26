@@ -1,4 +1,4 @@
-// Builds the app icons from lorikeet.svg: node assets/logo/icons.js assets/logo assets/images (run from apps/mobile).
+// Builds the app icons. From apps/mobile: python assets/logo/gen.py assets/logo/lorikeet.svg, then node assets/logo/icons.js assets/logo assets/images
 const sharp = require('sharp');
 const fs = require('fs');
 const [dir, out] = process.argv.slice(2);

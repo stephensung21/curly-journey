@@ -1,33 +1,59 @@
-"""Generates the hand-drawn rainbow lorikeet logo as lorikeet.svg (1024 x 1024, badge of radius 300)."""
+"""Hand-drawn rainbow lorikeet perched on a branch: realistic shapes, coloured in with scribbles. Writes lorikeet.svg."""
 import math
 import random
 import sys
 
-R = random.Random(7)
+R = random.Random(11)
 
-HEAD = "M396,402 C414,366 450,338 500,322 C552,306 610,308 642,334 C668,356 676,392 668,430 C650,500 610,560 572,596 C520,590 470,575 440,540 C420,515 404,490 398,470 Z"
-COLLAR = "M642,334 C694,362 716,430 706,494 C692,548 640,586 572,596 C606,560 650,500 668,430 C676,392 668,356 642,334 Z"
-CHEST = "M440,540 C392,610 384,720 430,880 L644,880 C652,770 678,650 706,494 C692,548 640,586 572,596 C520,590 470,575 440,540 Z"
-WING = "M706,466 C772,520 816,610 830,720 L846,880 L644,880 C652,770 678,650 706,494 Z"
-BELLY = "M436,812 C520,790 600,798 652,818 L648,880 L452,880 Z"
-BEAK_UP = "M400,400 C370,390 334,400 312,425 C294,446 290,474 299,496 C303,503 309,500 311,493 C317,471 331,459 351,457 C369,455 387,461 402,469 Z"
-BEAK_LO = "M352,460 C346,472 350,488 362,494 C378,500 396,494 404,480 L402,469 Z"
-
-
-def wobble(x, y, a=1.5):
-    return x + R.uniform(-a, a), y + R.uniform(-a, a)
+HEAD = "M384,372 C400,335 440,308 486,304 C530,300 566,318 582,352 C594,378 594,402 588,418 C560,450 510,470 470,478 C440,484 418,488 404,486 C394,470 388,455 386,440 Z"
+COLLAR = "M574,336 C606,362 624,398 620,436 C598,462 562,482 522,494 L514,470 C548,456 576,440 588,418 C594,400 592,372 574,336 Z"
+CHEST = "M402,470 C382,540 386,620 418,680 C444,726 484,752 528,754 C570,700 604,560 622,430 L560,420 Z"
+BELLY = "M432,690 C462,736 520,770 596,792 C620,772 634,742 632,702 C570,716 498,712 432,690 Z"
+WING = "M584,356 C660,396 722,478 752,580 C776,660 792,722 804,774 C762,780 700,772 642,752 C600,738 572,720 560,700 C592,600 612,500 600,420 Z"
+TAIL = "M640,738 C716,760 792,782 836,826 L892,912 L796,930 C758,866 700,812 632,778 Z"
+BEAK_UP = "M386,374 C360,366 332,376 318,398 C304,420 304,448 314,468 C318,475 323,472 323,465 C327,446 337,434 353,432 C367,430 381,434 391,442 Z"
+BEAK_LO = "M352,434 C342,446 344,466 358,474 C374,480 390,470 396,454 L391,442 Z"
+BRANCH = "M150,826 C330,812 520,800 700,774 C780,762 840,756 900,750 L900,786 C840,792 780,800 700,812 C520,838 330,852 150,862 Z"
 
 
-def strokes(n, box, angle, length, color, width, opacity, curve=0.25, jitter=12):
-    """n short pencil strokes inside box, leaning at angle (degrees) with a slight bend."""
+def rot(u, v, a, cx, cy):
+    c, s = math.cos(a), math.sin(a)
+    return cx + u * c - v * s, cy + u * s + v * c
+
+
+def scribble(box, angle, spacing, amp, color, width, opacity):
+    """Back-and-forth pen scribble filling box, rows running at angle (degrees)."""
+    x0, y0, x1, y1 = box
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    D = math.hypot(x1 - x0, y1 - y0) / 2
+    a = math.radians(angle)
+    out = []
+    v = -D
+    while v < D:
+        pts, u, side = [], -D, 1
+        while u < D:
+            p = rot(u + R.uniform(-2, 2), v + side * amp * R.uniform(0.5, 1.25), a, cx, cy)
+            pts.append(f"{p[0]:.1f},{p[1]:.1f}")
+            u += amp * R.uniform(0.5, 1.0)
+            side = -side
+        out.append(
+            f'<polyline points="{" ".join(pts)}" stroke="{color}" stroke-width="{width * R.uniform(0.8, 1.2):.2f}" '
+            f'stroke-opacity="{opacity * R.uniform(0.75, 1):.2f}"/>'
+        )
+        v += spacing * R.uniform(0.8, 1.2)
+    return "\n".join(out)
+
+
+def flicks(n, box, angle, length, color, width, opacity, jitter=14):
+    """Short bent pencil flicks, for feather texture."""
     x0, y0, x1, y1 = box
     out = []
     for _ in range(n):
         x, y = R.uniform(x0, x1), R.uniform(y0, y1)
         a = math.radians(angle + R.uniform(-jitter, jitter))
-        L = length * R.uniform(0.6, 1.2)
+        L = length * R.uniform(0.6, 1.3)
         ex, ey = x + L * math.cos(a), y + L * math.sin(a)
-        mx, my = (x + ex) / 2 - curve * L * math.sin(a), (y + ey) / 2 + curve * L * math.cos(a)
+        mx, my = (x + ex) / 2 - 0.2 * L * math.sin(a), (y + ey) / 2 + 0.2 * L * math.cos(a)
         out.append(
             f'<path d="M{x:.1f},{y:.1f} Q{mx:.1f},{my:.1f} {ex:.1f},{ey:.1f}" stroke="{color}" '
             f'stroke-width="{width * R.uniform(0.7, 1.2):.2f}" stroke-opacity="{opacity * R.uniform(0.6, 1):.2f}"/>'
@@ -35,133 +61,170 @@ def strokes(n, box, angle, length, color, width, opacity, curve=0.25, jitter=12)
     return "\n".join(out)
 
 
-def scallops(rows, color, width, opacity):
-    """Rows of small feather arcs: (y, x_start, x_end, size)."""
+def scallop_rows(rows, color, width, opacity):
     out = []
-    for y, xs, xe, s in rows:
+    for y0, xs, xe, s, tilt in rows:
         x = xs + R.uniform(0, s / 2)
         while x < xe:
-            yy = y + R.uniform(-3, 3)
+            y = y0 + (x - xs) * tilt + R.uniform(-3, 3)
             out.append(
-                f'<path d="M{x:.1f},{yy:.1f} q{s / 2:.1f},{s * 0.55:.1f} {s:.1f},0" stroke="{color}" '
-                f'stroke-width="{width}" stroke-opacity="{opacity * R.uniform(0.6, 1):.2f}"/>'
+                f'<path d="M{x:.1f},{y:.1f} q{s / 2:.1f},{s * 0.6:.1f} {s:.1f},{R.uniform(-3, 3):.1f}" stroke="{color}" '
+                f'stroke-width="{width * R.uniform(0.8, 1.2):.2f}" stroke-opacity="{opacity * R.uniform(0.6, 1):.2f}"/>'
             )
-            x += s * R.uniform(0.95, 1.15)
+            x += s * R.uniform(0.9, 1.15)
     return "\n".join(out)
 
 
-def wing_feathers():
-    """Overlapping covert rows, then long primaries trailing down."""
+def sketch(d, width, passes=3):
+    """The same line drawn a few times, slightly off and broken, like a quick pencil outline."""
     out = []
-    for i, (y, xs, xe, s) in enumerate([(560, 690, 800, 34), (610, 680, 815, 38), (665, 668, 826, 42), (722, 660, 834, 46)]):
-        out.append(scallops([(y, xs, xe, s)], "#1c5f2a", 4, 0.8))
-    for k in range(6):
-        x = 690 + k * 26 + R.uniform(-4, 4)
-        out.append(
-            f'<path d="M{x:.1f},760 C{x + 6:.1f},810 {x + 10:.1f},850 {x + 12:.1f},900" stroke="#1c5f2a" '
-            f'stroke-width="4" stroke-opacity="0.75"/>'
-        )
+    for i in range(passes):
+        dx, dy = R.uniform(-3.5, 3.5), R.uniform(-3.5, 3.5)
+        w = width if i == 0 else width * R.uniform(0.35, 0.6)
+        dash = "" if i == 0 else f' stroke-dasharray="{R.randint(60, 160)} {R.randint(6, 26)}"'
+        op = 0.9 if i == 0 else R.uniform(0.35, 0.6)
+        out.append(f'<path d="{d}" transform="translate({dx:.1f} {dy:.1f})" stroke-width="{w:.2f}" stroke-opacity="{op:.2f}"{dash}/>')
     return "\n".join(out)
 
 
-def outline(d, w):
-    return f'<path d="{d}" stroke-width="{w}"/>'
+def region(name, path, layers):
+    return f'<g clip-path="url(#c{name})">\n{layers}\n</g>'
 
+
+def fade(id_, x1, y1, x2, y2):
+    return (
+        f'<linearGradient id="g{id_}" gradientUnits="userSpaceOnUse" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}">'
+        f'<stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>'
+        f'<mask id="m{id_}" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">'
+        f'<rect width="1024" height="1024" fill="url(#g{id_})"/></mask>'
+    )
+
+
+clips = "\n".join(
+    f'<clipPath id="c{n}"><path d="{p}"/></clipPath>'
+    for n, p in [("Head", HEAD), ("Collar", COLLAR), ("Chest", CHEST), ("Belly", BELLY), ("Wing", WING), ("Tail", TAIL),
+                 ("BeakUp", BEAK_UP), ("BeakLo", BEAK_LO), ("Branch", BRANCH)]
+)
+
+masks = "".join([
+    fade("HeadDark", 600, 470, 440, 320),     # dark at the back and under the jaw
+    fade("ChestTop", 0, 470, 0, 640),         # red at the top
+    fade("ChestLow", 0, 760, 0, 600),         # yellow lower down
+    fade("ChestShade", 640, 640, 470, 560),   # shade where the wing meets the chest
+    fade("WingDark", 760, 760, 620, 470),     # wing darker towards the tip
+    fade("WingLight", 590, 400, 700, 560),    # light on the shoulder
+])
+
+body = f'''
+<!-- quick wash of colour under the scribbles -->
+<g filter="url(#crayon)" opacity="0.5">
+  <path d="{TAIL}" fill="#4caa4c"/>
+  <path d="{CHEST}" fill="#f2752a"/>
+  <path d="{BELLY}" fill="#4a3ca6"/>
+  <path d="{WING}" fill="#42a447"/>
+  <path d="{COLLAR}" fill="#cfe03c"/>
+  <path d="{HEAD}" fill="#3a4cc2"/>
+  <path d="{BEAK_UP}" fill="#ef5030"/>
+  <path d="{BEAK_LO}" fill="#c43420"/>
+</g>
+
+<g fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#wob)">
+  {region("Branch", BRANCH, scribble((150, 740, 900, 870), -4, 7, 6, "#7a5a3c", 2.2, 0.75) + flicks(40, (150, 750, 900, 860), -4, 40, "#3d2c1d", 2, 0.6, 4))}
+
+  {region("Tail", TAIL,
+    scribble((630, 730, 900, 930), 48, 8, 7, "#2f8e3c", 2.4, 0.8)
+    + scribble((630, 730, 900, 930), 48, 16, 6, "#d6d93a", 2.2, 0.55)
+    + flicks(14, (650, 760, 880, 920), 50, 70, "#1b5524", 2.4, 0.7, 4))}
+
+  {region("Chest", CHEST,
+    scribble((380, 420, 640, 760), 72, 7, 7, "#f08a2a", 2.4, 0.85)
+    + f'<g mask="url(#mChestTop)">{scribble((380, 420, 640, 760), 20, 7, 7, "#dc2f1c", 2.6, 0.9)}</g>'
+    + f'<g mask="url(#mChestLow)">{scribble((380, 420, 640, 760), -30, 8, 7, "#f8c63a", 2.4, 0.85)}</g>'
+    + f'<g mask="url(#mChestShade)">{scribble((380, 420, 640, 760), 120, 8, 7, "#9e2216", 2.2, 0.75)}</g>'
+    + scallop_rows([(y, 400, 620, 26, 0.12) for y in range(540, 720, 28)], "#a3221a", 3, 0.6))}
+
+  {region("Belly", BELLY,
+    scribble((430, 680, 640, 800), 15, 7, 7, "#3f2f9a", 2.4, 0.9)
+    + scribble((430, 680, 640, 800), 105, 12, 6, "#1d1660", 2.2, 0.7))}
+
+  {region("Wing", WING,
+    scribble((560, 350, 810, 790), 62, 7, 7, "#2f9140", 2.4, 0.85)
+    + f'<g mask="url(#mWingDark)">{scribble((560, 350, 810, 790), 118, 7, 7, "#16502a", 2.4, 0.9)}</g>'
+    + f'<g mask="url(#mWingLight)">{scribble((560, 350, 810, 790), 20, 9, 6, "#a6dc5a", 2.2, 0.7)}</g>'
+    + scallop_rows([(470, 600, 700, 34, 0.5), (520, 600, 730, 38, 0.5), (575, 596, 750, 42, 0.45), (632, 592, 770, 46, 0.4)], "#123f1f", 3, 0.55)
+    + "".join(f'<path d="M{600 + k * 34:.0f},{690 + k * 6:.0f} C{650 + k * 34:.0f},{715 + k * 8:.0f} {720 + k * 20:.0f},{745 + k * 6:.0f} {800 + k * 6:.0f},{772 + k * 2:.0f}" stroke="#123f1f" stroke-width="3" stroke-opacity="0.7"/>' for k in range(5)))}
+
+  {region("Collar", COLLAR,
+    scribble((460, 330, 630, 510), 100, 7, 6, "#bcd52c", 2.2, 0.9)
+    + scribble((460, 330, 630, 510), 30, 12, 6, "#f3ea4c", 2.2, 0.7)
+    + flicks(20, (540, 360, 630, 500), 115, 24, "#6e8f1a", 2.2, 0.7))}
+
+  {region("Head", HEAD,
+    scribble((380, 296, 600, 492), 160, 6, 6, "#3445bc", 2.3, 0.9)
+    + f'<g mask="url(#mHeadDark)">{scribble((380, 296, 600, 492), 110, 7, 6, "#151b5e", 2.4, 0.9)}</g>'
+    + flicks(70, (420, 300, 590, 460), 170, 26, "#9cb2ff", 2.4, 0.75)
+    + flicks(40, (400, 330, 590, 480), 175, 22, "#2a1d78", 2.4, 0.7))}
+
+  {region("BeakUp", BEAK_UP,
+    scribble((300, 360, 395, 476), 60, 5, 5, "#e8432a", 2, 0.9)
+    + scribble((300, 360, 395, 476), 140, 9, 5, "#a92416", 2, 0.6)
+    + '<path d="M378,378 C352,374 330,388 320,412" stroke="#ffd3c4" stroke-width="5" stroke-opacity="0.7"/>')}
+  {region("BeakLo", BEAK_LO, scribble((340, 430, 400, 480), 30, 5, 4, "#8f1d12", 2, 0.9))}
+
+  <!-- feet gripping the branch -->
+  <g stroke="#6f6a66" stroke-width="5">
+    <path d="M528,760 C530,776 524,792 512,800"/><path d="M536,762 C546,778 548,794 540,806"/>
+    <path d="M574,756 C576,772 572,788 562,796"/><path d="M582,758 C594,772 596,790 588,802"/>
+  </g>
+</g>
+
+<!-- pencil outlines -->
+<g fill="none" stroke="#2a2622" stroke-linecap="round" stroke-linejoin="round" filter="url(#wob)">
+  {sketch("M386,374 C400,335 440,308 486,304 C530,300 566,318 582,352 C600,384 622,404 640,432", 4)}
+  {sketch(BEAK_UP, 3.6)}
+  {sketch("M352,434 C342,446 344,466 358,474 C374,480 390,470 396,454", 3.4)}
+  {sketch("M392,452 C394,470 398,478 402,486 C386,540 386,620 418,680 C444,726 484,752 528,754", 4)}
+  {sketch("M640,432 C700,480 740,540 760,610 C780,680 792,730 804,774", 3.8)}
+  {sketch("M560,700 C590,720 620,742 660,756 C720,774 770,778 804,774", 2.6, 2)}
+  {sketch("M600,430 C612,520 596,620 560,700", 2.2, 2)}
+  {sketch("M836,826 C800,790 740,770 660,748", 2.4, 2)}
+  {sketch("M150,826 C330,812 520,800 700,774 C780,762 840,756 900,750", 3.2, 2)}
+  {sketch("M150,862 C330,852 520,838 700,812 C780,800 840,792 900,786", 3.2, 2)}
+</g>
+
+<!-- eye -->
+<circle cx="418" cy="362" r="13" fill="#1d1a17"/>
+<circle cx="418" cy="362" r="9.5" fill="#f2552a"/>
+<circle cx="419" cy="363" r="4.6" fill="#120f0c"/>
+<circle cx="415" cy="358.5" r="2.4" fill="#fff"/>
+<path d="M403,350 q15,-9 30,2" fill="none" stroke="#151b5e" stroke-width="3" stroke-linecap="round"/>
+<circle cx="372" cy="384" r="3" fill="#5a160d"/>
+'''
 
 svg = f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
     <filter id="wob" x="-5%" y="-5%" width="110%" height="110%">
-      <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="2" seed="4" result="t"/>
-      <feDisplacementMap in="SourceGraphic" in2="t" scale="7" xChannelSelector="R" yChannelSelector="G"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="4" result="t"/>
+      <feDisplacementMap in="SourceGraphic" in2="t" scale="5" xChannelSelector="R" yChannelSelector="G"/>
     </filter>
     <filter id="crayon" x="-5%" y="-5%" width="110%" height="110%">
       <feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="2" seed="8" result="n"/>
       <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.2 1.8" result="a"/>
-      <feComposite in="SourceGraphic" in2="a" operator="in" result="g"/>
-      <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="6" result="w"/>
-      <feDisplacementMap in="g" in2="w" scale="10" xChannelSelector="R" yChannelSelector="G"/>
+      <feComposite in="SourceGraphic" in2="a" operator="in"/>
     </filter>
-    <linearGradient id="gHead" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#3550c4"/><stop offset="0.6" stop-color="#2a3a9e"/><stop offset="1" stop-color="#3a2f8f"/>
-    </linearGradient>
-    <linearGradient id="gChest" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#e8401f"/><stop offset="0.45" stop-color="#f26a22"/><stop offset="1" stop-color="#f7a92c"/>
-    </linearGradient>
-    <linearGradient id="gWing" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#4fb04f"/><stop offset="1" stop-color="#257a35"/>
-    </linearGradient>
-    <linearGradient id="gCollar" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#9ccc3a"/><stop offset="1" stop-color="#e3df3c"/>
-    </linearGradient>
     <clipPath id="disc"><circle cx="512" cy="512" r="300"/></clipPath>
-    <clipPath id="cHead"><path d="{HEAD}"/></clipPath>
-    <clipPath id="cCollar"><path d="{COLLAR}"/></clipPath>
-    <clipPath id="cChest"><path d="{CHEST}"/></clipPath>
-    <clipPath id="cWing"><path d="{WING}"/></clipPath>
+    {clips}
+    {masks}
   </defs>
-
   <circle cx="512" cy="512" r="300" fill="#f6f1e6"/>
   <g clip-path="url(#disc)">
-    <g filter="url(#crayon)">
-      <path d="{WING}" fill="url(#gWing)"/>
-      <path d="{CHEST}" fill="url(#gChest)"/>
-      <path d="{BELLY}" fill="#3e3a9c"/>
-      <path d="{COLLAR}" fill="url(#gCollar)"/>
-      <path d="{HEAD}" fill="url(#gHead)"/>
-      <path d="{BEAK_LO}" fill="#a8261a"/>
-      <path d="{BEAK_UP}" fill="#ee4a2c"/>
-    </g>
-
-    <g filter="url(#wob)" fill="none" stroke-linecap="round">
-      <g clip-path="url(#cHead)">
-        {strokes(90, (430, 300, 690, 600), 160, 36, "#b4c4ff", 3.2, 0.85)}
-        {strokes(60, (420, 320, 690, 600), 165, 30, "#141a52", 3, 0.8)}
-      </g>
-      <g clip-path="url(#cCollar)">
-        {strokes(55, (430, 320, 730, 620), 110, 26, "#6f9a1c", 2.4, 0.6)}
-        {strokes(30, (430, 320, 730, 620), 110, 22, "#fff38a", 2.4, 0.6)}
-      </g>
-      <g clip-path="url(#cChest)">
-        {scallops([(y, 410, 720, 30 + (y - 620) / 30) for y in range(628, 880, 30)], "#b8231a", 4, 0.75)}
-        {scallops([(y + 9, 410, 720, 28) for y in range(640, 800, 60)], "#ffd75a", 3, 0.6)}
-        {strokes(40, (420, 600, 700, 860), 95, 22, "#b8231a", 2, 0.4)}
-      </g>
-      <g clip-path="url(#cWing)">
-        {wing_feathers()}
-        {strokes(40, (650, 480, 840, 880), 70, 28, "#e9f59a", 2, 0.35)}
-      </g>
-      <path d="M394,405 C360,398 326,412 308,440" stroke="#ffffff" stroke-width="5" stroke-opacity="0.55"/>
-      <path d="M402,469 C384,462 366,458 352,458" stroke="#7a1a10" stroke-width="3" stroke-opacity="0.8"/>
-      <circle cx="386" cy="412" r="3.5" fill="#5a160d" stroke="none"/>
-    </g>
-
-    <g filter="url(#wob)" fill="none" stroke="#2b2724" stroke-linecap="round" stroke-linejoin="round">
-      {outline("M398,470 C404,490 420,515 440,540", 5)}
-      {outline("M440,540 C470,575 520,590 572,596", 2.5)}
-      {outline("M400,400 C414,366 450,338 500,322 C552,306 610,308 642,334 C668,356 676,392 668,430", 6)}
-      {outline(BEAK_UP, 5.5)}
-      {outline(BEAK_LO, 5)}
-      {outline("M642,334 C694,362 716,430 706,494", 4.5)}
-      {outline("M440,540 C392,610 384,720 430,880", 5.5)}
-      {outline("M706,466 C772,520 816,610 830,720 L846,880", 5.5)}
-      {outline("M706,494 C690,600 660,720 648,880", 3.5)}
-      <g stroke-width="2" stroke-opacity="0.45" transform="translate(3,-3)">
-        {outline("M400,400 C414,366 450,338 500,322 C552,306 610,308 642,334", 2)}
-        {outline("M440,540 C392,610 384,720 430,880", 2)}
-        {outline("M706,466 C772,520 816,610 830,720", 2)}
-      </g>
-    </g>
-
-    <circle cx="452" cy="384" r="17" fill="#1d1a17"/>
-    <circle cx="452" cy="384" r="12.5" fill="#f2552a"/>
-    <circle cx="453" cy="385" r="6" fill="#120f0c"/>
-    <circle cx="448" cy="379" r="3" fill="#ffffff"/>
+    <g transform="translate(40 -30) translate(512 512) scale(0.88) translate(-512 -512)">{body}</g>
   </g>
-  <g filter="url(#wob)" fill="none" stroke="#2b2724" stroke-linecap="round">
-    <circle cx="512" cy="512" r="302" stroke-width="8"/>
-    <circle cx="514" cy="509" r="313" stroke-width="3" stroke-opacity="0.4"/>
+  <g fill="none" stroke="#2a2622" stroke-linecap="round" filter="url(#wob)">
+    <circle cx="512" cy="512" r="302" stroke-width="7"/>
+    <circle cx="514" cy="509" r="311" stroke-width="2.5" stroke-opacity="0.4" stroke-dasharray="180 14"/>
   </g>
 </svg>
 '''
 
-open(sys.argv[1] if len(sys.argv) > 1 else "bird.svg", "w").write(svg)
+open(sys.argv[1] if len(sys.argv) > 1 else "lorikeet.svg", "w").write(svg)
