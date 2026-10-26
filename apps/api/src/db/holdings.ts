@@ -18,6 +18,10 @@ export type HoldingsRepo = {
   deleteTrade(id: number): Promise<boolean>;
   /** One query: the newest stored close per symbol. */
   latestCloses(symbols: string[]): Promise<Map<string, Close>>;
+  /** One query: for each symbol and date, the newest close on or before that date. Keyed `SYMBOL|date`. */
+  closesAt(symbols: string[], dates: string[]): Promise<Map<string, number>>;
+  /** One query: the oldest stored close per symbol. */
+  firstCloseDates(symbols: string[]): Promise<Map<string, string>>;
   /** One bulk query. */
   upsertPrices(rows: { symbol: string; date: string; closeMicros: number }[]): Promise<void>;
   setCommsecBalance(accountId: number, valueCents: number, date: string): Promise<void>;
@@ -138,6 +142,30 @@ export function makeHoldingsRepo(db: Db): HoldingsRepo {
         [symbols],
       );
       for (const r of rows) out.set(r.symbol, { closeMicros: Number(r.close_micros), date: r.date });
+      return out;
+    },
+
+    async closesAt(symbols, dates) {
+      const out = new Map<string, number>();
+      if (!symbols.length || !dates.length) return out;
+      const rows = await db.query<{ symbol: string; date: string; close_micros: string | number | null }>(
+        `select s.symbol, to_char(d.date, 'YYYY-MM-DD') as date,
+                (select p.close_micros::text from price p where p.symbol = s.symbol and p.date <= d.date order by p.date desc limit 1) as close_micros
+         from unnest($1::text[]) as s(symbol) cross join unnest($2::date[]) as d(date)`,
+        [symbols, dates],
+      );
+      for (const r of rows) if (r.close_micros !== null) out.set(`${r.symbol}|${r.date}`, Number(r.close_micros));
+      return out;
+    },
+
+    async firstCloseDates(symbols) {
+      const out = new Map<string, string>();
+      if (!symbols.length) return out;
+      const rows = await db.query<{ symbol: string; date: string }>(
+        `select symbol, to_char(min(date), 'YYYY-MM-DD') as date from price where symbol = any($1::text[]) group by symbol`,
+        [symbols],
+      );
+      for (const r of rows) out.set(r.symbol, r.date);
       return out;
     },
 

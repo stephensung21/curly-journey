@@ -1,4 +1,4 @@
-import { holdingsFromTrades, netWorth, sydneyDate, valueHoldings } from '@curly/core';
+import { addDays, holdingsFromTrades, netWorth, sydneyDate, valueHoldings } from '@curly/core';
 import type { Deps } from '../app';
 import type { Db } from '../db/db';
 import { makeHoldingsRepo } from '../db/holdings';
@@ -6,8 +6,8 @@ import { makeNetWorthRepo } from '../db/networth';
 import { PriceError } from '../prices/yahoo';
 
 /**
- * Its own invocation, so its own Workers Free budget of 50 outbound requests. A run costs at most 17: 2 queries to load the
- * CommSec account and trades, up to 10 price fetches, 3 to store prices and the balance, 2 for the snapshot.
+ * Its own invocation, so its own Workers Free budget of 50 outbound requests. A run costs at most 18: 2 queries to load the
+ * CommSec account and trades, 1 for stored price coverage, up to 10 price fetches, 3 to store prices and the balance, 2 for the snapshot.
  */
 export const MAX_DAILY_CALLS = 20;
 const MAX_SYMBOLS = 10;
@@ -33,11 +33,23 @@ export async function runDaily(deps: Deps): Promise<{ prices: number; snapshot: 
     if (accountId !== null && deps.prices) {
       const trades = await holdings.trades(accountId);
       const held = holdingsFromTrades(trades);
+      // Every symbol ever traded, held ones first. Past net worth needs closes back to each first trade.
+      const firstTrade = new Map<string, string>();
+      for (const t of trades) if (!firstTrade.has(t.symbol) || t.date < firstTrade.get(t.symbol)!) firstTrade.set(t.symbol, t.date);
+      const heldSet = new Set(held.map((h) => h.symbol));
+      const symbols = [...heldSet, ...[...firstTrade.keys()].filter((s) => !heldSet.has(s)).sort()];
+      const firstClose = await holdings.firstCloseDates(symbols);
       const rows: { symbol: string; date: string; closeMicros: number }[] = [];
-      for (const { symbol } of held.slice(0, MAX_SYMBOLS)) {
+      let fetched = 0;
+      for (const symbol of symbols) {
+        const from = addDays(firstTrade.get(symbol)!, -7);
+        const stored = firstClose.get(symbol);
+        const needHistory = stored === undefined || stored > addDays(from, 7);
+        if (!needHistory && !heldSet.has(symbol)) continue;
+        if (fetched++ >= MAX_SYMBOLS) break;
         try {
           count();
-          const closes = await deps.prices.closes(symbol);
+          const closes = await deps.prices.closes(symbol, needHistory ? from : undefined);
           for (const c of closes) rows.push({ symbol, ...c });
           if (closes.length) prices++;
         } catch (e) {

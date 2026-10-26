@@ -1,6 +1,9 @@
 import { sydneyDate } from '@curly/core';
 
-export type PriceClient = { closes(symbol: string): Promise<{ date: string; closeMicros: number }[]> };
+export type PriceClient = {
+  /** The last month of daily closes, or every daily close since `from` (YYYY-MM-DD) when given. */
+  closes(symbol: string, from?: string): Promise<{ date: string; closeMicros: number }[]>;
+};
 
 /** Carries only the HTTP status, so logging it can never echo a URL or a body. */
 export class PriceError extends Error {
@@ -14,8 +17,11 @@ type Chart = { chart?: { result?: { timestamp?: unknown; indicators?: { quote?: 
 /** Daily closes for ASX symbols from Yahoo's chart endpoint. ASX symbols take a `.AX` suffix, added only here. */
 export function yahooPrices(fetchImpl: typeof fetch = fetch): PriceClient {
   return {
-    async closes(symbol) {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}.AX?range=1mo&interval=1d`;
+    async closes(symbol, from) {
+      const span = from
+        ? `period1=${Date.parse(`${from}T00:00:00Z`) / 1000}&period2=${Math.floor(Date.now() / 1000)}`
+        : 'range=1mo';
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}.AX?${span}&interval=1d`;
       const res = await fetchImpl(url, { headers: { 'User-Agent': 'curly-journey/1' }, signal: AbortSignal.timeout(10_000) });
       if (!res.ok) throw new PriceError(res.status);
       const body = (await res.json()) as Chart;

@@ -56,4 +56,13 @@ describe('yahooPrices', () => {
     const init = (f.mock.calls[0] as unknown as [string, RequestInit])[1];
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
+
+  it('asks for daily closes from a start date when given one', async () => {
+    const f = ok(payload([1]));
+    await yahooPrices(f as unknown as typeof fetch).closes('VAS', '2019-09-18');
+    const [url] = f.mock.calls[0] as unknown as [string];
+    expect(url).toContain(`period1=${Date.UTC(2019, 8, 18) / 1000}`);
+    expect(url).toContain('interval=1d');
+    expect(url).not.toContain('range=');
+  });
 });

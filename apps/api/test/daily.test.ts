@@ -93,4 +93,29 @@ describe('runDaily', () => {
     expect(r.snapshot).toBe(true);
     expect(used).toBeLessThanOrEqual(MAX_DAILY_CALLS);
   });
+
+  it('fetches history back to a week before the first trade until it is stored, then only recent closes', async () => {
+    const { db, holdings } = await setup();
+    const closes = vi.fn(async () => [{ date: '2026-10-23', closeMicros: 1_000_000 }]);
+    await runDaily(deps(db, { closes }));
+    expect(closes).toHaveBeenLastCalledWith('VAS', '2026-09-24');
+    await holdings.upsertPrices([{ symbol: 'VAS', date: '2026-09-25', closeMicros: 1_000_000 }]);
+    await runDaily(deps(db, { closes }));
+    expect(closes).toHaveBeenLastCalledWith('VAS', undefined);
+  });
+
+  it('fetches history for sold symbols once, and skips them after', async () => {
+    const { db, holdings, accountId } = await setup();
+    await holdings.insertTrades(accountId, [
+      { date: '2026-03-01', reference: null, side: 'buy', symbol: 'OLD', units: 5, priceMicros: 1_000_000, brokerageCents: 0, totalCents: 500, source: 'csv', fingerprint: 'o1' },
+      { date: '2026-04-01', reference: null, side: 'sell', symbol: 'OLD', units: 5, priceMicros: 1_000_000, brokerageCents: 0, totalCents: 500, source: 'csv', fingerprint: 'o2' },
+    ]);
+    const closes = vi.fn(async () => [{ date: '2026-10-23', closeMicros: 1_000_000 }]);
+    await runDaily(deps(db, { closes }));
+    expect(closes).toHaveBeenCalledWith('OLD', '2026-02-22');
+    await holdings.upsertPrices([{ symbol: 'OLD', date: '2026-02-23', closeMicros: 1_000_000 }]);
+    closes.mockClear();
+    await runDaily(deps(db, { closes }));
+    expect(closes.mock.calls.map((c) => (c as unknown[])[0])).toEqual(['VAS']);
+  });
 });

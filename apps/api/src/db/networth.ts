@@ -5,8 +5,10 @@ export type NetWorthRepo = {
   /** One query: accounts that count toward net worth. */
   accounts(): Promise<NwAccount[]>;
   upsertSnapshot(date: string, ownCents: number, oweCents: number): Promise<void>;
-  /** Snapshots from `from` (or all), oldest first. */
-  history(from: string | null): Promise<{ date: string; totalCents: number }[]>;
+  /** One query: transaction totals per account per day, after `after`. */
+  flows(after: string): Promise<{ accountId: number; date: string; amountCents: number }[]>;
+  /** One query: the earliest transaction or trade date, or null with neither. */
+  earliestDate(): Promise<string | null>;
 };
 
 export function makeNetWorthRepo(db: Db): NetWorthRepo {
@@ -35,13 +37,20 @@ export function makeNetWorthRepo(db: Db): NetWorthRepo {
       );
     },
 
-    async history(from) {
-      const rows = await db.query<{ date: string; total: string | number }>(
-        `select to_char(date, 'YYYY-MM-DD') as date, (own_cents + owe_cents)::text as total
-         from net_worth_snapshot where ($1::date is null or date >= $1::date) order by date`,
-        [from],
+    async flows(after) {
+      const rows = await db.query<{ account_id: number; date: string; total: string | number }>(
+        `select account_id, to_char(date, 'YYYY-MM-DD') as date, sum(amount_cents)::text as total
+         from transaction where date > $1::date group by account_id, date`,
+        [after],
       );
-      return rows.map((r) => ({ date: r.date, totalCents: Number(r.total) }));
+      return rows.map((r) => ({ accountId: Number(r.account_id), date: r.date, amountCents: Number(r.total) }));
+    },
+
+    async earliestDate() {
+      const rows = await db.query<{ d: string | null }>(
+        `select to_char(least((select min(date) from transaction), (select min(date) from trade)), 'YYYY-MM-DD') as d`,
+      );
+      return rows[0]?.d ?? null;
     },
   };
 }
