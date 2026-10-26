@@ -101,7 +101,13 @@ export type NewRule = {
 export type RulePreviewParams = { matchText: string; accountId?: number; amountCents?: number; categoryId?: number };
 
 export type SpendingQuery = { month: string; period?: 'statement'; accountId?: number; institution?: string };
-export type SpendingSummary = Summary & { from: string; to: string; prevTotalCents: number };
+export type SpendingSummary = Summary & {
+  from: string;
+  to: string;
+  prevTotalCents: number;
+  prevMortgageCents?: number;
+  prevCardPaymentCents?: number;
+};
 export type InOutMonth = { month: string; inCents: number; mortgageCents: number; spendingCents: number };
 export type DailyPoint = { day: number; inCents: number; mortgageCents: number; spendingCents: number };
 export type InboxItem = Transaction & { guesses: number[] };

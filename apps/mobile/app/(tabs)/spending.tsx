@@ -13,10 +13,12 @@ import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
 import { MoreLessNote } from '../../src/components/MoreLessNote';
 import { MonthSwitcher } from '../../src/components/MonthSwitcher';
 import { Screen } from '../../src/components/Screen';
+import { Toggle } from '../../src/components/Toggle';
 import { TransactionList } from '../../src/components/TransactionList';
 import { sydneyDate } from '../../src/lib/days';
 import { now } from '../../src/lib/now';
 import { searchTransactions } from '../../src/lib/searchTransactions';
+import { useSettings } from '../../src/settings/store';
 import { categoryColor } from '../../src/theme/categoryColor';
 import { accents } from '../../src/theme/tokens';
 import { useTheme } from '../../src/theme/useTheme';
@@ -89,6 +91,13 @@ export default function SpendingScreen() {
   }, [sync, spendingQ, txQ]);
 
   const s = spendingQ.data;
+  const includePayments = useSettings(st => st.spendingIncludesPayments);
+  const setIncludePayments = useSettings(st => st.setSpendingIncludesPayments);
+  // Mortgage repayments and Amex statement payments are left out of spending unless the toggle adds them back.
+  const mortgage = s?.mortgageCents ?? 0;
+  const card = s?.cardPaymentCents ?? 0;
+  const extra = includePayments ? mortgage + card : 0;
+  const prevExtra = includePayments ? (s?.prevMortgageCents ?? 0) + (s?.prevCardPaymentCents ?? 0) : 0;
   const byId = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
   const allTxns = txQ.data?.transactions ?? [];
   const shownTxns = useMemo(() => searchTransactions(allTxns, search, byId), [allTxns, search, byId]);
@@ -125,9 +134,27 @@ export default function SpendingScreen() {
 
       {s ? (
         <View style={{ gap: 2 }}>
-          <Amount cents={s.totalCents} variant="hero" />
+          <Amount cents={s.totalCents + extra} variant="hero" />
           <CrayonUnderline width={150} color={accents.orange} />
-          <MoreLessNote month={month} totalCents={s.totalCents} prevTotalCents={s.prevTotalCents} />
+          <MoreLessNote month={month} totalCents={s.totalCents + extra} prevTotalCents={s.prevTotalCents + prevExtra} />
+          <AppText variant="bodyStrong" style={{ marginTop: 6 }}>
+            Money out <Amount cents={(s.outCents ?? s.totalCents) + extra} decimals="never" inline /> · Money in{' '}
+            <Amount cents={s.backCents ?? 0} decimals="never" inline />
+          </AppText>
+          <AppText variant="label" tone="muted">
+            {includePayments ? (
+              <>
+                Includes mortgage <Amount cents={mortgage} decimals="never" inline /> and Amex payments{' '}
+                <Amount cents={card} decimals="never" inline />.
+              </>
+            ) : (
+              'Money in is refunds and paybacks. Mortgage and Amex payments not included.'
+            )}
+          </AppText>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+            <AppText>Include mortgage and Amex payments</AppText>
+            <Toggle accessibilityLabel="Include mortgage and Amex payments" value={includePayments} onChange={setIncludePayments} />
+          </View>
         </View>
       ) : null}
 

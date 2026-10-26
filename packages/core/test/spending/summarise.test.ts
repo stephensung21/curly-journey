@@ -11,6 +11,27 @@ const L = (
   date = '2026-10-05',
 ): SpendLine => ({ txnId, accountId: 1, institution, date, amountCents, categoryId, categoryKind, flow });
 
+describe('summarise money out and in', () => {
+  const s = summarise([
+    L(1, -10000, 5, 'spending'),
+    L(2, -5000, null, null),
+    L(3, 4000, 5, 'spending'),
+    L(4, 500000, 21, 'income'),
+    L(5, -310000, null, null, 'mortgage'),
+    { ...L(6, -80000, null, null, 'transfer'), cardPayment: true },
+    L(7, -20000, null, null, 'transfer'),
+  ]);
+  it('splits the total into money out and money back, so out minus in is the total', () => {
+    expect(s.outCents).toBe(15000);
+    expect(s.backCents).toBe(4000);
+    expect(s.totalCents).toBe(s.outCents - s.backCents);
+  });
+  it('totals card payments separately from other transfers', () => {
+    expect(s.cardPaymentCents).toBe(80000);
+    expect(s.mortgageCents).toBe(310000);
+  });
+});
+
 describe('periods', () => {
   it('computes month and statement periods', () => {
     expect(monthPeriod('2026-02')).toEqual({ from: '2026-02-01', to: '2026-02-28' });

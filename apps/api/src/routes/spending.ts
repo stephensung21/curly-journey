@@ -52,11 +52,15 @@ export function spendingRoutes(deps: Deps) {
     // Both periods in one query, split by date afterwards.
     const lines = await repo.spendLines({ from: prev.from, to: cur.to, accountIds });
     const inPeriod = (p: { from: string; to: string }) => (l: SpendLine) => l.date >= p.from && l.date <= p.to;
+    const before = summarise(lines.filter(inPeriod(prev)));
     return c.json({
       ...summarise(lines.filter(inPeriod(cur))),
       from: cur.from,
       to: cur.to,
-      prevTotalCents: summarise(lines.filter(inPeriod(prev))).totalCents,
+      prevTotalCents: before.totalCents,
+      // So the app can compare like with like when mortgage and card payments are switched on.
+      prevMortgageCents: before.mortgageCents,
+      prevCardPaymentCents: before.cardPaymentCents,
     });
   });
 

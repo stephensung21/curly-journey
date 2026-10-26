@@ -97,6 +97,24 @@ describe('GET /spending', () => {
     ]);
   });
 
+  it('flags Amex payments by description or by a pair on a card, and returns last month for the toggle', async () => {
+    const s = await setup();
+    const byName = await s.add(s.bank, '2026-10-03', -50000, { flow: 'transfer' });
+    await s.db.query("update transaction set description_raw = 'AMEX CARD PAYMENT' where id = $1", [byName]);
+    const out = await s.add(s.bank, '2026-10-04', -30000, { flow: 'transfer' });
+    const inn = await s.add(s.amex, '2026-10-04', 30000, { flow: 'transfer' });
+    await s.db.query('update transaction set pair_id = $2 where id = $1', [out, inn]);
+    await s.add(s.bank, '2026-10-05', -7000, { flow: 'transfer' });
+    await s.add(s.bank, '2026-09-05', -9000, { flow: 'mortgage' });
+    const prevCard = await s.add(s.bank, '2026-09-06', -11000, { flow: 'transfer' });
+    await s.db.query("update transaction set description_raw = 'AMERICAN EXPRESS' where id = $1", [prevCard]);
+    await s.add(s.bank, '2026-10-06', -2500, { cat: 'Groceries' });
+    await s.add(s.bank, '2026-10-07', 500, { cat: 'Groceries' });
+    const { body } = await s.get<Summary & { prevMortgageCents: number; prevCardPaymentCents: number }>('/spending?month=2026-10');
+    expect(body).toMatchObject({ cardPaymentCents: 80000, outCents: 2500, backCents: 500, totalCents: 2000 });
+    expect(body).toMatchObject({ prevMortgageCents: 9000, prevCardPaymentCents: 11000 });
+  });
+
   it('filters by institution', async () => {
     const s = await setup();
     await seedDefinitions(s);

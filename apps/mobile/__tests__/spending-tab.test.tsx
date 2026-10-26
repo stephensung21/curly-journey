@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 import { renderScreen } from '../test-utils/renderScreen';
 import SpendingScreen from '../app/(tabs)/spending';
 import * as hooks from '../src/api/hooks';
+import { useSettings } from '../src/settings/store';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
@@ -26,6 +27,11 @@ const txns = [
 ];
 const base = {
   totalCents: 120000,
+  outCents: 150000,
+  backCents: 30000,
+  cardPaymentCents: 200000,
+  prevMortgageCents: 0,
+  prevCardPaymentCents: 100000,
   moneyInCents: 0,
   mortgageCents: 0,
   byCategory: [
@@ -59,6 +65,7 @@ beforeEach(() => {
   (mocked.useMergeCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   (mocked.useDeleteCategory as jest.Mock).mockReturnValue({ mutateAsync: jest.fn(), isPending: false });
   summary = base;
+  useSettings.setState({ spendingIncludesPayments: false });
   limits = [];
   (mocked.useLimits as jest.Mock).mockImplementation(() => ({ data: { limits } }));
   (mocked.useSpending as jest.Mock).mockImplementation(() => ({ data: summary, isLoading: false, refetch: jest.fn() }));
@@ -77,6 +84,25 @@ it('shows the total and a pink more-than note', async () => {
   await renderScreen(<SpendingScreen />);
   expect(screen.getByText('$1,200.00')).toBeTruthy();
   expect(screen.getByText('$310 more than Sep')).toBeTruthy();
+});
+
+it('shows money out and money in under the total, leaving out mortgage and Amex payments', async () => {
+  summary = { ...base, mortgageCents: 300000 };
+  await renderScreen(<SpendingScreen />);
+  expect(screen.getByText('Money out $1,500 · Money in $300')).toBeTruthy();
+  expect(screen.getByText('Money in is refunds and paybacks. Mortgage and Amex payments not included.')).toBeTruthy();
+});
+
+it('the toggle adds mortgage and Amex payments to the total, money out and last month', async () => {
+  summary = { ...base, mortgageCents: 300000, prevMortgageCents: 290000 };
+  await renderScreen(<SpendingScreen />);
+  await fireEvent(screen.getByLabelText('Include mortgage and Amex payments'), 'valueChange', true);
+  // 1,200 + 3,000 mortgage + 2,000 Amex; last month 890 + 2,900 + 1,000.
+  expect(screen.getByText('$6,200.00')).toBeTruthy();
+  expect(screen.getByText('Money out $6,500 · Money in $300')).toBeTruthy();
+  expect(screen.getByText('Includes mortgage $3,000 and Amex payments $2,000.')).toBeTruthy();
+  expect(screen.getByText('$1,410 more than Sep')).toBeTruthy();
+  expect(useSettings.getState().spendingIncludesPayments).toBe(true);
 });
 
 it('shows a less-than note', async () => {

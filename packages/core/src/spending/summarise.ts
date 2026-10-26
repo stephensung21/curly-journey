@@ -13,10 +13,19 @@ export type SpendLine = {
   categoryId: number | null;
   categoryKind: 'spending' | 'income' | null;
   flow: Flow;
+  /** A transfer out that pays off a credit card (Amex). */
+  cardPayment?: boolean;
 };
 
 export type Summary = {
+  /** Spending: money out minus money back. */
   totalCents: Cents;
+  /** Spending debits, as a positive number. */
+  outCents: Cents;
+  /** Refunds and paybacks in spending categories. */
+  backCents: Cents;
+  /** Credit card payments from other accounts, as a positive number. */
+  cardPaymentCents: Cents;
   moneyInCents: Cents;
   mortgageCents: Cents;
   byCategory: { categoryId: number | null; cents: Cents; count: number }[];
@@ -57,6 +66,9 @@ export function summarise(lines: SpendLine[]): Summary {
   let spend = 0;
   let moneyIn = 0;
   let mortgage = 0;
+  let out = 0;
+  let back = 0;
+  let cardPayment = 0;
   const cats = new Map<number | null, Bucket>();
   const insts = new Map<string, Cents>();
   const nc = new Map<string, Bucket>();
@@ -65,6 +77,8 @@ export function summarise(lines: SpendLine[]): Summary {
   for (const l of lines) {
     if (isSpending(l)) {
       spend -= l.amountCents;
+      if (l.amountCents < 0) out -= l.amountCents;
+      else back += l.amountCents;
       const c = cats.get(l.categoryId) ?? bucket();
       c.cents -= l.amountCents;
       c.txns.add(l.txnId);
@@ -76,6 +90,7 @@ export function summarise(lines: SpendLine[]): Summary {
       moneyIn += l.amountCents;
     }
     if (l.flow === 'mortgage') mortgage -= l.amountCents;
+    if (l.cardPayment && l.amountCents < 0) cardPayment -= l.amountCents;
     if (l.flow !== 'normal' && l.amountCents < 0) {
       const n = nc.get(l.flow) ?? bucket();
       n.cents -= l.amountCents;
@@ -87,6 +102,9 @@ export function summarise(lines: SpendLine[]): Summary {
   const order = ['transfer', 'mortgage', 'not_spending'] as const;
   return {
     totalCents: spend,
+    outCents: out,
+    backCents: back,
+    cardPaymentCents: cardPayment,
     moneyInCents: moneyIn,
     mortgageCents: mortgage,
     byCategory: [...cats]

@@ -640,10 +640,15 @@ export function makeRepo(db: Db): Repo {
         category_id: number | null;
         kind: 'spending' | 'income' | null;
         flow: Flow;
+        card_payment: boolean;
       }>(
         `select t.id, t.account_id, a.institution, to_char(t.date, 'YYYY-MM-DD') as date,
            coalesce(sp.amount_cents, t.amount_cents)::text as amount_cents,
-           c.id as category_id, c.kind, t.flow
+           c.id as category_id, c.kind, t.flow,
+           (t.flow = 'transfer' and t.amount_cents < 0 and a.kind <> 'credit_card' and (
+              t.description_raw ~* '(AMEX|AMERICAN EXPRESS)'
+              or exists (select 1 from transaction p join account pa on pa.id = p.account_id
+                         where p.id = t.pair_id and pa.kind = 'credit_card'))) as card_payment
          from transaction t
          join account a on a.id = t.account_id
          left join transaction_split sp on sp.transaction_id = t.id
@@ -660,6 +665,7 @@ export function makeRepo(db: Db): Repo {
         categoryId: r.category_id === null ? null : Number(r.category_id),
         categoryKind: r.kind,
         flow: r.flow,
+        cardPayment: r.card_payment,
       }));
     },
 
