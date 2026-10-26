@@ -74,7 +74,7 @@ beforeEach(() => {
 describe('commsec screen', () => {
   it('shows total, gain note, holdings and the allocation bar', async () => {
     await renderScreen(<CommsecScreen />);
-    expect(screen.getByText('$84,900.00')).toBeTruthy();
+    expect(screen.getByText('$84,900')).toBeTruthy();
     expect(screen.getByText(/on what you paid/)).toBeTruthy();
     expect(screen.getByText('VDHG')).toBeTruthy();
     expect(screen.getByText(/620 units/)).toBeTruthy();
@@ -167,6 +167,32 @@ describe('commsec screen', () => {
     expect(mockPush).toHaveBeenCalledWith('/commsec-import');
     await fireEvent.press(screen.getAllByText('Add trade')[0]!);
     expect(await screen.findByText('Save trade')).toBeTruthy();
+  });
+
+  it('adding the trade the hint is about clears the banner', async () => {
+    mockParams = { hint: '55' };
+    await renderScreen(<CommsecScreen />);
+    await fireEvent.press(screen.getAllByText('Add trade')[0]!);
+    await fireEvent.changeText(screen.getByLabelText('Symbol'), 'vgs');
+    await fireEvent.changeText(screen.getByLabelText('Units'), '12');
+    await fireEvent.changeText(screen.getByLabelText('Price per unit'), '134.90');
+    await fireEvent.press(screen.getByText('Save trade'));
+    // The server stops hinting once a trade sits near the payment, so this only clears the banner.
+    await waitFor(() => expect(mockSetParams).toHaveBeenCalledWith({ hint: undefined }));
+    expect(dismiss).not.toHaveBeenCalled();
+  });
+
+  it('links to the account settings', async () => {
+    await renderScreen(<CommsecScreen />);
+    await fireEvent.press(screen.getByLabelText('Account settings'));
+    expect(mockPush).toHaveBeenCalledWith('/account/9/settings');
+  });
+
+  it('shows dollar values without cents, unit prices with cents', async () => {
+    await renderScreen(<CommsecScreen />);
+    expect(screen.getByText('$44,150')).toBeTruthy(); // VDHG value
+    expect(screen.getAllByText('$2,134')).toHaveLength(2); // both trade totals
+    expect(screen.getAllByText('$70.80')).toHaveLength(2); // unit prices keep cents
   });
 
   it('shows no banner for a non-numeric hint', async () => {

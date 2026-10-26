@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ApiError } from "../api/client";
@@ -38,6 +38,17 @@ export function CategoryPicker({
   const [draft, setDraft] = useState<Category[] | null>(null);
   // The category whose edit sheet is open.
   const [editing, setEditing] = useState<Category | null>(null);
+
+  // Each opening starts fresh: no old search, half-typed new category or stale error.
+  useEffect(() => {
+    if (!visible) return;
+    setSearch("");
+    setAdding(false);
+    setName("");
+    setEmoji("🏷️");
+    setError(null);
+    setDraft(null);
+  }, [visible]);
 
   const needle = search.trim().toLowerCase();
   const shown = categories.filter((c) => c.name.toLowerCase().includes(needle));

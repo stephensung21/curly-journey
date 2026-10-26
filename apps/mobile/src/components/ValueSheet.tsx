@@ -1,5 +1,5 @@
 import { parseDecimalToCents } from '@curly/core';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
 import { fonts, AppText } from './AppText';
 import { Button } from './Button';
@@ -101,6 +101,16 @@ export function ValueSheet({
   const [asOfError, setAsOfError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Each opening starts fresh: nothing half-typed or stale from last time.
+  useEffect(() => {
+    if (!visible) return;
+    setValue('');
+    setAsOf(today);
+    setValueError(null);
+    setAsOfError(null);
+    setSaveError(null);
+  }, [visible, today]);
+
   async function save() {
     const check = checkValue(value, asOf, today);
     setValueError(check.valueError);
@@ -112,9 +122,6 @@ export function ValueSheet({
       setSaveError("Couldn't save the value. Try again.");
       return;
     }
-    setSaveError(null);
-    setValue('');
-    setAsOf(today);
     onClose();
   }
 

@@ -62,9 +62,9 @@ function HoldingCard({ h }: { h: ValuedEtfHolding }) {
         </View>
       </View>
       <View style={{ alignItems: 'flex-end', gap: 2 }}>
-        <Amount cents={h.valueCents} />
+        <Amount cents={h.valueCents} decimals="never" />
         <View style={{ flexDirection: 'row', gap: 4 }}>
-          <Amount cents={h.gainCents} signed variant="label" style={{ color: gain }} />
+          <Amount cents={h.gainCents} signed variant="label" decimals="never" style={{ color: gain }} />
           <AppText variant="label" style={{ color: gain }}>{`(${pct(h.gainBps)})`}</AppText>
         </View>
       </View>
@@ -83,7 +83,7 @@ function TradeRow({ trade, onDelete }: { trade: Trade; onDelete: () => void }) {
           <Amount cents={microsToCents(trade.priceMicros)} variant="label" tone="muted" />
         </View>
       </View>
-      <Amount cents={trade.totalCents} />
+      <Amount cents={trade.totalCents} decimals="never" />
     </Pressable>
   );
 }
@@ -143,9 +143,21 @@ export default function CommsecScreen() {
 
   return (
     <Screen refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} />}>
-      <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
-        <AppText tone="muted">‹ Back</AppText>
-      </Pressable>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
+          <AppText tone="muted">‹ Back</AppText>
+        </Pressable>
+        {data?.accountId ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Account settings"
+            hitSlop={8}
+            onPress={() => router.push(`/account/${data.accountId}/settings`)}
+          >
+            <AppText tone="muted">⚙ Settings</AppText>
+          </Pressable>
+        ) : null}
+      </View>
       <AppText variant="title">📈 CommSec ETFs</AppText>
 
       {showHint ? (
@@ -169,13 +181,13 @@ export default function CommsecScreen() {
       ) : (
         <>
           <View>
-            <Amount cents={data.valueCents} variant="hero" />
+            <Amount cents={data.valueCents} variant="hero" decimals="never" />
             <CrayonUnderline width={140} color={accents.orange} />
           </View>
           {data.costCents > 0 ? (
             <HandNote tone={data.gainCents >= 0 ? 'lime' : 'pink'}>
               {data.gainCents >= 0 ? 'up ' : 'down '}
-              <Amount cents={Math.abs(data.gainCents)} inline />
+              <Amount cents={Math.abs(data.gainCents)} inline decimals="never" />
               {` (${pct(data.gainBps)}) on what you paid`}
             </HandNote>
           ) : null}
@@ -213,7 +225,7 @@ export default function CommsecScreen() {
         </>
       )}
       {deleteError ? <AppText style={{ color: accents.pink }}>Couldn't delete that trade. Try again.</AppText> : null}
-      <TradeSheet visible={sheet} onClose={() => setSheet(false)} />
+      <TradeSheet visible={sheet} onClose={() => setSheet(false)} onSaved={() => router.setParams({ hint: undefined })} />
     </Screen>
   );
 }

@@ -1,5 +1,5 @@
 import { parseDecimalToCents, parsePriceToMicros } from '@curly/core';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { TextInput, View } from 'react-native';
 import { useAddTrade } from '../api/hooks';
 import type { NewTrade } from '../api/types';
@@ -32,7 +32,7 @@ function validate(symbol: string, units: string, price: string, brokerage: strin
 }
 
 /** Bottom sheet to record a trade by hand. */
-export function TradeSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function TradeSheet({ visible, onClose, onSaved }: { visible: boolean; onClose: () => void; onSaved?: () => void }) {
   const t = useTheme();
   const input = useInputStyle();
   const add = useAddTrade();
@@ -46,6 +46,19 @@ export function TradeSheet({ visible, onClose }: { visible: boolean; onClose: ()
   const [errors, setErrors] = useState<Errors>({});
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Each opening starts fresh: nothing half-typed or stale from last time.
+  useEffect(() => {
+    if (!visible) return;
+    setDate(today);
+    setSide('buy');
+    setSymbol('');
+    setUnits('');
+    setPrice('');
+    setBrokerage('0');
+    setErrors({});
+    setSaveError(null);
+  }, [visible, today]);
+
   async function save() {
     const sym = symbol.trim().toUpperCase();
     const found = validate(sym, units, price, brokerage);
@@ -57,12 +70,7 @@ export function TradeSheet({ visible, onClose }: { visible: boolean; onClose: ()
       setSaveError("Couldn't save the trade. Try again.");
       return;
     }
-    setSaveError(null);
-    setSymbol('');
-    setUnits('');
-    setPrice('');
-    setBrokerage('0');
-    setDate(today);
+    onSaved?.();
     onClose();
   }
 
