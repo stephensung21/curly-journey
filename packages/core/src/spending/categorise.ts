@@ -67,7 +67,8 @@ const INCOME = 'Income';
 export function categorise(t: CategoriseInput, ctx: CategoriseContext): CategoriseResult {
   const matched = orderRules(ctx.rules).filter((r) => ruleMatches(r, t));
   const first = matched[0];
-  const flow = first?.flow ?? null;
+  // Like the category: the first matching rule that sets a flow, so a newer category-only rule can't hide it.
+  const flow = matched.find((r) => r.flow !== null)?.flow ?? null;
   const ruleId = first?.id ?? null;
   const done = (categoryId: number | null, source: CategoriseResult['source']): CategoriseResult => ({
     categoryId,

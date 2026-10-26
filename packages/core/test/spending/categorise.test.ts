@@ -73,6 +73,13 @@ describe('categorise', () => {
   it('name missing from the map falls through', () => {
     expect(categorise(base, { ...ctx0, categoryIdByName: new Map() })).toMatchObject({ categoryId: null, source: null });
   });
+  it('takes the flow from the first matching rule that has one, even behind a category-only rule', () => {
+    const cat: Rule = { ...user, id: 4, matchText: 'BEEM', categoryId: 2, flow: null, createdAt: '2026-10-20' };
+    const ns: Rule = { ...user, id: 3, matchText: 'BEEM IT', categoryId: null, flow: 'not_spending', createdAt: '2026-10-01' };
+    const t = { ...base, description: 'BEEM IT PAYMENT', merchant: 'Beem It' };
+    expect(categorise(t, { ...ctx0, rules: [ns, cat] })).toMatchObject({ flow: 'not_spending', categoryId: 2 });
+  });
+
   it('flow-only rule sets flow and keeps categorising', () => {
     const ns: Rule = { ...user, id: 3, matchText: 'JOHN SMITH', categoryId: null, flow: 'not_spending' };
     const t = { ...unknown, description: 'TRANSFER TO JOHN SMITH' };
