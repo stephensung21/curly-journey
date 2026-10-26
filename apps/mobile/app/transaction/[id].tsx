@@ -141,6 +141,7 @@ type ErrorKey = 'category' | 'flow' | 'note' | 'split';
 
 function Detail({ txn }: { txn: Transaction }) {
   const t = useTheme();
+  const router = useRouter();
   const categories = useCategories().data ?? [];
   const accounts = useAccounts().data?.accounts ?? [];
   const update = useUpdateTransaction();
@@ -189,6 +190,20 @@ function Detail({ txn }: { txn: Transaction }) {
     } catch {
       fail('split', true);
     }
+  }
+
+  // A bill or income that repeats: open a new monthly event filled in from this transaction.
+  function makeRecurring() {
+    router.push({
+      pathname: '/event/new',
+      params: {
+        name,
+        amount: String(Math.abs(txn.amountCents) / 100),
+        accountId: String(txn.accountId),
+        date: txn.date,
+        emoji: category?.emoji ?? '📅',
+      },
+    });
   }
 
   const value = (text: string) => (
@@ -262,6 +277,8 @@ function Detail({ txn }: { txn: Transaction }) {
         />
         {errors.note ? <AppText tone="muted">{SAVE_ERROR}</AppText> : null}
       </View>
+
+      <Button kind="secondary" label="Make recurring" onPress={makeRecurring} />
 
       <CategoryPicker visible={picking} onClose={() => setPicking(false)} onPick={pickCategory} categories={categories} />
       {remember ? <RememberSheet txn={txn} matchText={matchText} category={remember} onClose={() => setRemember(null)} /> : null}

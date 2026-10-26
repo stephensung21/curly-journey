@@ -256,8 +256,32 @@ function Editor({ id, initial }: { id: number | null; initial: EventBody | null 
   );
 }
 
+/** Values a new event starts with when made from a transaction (see Make recurring). */
+type Prefill = { name?: string; amount?: string; accountId?: string; date?: string; emoji?: string };
+
+function fromPrefill(p: Prefill): EventBody | null {
+  if (!p.name) return null;
+  let amountCents: number | null = null;
+  try {
+    amountCents = p.amount ? parseDecimalToCents(p.amount) : null;
+  } catch {
+    amountCents = null;
+  }
+  const accountId = p.accountId && /^\d+$/.test(p.accountId) ? Number(p.accountId) : null;
+  return {
+    name: p.name,
+    emoji: p.emoji || '📅',
+    amountCents: amountCents && amountCents > 0 ? amountCents : null,
+    accountId,
+    startDate: p.date && /^\d{4}-\d{2}-\d{2}$/.test(p.date) ? p.date : sydneyDate(now()),
+    repeat: 'monthly',
+    leadDays: 2,
+    onDayAlert: false,
+  };
+}
+
 export default function EventEditorScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, ...prefill } = useLocalSearchParams<{ id: string } & Prefill>();
   const events = useEvents().data?.events;
   const numeric = id === 'new' ? null : Number(id);
   const existing = numeric === null ? null : events?.find(e => e.id === numeric);
@@ -273,6 +297,6 @@ export default function EventEditorScreen() {
         leadDays: existing.leadDays,
         onDayAlert: existing.onDayAlert,
       }
-    : null;
+    : fromPrefill(prefill);
   return <Editor key={numeric ?? 'new'} id={numeric} initial={initial} />;
 }

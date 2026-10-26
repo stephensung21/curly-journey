@@ -105,3 +105,21 @@ it('deletes and goes back', async () => {
   expect(del).toHaveBeenCalledWith(5);
   expect(mockBack).toHaveBeenCalled();
 });
+
+it('a new event can start filled in from a transaction', async () => {
+  mockParams = { id: 'new', name: 'Netflix', amount: '22.99', accountId: '2', date: '2026-10-03', emoji: '🎬' };
+  await renderScreen(<EventEditor />);
+  expect(screen.getByLabelText('Event name').props.value).toBe('Netflix');
+  expect(screen.getByLabelText('Event amount').props.value).toBe('22.99');
+  await fireEvent.press(screen.getByText('Save'));
+  expect(create).toHaveBeenCalledWith({
+    name: 'Netflix',
+    emoji: '🎬',
+    amountCents: 2299,
+    accountId: 2,
+    startDate: '2026-10-03',
+    repeat: 'monthly',
+    leadDays: 2,
+    onDayAlert: false,
+  });
+});

@@ -286,3 +286,12 @@ it('account detail rows open the transaction', async () => {
   await fireEvent.press(screen.getByText('Coffee'));
   expect(mockPush).toHaveBeenCalledWith('/transaction/5');
 });
+
+it('Make recurring opens a new event filled in from the transaction', async () => {
+  await renderScreen(<TransactionDetail />);
+  await fireEvent.press(screen.getByText('Make recurring'));
+  expect(mockPush).toHaveBeenCalledWith({
+    pathname: '/event/new',
+    params: { name: 'Woolworths', amount: '10', accountId: '7', date: '2026-10-22', emoji: '📅' },
+  });
+});
