@@ -65,6 +65,7 @@ export default function CategoryScreen() {
         {total !== undefined ? <Amount cents={total} variant="hero" /> : null}
       </View>
       {txQ.isError ? <AppText tone="muted">Couldn't load transactions. Pull to try again.</AppText> : null}
+      {txQ.isLoading ? <AppText tone="muted">Loading…</AppText> : null}
       <TransactionList
         transactions={transactions}
         categories={categories}

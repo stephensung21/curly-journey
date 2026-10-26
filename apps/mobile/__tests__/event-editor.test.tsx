@@ -123,3 +123,28 @@ it('a new event can start filled in from a transaction', async () => {
     onDayAlert: false,
   });
 });
+
+it('an event that no longer exists says so, with a way back', async () => {
+  mockParams = { id: '99' };
+  await renderScreen(<EventEditor />);
+  expect(screen.getByText('This event no longer exists.')).toBeTruthy();
+  await fireEvent.press(screen.getByText('‹ Back'));
+  expect(mockBack).toHaveBeenCalled();
+});
+
+it('says it is loading while events load', async () => {
+  mockParams = { id: '5' };
+  (mocked.useEvents as jest.Mock).mockReturnValue({ data: undefined, isLoading: true });
+  await renderScreen(<EventEditor />);
+  expect(screen.getByText('Loading…')).toBeTruthy();
+});
+
+it('a failed save message goes away when saving again', async () => {
+  create.mockRejectedValueOnce(new Error('offline')).mockImplementationOnce(() => new Promise(() => {}));
+  await renderScreen(<EventEditor />);
+  await fireEvent.changeText(screen.getByLabelText('Event name'), 'Gym');
+  await fireEvent.press(screen.getByText('Save'));
+  expect(screen.getByText("Couldn't save the event. Try again.")).toBeTruthy();
+  await fireEvent.press(screen.getByText('Save'));
+  expect(screen.queryByText("Couldn't save the event. Try again.")).toBeNull();
+});

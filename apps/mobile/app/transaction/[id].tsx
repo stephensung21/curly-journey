@@ -143,7 +143,8 @@ function Detail({ txn }: { txn: Transaction }) {
   const t = useTheme();
   const router = useRouter();
   const categories = useCategories().data ?? [];
-  const accounts = useAccounts().data?.accounts ?? [];
+  const accountsQ = useAccounts().data?.accounts;
+  const accounts = accountsQ ?? [];
   const update = useUpdateTransaction();
   const setSplits = useSetSplits();
 
@@ -241,7 +242,7 @@ function Detail({ txn }: { txn: Transaction }) {
             </AppText>
           </Row>
         ) : null}
-        <Row label="Account">{value(account ? (account.displayName ?? account.name) : '')}</Row>
+        <Row label="Account">{value(account ? (account.displayName ?? account.name) : accountsQ ? '' : 'Loading…')}</Row>
         <Row label="Status">{value(txn.status === 'pending' ? 'Pending' : 'Posted')}</Row>
       </Card>
 

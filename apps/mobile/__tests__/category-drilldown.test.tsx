@@ -101,3 +101,9 @@ it('opens the edit sheet for a category, and offers no Edit for Uncategorised', 
   await renderScreen(<CategoryScreen />);
   expect(screen.queryByLabelText('Edit category')).toBeNull();
 });
+
+it('says it is loading instead of showing an empty list', async () => {
+  (mocked.useTransactionsQuery as jest.Mock).mockReturnValue({ data: undefined, isLoading: true });
+  await renderScreen(<CategoryScreen />);
+  expect(screen.getByText('Loading…')).toBeTruthy();
+});

@@ -111,6 +111,7 @@ function Editor({ id, initial }: { id: number | null; initial: EventBody | null 
     setNameError(trimmed ? null : 'Give it a name');
     setAmountError(bad ? 'Enter an amount above $0' : null);
     if (!trimmed || bad) return;
+    setSaveError(null);
     const body: EventBody = {
       name: trimmed,
       emoji,
@@ -133,6 +134,7 @@ function Editor({ id, initial }: { id: number | null; initial: EventBody | null 
 
   async function remove() {
     if (id === null) return;
+    setSaveError(null);
     try {
       await del.mutateAsync(id);
     } catch {
@@ -256,6 +258,19 @@ function Editor({ id, initial }: { id: number | null; initial: EventBody | null 
   );
 }
 
+/** Still loading, or a link to an event that was deleted (or never existed). Always offers a way back. */
+function Missing({ loading }: { loading: boolean }) {
+  const router = useRouter();
+  return (
+    <Screen>
+      <Pressable accessibilityRole="button" hitSlop={8} onPress={() => router.back()}>
+        <AppText tone="muted">‹ Back</AppText>
+      </Pressable>
+      <AppText tone="muted">{loading ? 'Loading…' : 'This event no longer exists.'}</AppText>
+    </Screen>
+  );
+}
+
 /** Values a new event starts with when made from a transaction (see Make recurring). */
 type Prefill = { name?: string; amount?: string; accountId?: string; date?: string; emoji?: string };
 
@@ -285,7 +300,7 @@ export default function EventEditorScreen() {
   const events = useEvents().data?.events;
   const numeric = id === 'new' ? null : Number(id);
   const existing = numeric === null ? null : events?.find(e => e.id === numeric);
-  if (numeric !== null && !existing) return null; // Still loading, or deleted.
+  if (numeric !== null && !existing) return <Missing loading={!events} />;
   const initial: EventBody | null = existing
     ? {
         name: existing.name,

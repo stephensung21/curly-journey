@@ -295,3 +295,9 @@ it('Make recurring opens a new event filled in from the transaction', async () =
     params: { name: 'Woolworths', amount: '10', accountId: '7', date: '2026-10-22', emoji: '📅' },
   });
 });
+
+it('the account row says loading until accounts arrive', async () => {
+  (mocked.useAccounts as jest.Mock).mockReturnValue({ data: undefined });
+  await renderScreen(<TransactionDetail />);
+  expect(screen.getByText('Loading…')).toBeTruthy();
+});
