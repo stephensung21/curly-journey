@@ -86,11 +86,17 @@ it('shows the total and a pink more-than note', async () => {
   expect(screen.getByText('$310 more than Sep')).toBeTruthy();
 });
 
-it('shows money out and money in under the total, leaving out mortgage and Amex payments', async () => {
-  summary = { ...base, mortgageCents: 300000 };
+it('shows income as money in, and money out, leaving out mortgage and Amex payments', async () => {
+  summary = { ...base, mortgageCents: 300000, moneyInCents: 800000 };
   await renderScreen(<SpendingScreen />);
-  expect(screen.getByText('Money out $1,500 · Money in $300')).toBeTruthy();
-  expect(screen.getByText('Money in is refunds and paybacks. Mortgage and Amex payments not included.')).toBeTruthy();
+  expect(screen.getByText('Money in $8,000 · Money out $1,500')).toBeTruthy();
+  expect(screen.getByText('Spending is money out less $300 of refunds and paybacks. Mortgage and Amex payments not included.')).toBeTruthy();
+});
+
+it('leaves the refunds part out of the note when there are none', async () => {
+  summary = { ...base, outCents: 120000, backCents: 0 };
+  await renderScreen(<SpendingScreen />);
+  expect(screen.getByText('Mortgage and Amex payments not included.')).toBeTruthy();
 });
 
 it('the toggle adds mortgage and Amex payments to the total, money out and last month', async () => {
@@ -99,8 +105,8 @@ it('the toggle adds mortgage and Amex payments to the total, money out and last 
   await fireEvent(screen.getByLabelText('Include mortgage and Amex payments'), 'valueChange', true);
   // 1,200 + 3,000 mortgage + 2,000 Amex; last month 890 + 2,900 + 1,000.
   expect(screen.getByText('$6,200.00')).toBeTruthy();
-  expect(screen.getByText('Money out $6,500 · Money in $300')).toBeTruthy();
-  expect(screen.getByText('Includes mortgage $3,000 and Amex payments $2,000.')).toBeTruthy();
+  expect(screen.getByText('Money in $0 · Money out $6,500')).toBeTruthy();
+  expect(screen.getByText('Spending is money out less $300 of refunds and paybacks. Includes mortgage $3,000 and Amex payments $2,000.')).toBeTruthy();
   expect(screen.getByText('$1,410 more than Sep')).toBeTruthy();
   expect(useSettings.getState().spendingIncludesPayments).toBe(true);
 });

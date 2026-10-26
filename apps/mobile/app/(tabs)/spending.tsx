@@ -138,17 +138,22 @@ export default function SpendingScreen() {
           <CrayonUnderline width={150} color={accents.orange} />
           <MoreLessNote month={month} totalCents={s.totalCents + extra} prevTotalCents={s.prevTotalCents + prevExtra} />
           <AppText variant="bodyStrong" style={{ marginTop: 6 }}>
-            Money out <Amount cents={(s.outCents ?? s.totalCents) + extra} decimals="never" inline /> · Money in{' '}
-            <Amount cents={s.backCents ?? 0} decimals="never" inline />
+            Money in <Amount cents={s.moneyInCents} decimals="never" inline /> · Money out{' '}
+            <Amount cents={(s.outCents ?? s.totalCents) + extra} decimals="never" inline />
           </AppText>
           <AppText variant="label" tone="muted">
+            {(s.backCents ?? 0) > 0 ? (
+              <>
+                Spending is money out less <Amount cents={s.backCents} decimals="never" inline /> of refunds and paybacks.{' '}
+              </>
+            ) : null}
             {includePayments ? (
               <>
                 Includes mortgage <Amount cents={mortgage} decimals="never" inline /> and Amex payments{' '}
                 <Amount cents={card} decimals="never" inline />.
               </>
             ) : (
-              'Money in is refunds and paybacks. Mortgage and Amex payments not included.'
+              'Mortgage and Amex payments not included.'
             )}
           </AppText>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
