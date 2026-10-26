@@ -1,6 +1,7 @@
 import type {
   CategoryColor,
   CategorySource,
+  DividendSummary as CoreDividendSummary,
   Flow as CoreFlow,
   NwLine as CoreNwLine,
   NwRange as CoreNwRange,
@@ -195,6 +196,7 @@ export type NotificationPrefs = {
 };
 
 export type ValuedEtfHolding = CoreValuedEtfHolding;
+export type DividendSummary = CoreDividendSummary;
 export type Trade = ParsedTrade & { id: number; source: 'csv' | 'manual' };
 export type CommsecResponse = {
   accountId: number | null;
@@ -208,6 +210,8 @@ export type CommsecResponse = {
   notUpdated?: string[];
   holdings: ValuedEtfHolding[];
   trades: Trade[];
+  /** Dividends and distributions found in bank deposits. Absent before any CommSec import. */
+  dividends?: DividendSummary;
 };
 export type NewTrade = { date: string; side: 'buy' | 'sell'; symbol: string; units: number; price: string; brokerage: string };
 export type TradePreview = {

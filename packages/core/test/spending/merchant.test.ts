@@ -59,9 +59,9 @@ it('groups institutions', () => {
   expect(institutionGroup('ING')).toBe('ING');
 });
 
-it('has one income seed category', () => {
-  expect(SEED_CATEGORIES.filter((c) => c.kind === 'income').map((c) => c.name)).toEqual(['Income']);
-  expect(SEED_CATEGORIES).toHaveLength(21);
+it('has the Income and Dividends income seed categories', () => {
+  expect(SEED_CATEGORIES.filter((c) => c.kind === 'income').map((c) => c.name)).toEqual(['Income', 'Dividends']);
+  expect(SEED_CATEGORIES).toHaveLength(22);
 });
 
 it('every merchant and map target exists in SEED_CATEGORIES', () => {

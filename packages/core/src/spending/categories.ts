@@ -35,4 +35,5 @@ export const SEED_CATEGORIES: readonly CategorySeed[] = [
   s('Government & tax', '🏛️', 'purple'),
   s('Other spending', '📦', 'line'),
   { name: 'Income', emoji: '💰', color: 'lime', kind: 'income' },
+  { name: 'Dividends', emoji: '🌱', color: 'lime', kind: 'income' },
 ];

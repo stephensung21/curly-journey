@@ -245,3 +245,36 @@ describe('replacing manual trades on import', () => {
     expect(await bal()).toBe('154675'); // CSV: 1536.75 + 10.00
   });
 });
+
+describe('dividends', () => {
+  it('GET /holdings sums dividends from bank deposits, with yield on cost', async () => {
+    const { send, db } = await setup();
+    await send('POST', '/holdings/import', { csv: CSV }); // VAS, cost $1,546.75
+    const bank = (await db.query<{ id: number }>(
+      `insert into account (source, external_id, institution, name, kind, balance_cents, balance_date, counts_spending, counts_net_worth, projections)
+       values ('pocketsmith', 'b1', 'CommBank', 'Everyday', 'transaction', 0, '2026-10-23', true, true, 'off') returning id`,
+    ))[0]!.id;
+    const cat = async (name: string) => (await db.query<{ id: number }>('select id from category where name = $1', [name]))[0]!.id;
+    const add = (id: string, date: string, cents: number, desc: string, categoryId: number | null = null, source: string | null = null) =>
+      db.query(
+        `insert into transaction (account_id, source, external_id, date, amount_cents, description_raw, merchant, status, category_id, category_source)
+         values ($1, 'pocketsmith', $2, $3, $4, $5, '', 'posted', $6, $7)`,
+        [bank, id, date, cents, desc, categoryId, source],
+      );
+    await add('1', '2026-10-15', 5_000, 'Direct Credit VAS DST 001284'); // named ETF
+    await add('2', '2026-07-16', 2_500, 'Transfer from broker', await cat('Dividends'), 'user'); // put in Dividends by hand
+    await add('3', '2026-09-01', 9_000, 'VAS PAYMENT', await cat('Groceries'), 'user'); // sorted by hand elsewhere
+    await add('4', '2026-10-01', 500_000, 'Salary ACME');
+    await add('5', '2025-09-01', 4_000, 'VAS DST'); // over a year ago
+    const s = (await (await send('GET', '/holdings')).json()) as { dividends: unknown };
+    expect(s.dividends).toEqual({
+      last12Cents: 7_500,
+      fyCents: 7_500,
+      yieldBps: 485,
+      payments: [
+        { transactionId: expect.any(Number), date: '2026-10-15', amountCents: 5_000, symbol: 'VAS' },
+        { transactionId: expect.any(Number), date: '2026-07-16', amountCents: 2_500, symbol: null },
+      ],
+    });
+  });
+});

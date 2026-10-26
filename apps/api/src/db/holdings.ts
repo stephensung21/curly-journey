@@ -1,4 +1,4 @@
-import { addDays, defaultCounts, sydneyDate, TRADE_HINT_DAYS, type ParsedTrade } from '@curly/core';
+import { addDays, defaultCounts, sydneyDate, TRADE_HINT_DAYS, type DividendCandidate, type ParsedTrade } from '@curly/core';
 import type { Db } from './db';
 
 export type TradeRow = ParsedTrade & { id: number; source: 'csv' | 'manual' };
@@ -28,6 +28,8 @@ export type HoldingsRepo = {
   dismissHint(transactionId: number): Promise<void>;
   /** One query: recent CommSec-looking debits with no trade near them and no dismissal. */
   hintCandidates(today: string): Promise<{ transactionId: number; date: string }[]>;
+  /** One query: bank deposits since `from` that might be dividends (not transfers, not on the CommSec account). */
+  dividendCandidates(from: string): Promise<DividendCandidate[]>;
 };
 
 /** Debits this far back are still worth a hint. */
@@ -183,6 +185,34 @@ export function makeHoldingsRepo(db: Db): HoldingsRepo {
 
     async setCommsecBalance(accountId, valueCents, date) {
       await db.query('update account set balance_cents = $2, balance_date = $3::date where id = $1', [accountId, valueCents, date]);
+    },
+
+    async dividendCandidates(from) {
+      const rows = await db.query<{
+        id: string | number;
+        date: string;
+        amount_cents: string | number;
+        description: string;
+        in_dividends: boolean;
+        hand_sorted: boolean;
+      }>(
+        `select t.id, to_char(t.date, 'YYYY-MM-DD') as date, t.amount_cents::text as amount_cents,
+           t.description_raw || ' ' || t.merchant as description,
+           coalesce(c.name = 'Dividends', false) as in_dividends, t.category_source is not distinct from 'user' as hand_sorted
+         from transaction t
+         join account a on a.id = t.account_id
+         left join category c on c.id = t.category_id
+         where t.amount_cents > 0 and t.date >= $1::date and t.flow <> 'transfer' and a.source <> 'commsec'`,
+        [from],
+      );
+      return rows.map((r) => ({
+        transactionId: Number(r.id),
+        date: r.date,
+        amountCents: Number(r.amount_cents),
+        description: r.description,
+        inDividends: r.in_dividends,
+        handSorted: r.hand_sorted,
+      }));
     },
 
     async dismissHint(transactionId) {

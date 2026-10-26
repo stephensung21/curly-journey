@@ -1,6 +1,9 @@
 import {
+  addDays,
+  dividendSummary,
   grossCents,
   holdingsFromTrades,
+  isDividend,
   parseCommSecRows,
   parsePriceToMicros,
   sydneyDate,
@@ -145,7 +148,14 @@ export function holdingsRoutes(deps: Deps) {
     const missingPrices = holdings.filter((h) => h.priceDate === null).map((h) => h.symbol);
     // The daily job prices MAX_SYMBOLS held ETFs in symbol order; name the rest so the app can say so.
     const notUpdated = holdings.slice(MAX_SYMBOLS).map((h) => h.symbol);
-    return c.json({ accountId, valueCents, costCents, gainCents, gainBps, priceDate, missingPrices, notUpdated, holdings, trades });
+    const today = sydneyDate(deps.now());
+    const symbols = [...new Set(trades.map((t) => t.symbol))];
+    const payments = (await repo.dividendCandidates(addDays(today, -365))).flatMap((cand) => {
+      const hit = isDividend(cand, symbols);
+      return hit ? [{ transactionId: cand.transactionId, date: cand.date, amountCents: cand.amountCents, symbol: hit.symbol }] : [];
+    });
+    const dividends = dividendSummary(payments, today, costCents);
+    return c.json({ accountId, valueCents, costCents, gainCents, gainBps, priceDate, missingPrices, notUpdated, holdings, trades, dividends });
   });
 
   r.post('/holdings/import/preview', async (c) => {

@@ -1,8 +1,9 @@
+import { formatAud } from '@curly/core';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, View } from 'react-native';
 import { useCommsec, useDeleteTrade, useDismissHint } from '../src/api/hooks';
-import type { Trade, ValuedEtfHolding } from '../src/api/types';
+import type { DividendSummary, Trade, ValuedEtfHolding } from '../src/api/types';
 import { AllocationBar } from '../src/components/AllocationBar';
 import { Amount } from '../src/components/Amount';
 import { AppText } from '../src/components/AppText';
@@ -68,6 +69,42 @@ function HoldingCard({ h }: { h: ValuedEtfHolding }) {
           <AppText variant="label" style={{ color: gain }}>{`(${pct(h.gainBps)})`}</AppText>
         </View>
       </View>
+    </Card>
+  );
+}
+
+/** Shown at most, newest first. */
+const DIVIDEND_ROWS = 6;
+
+/** Dividends and distributions paid into the bank, found from the deposits (see the API's isDividend). */
+function DividendsCard({ d, onOpen }: { d: DividendSummary; onOpen: (transactionId: number) => void }) {
+  const hidden = useSettings(s => s.hideBalances);
+  const aud = (cents: number) => formatAud(cents, { hidden, decimals: 'never' });
+  return (
+    <Card style={{ gap: 6 }}>
+      <AppText variant="bodyStrong">Dividends</AppText>
+      {d.payments.length === 0 ? (
+        <AppText tone="muted">
+          No dividends found in the last 12 months. Deposits that name one of your ETFs, or say DIV or DST, count. You can also put a
+          deposit in the Dividends category.
+        </AppText>
+      ) : (
+        <>
+          <AppText>{`${aud(d.last12Cents)} in the last 12 months · ${pct(d.yieldBps)} on what you paid`}</AppText>
+          <AppText variant="label" tone="muted">{`${aud(d.fyCents)} since 1 July`}</AppText>
+          {d.payments.slice(0, DIVIDEND_ROWS).map(p => (
+            <Pressable
+              key={p.transactionId}
+              accessibilityRole="button"
+              onPress={() => onOpen(p.transactionId)}
+              style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 }}
+            >
+              <AppText>{`${p.symbol ?? 'Dividend'} · ${dayMonth(p.date)}`}</AppText>
+              <Amount cents={p.amountCents} decimals="never" />
+            </Pressable>
+          ))}
+        </>
+      )}
     </Card>
   );
 }
@@ -209,6 +246,7 @@ export default function CommsecScreen() {
           {data.holdings.map(h => (
             <HoldingCard key={h.symbol} h={h} />
           ))}
+          {data.dividends ? <DividendsCard d={data.dividends} onOpen={id => router.push(`/transaction/${id}`)} /> : null}
           {buttons}
           {data.trades.length > 0 ? (
             <>

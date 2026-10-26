@@ -195,6 +195,40 @@ describe('commsec screen', () => {
     expect(screen.getAllByText('$70.80')).toHaveLength(2); // unit prices keep cents
   });
 
+  it('shows dividends: last 12 months, yield on cost, this financial year and the payments', async () => {
+    commsec = {
+      ...data,
+      dividends: {
+        last12Cents: 41_200, fyCents: 12_000, yieldBps: 56,
+        payments: [
+          { transactionId: 31, date: '2026-10-15', amountCents: 12_000, symbol: 'VGS' },
+          { transactionId: 30, date: '2026-04-16', amountCents: 29_200, symbol: null },
+        ],
+      },
+    };
+    await renderScreen(<CommsecScreen />);
+    expect(screen.getByText('Dividends')).toBeTruthy();
+    expect(screen.getByText('$412 in the last 12 months · 0.6% on what you paid')).toBeTruthy();
+    expect(screen.getByText('$120 since 1 July')).toBeTruthy();
+    expect(screen.getByText('VGS · 15 Oct')).toBeTruthy();
+    expect(screen.getByText('Dividend · 16 Apr')).toBeTruthy();
+    await fireEvent.press(screen.getByText('VGS · 15 Oct'));
+    expect(mockPush).toHaveBeenCalledWith('/transaction/31');
+  });
+
+  it('dividend dollars hide with hide balances', async () => {
+    useSettings.setState({ hideBalances: true });
+    commsec = { ...data, dividends: { last12Cents: 41_200, fyCents: 12_000, yieldBps: 56, payments: [] } };
+    await renderScreen(<CommsecScreen />);
+    expect(screen.queryByText(/\$412/)).toBeNull();
+  });
+
+  it('explains how dividends are found when there are none yet', async () => {
+    commsec = { ...data, dividends: { last12Cents: 0, fyCents: 0, yieldBps: 0, payments: [] } };
+    await renderScreen(<CommsecScreen />);
+    expect(screen.getByText(/No dividends found in the last 12 months/)).toBeTruthy();
+  });
+
   it('shows no banner for a non-numeric hint', async () => {
     mockParams = { hint: 'abc' };
     await renderScreen(<CommsecScreen />);
