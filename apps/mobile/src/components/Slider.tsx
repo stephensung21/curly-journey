@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { PanResponder, Pressable, StyleSheet, View } from 'react-native';
+import { useSwipeLock } from '../lib/swipeLock';
 import { accents } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AppText } from './AppText';
@@ -30,6 +31,7 @@ function snap(v: number, min: number, max: number, step: number): number {
 export function Slider({ label, value, min, max, step, onChange, format, accessibilityLabel }: SliderProps) {
   const t = useTheme();
   const [width, setWidth] = useState(0);
+  const lockSwipe = useSwipeLock();
   const latest = useRef({ value, min, max, step, onChange, width });
   latest.current = { value, min, max, step, onChange, width };
   const startValue = useRef(value);
@@ -104,6 +106,10 @@ export function Slider({ label, value, min, max, step, onChange, format, accessi
           else if (e.nativeEvent.actionName === 'decrement') move(-1);
         }}
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+        // A finger on the slider holds the tabs still, so dragging the thumb never swipes to another tab.
+        onTouchStart={() => lockSwipe(true)}
+        onTouchEnd={() => lockSwipe(false)}
+        onTouchCancel={() => lockSwipe(false)}
         style={{ height: 36, justifyContent: 'center' }}
       >
         <View pointerEvents="none" style={{ height: 6, borderRadius: 3, backgroundColor: t.line, overflow: 'hidden' }}>

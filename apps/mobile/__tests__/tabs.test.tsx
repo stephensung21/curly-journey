@@ -43,3 +43,31 @@ it('tapping a tab moves to it', async () => {
   expect(screen).toHavePathname('/spending');
   expect(spending.props.accessibilityState).toEqual({ selected: true });
 }, 60_000);
+
+it('a finger on a slider holds the tabs still until it lifts', async () => {
+  // The real tab layout around stub screens, one of them a slider.
+  const { default: TabLayout } = require('../app/(tabs)/_layout');
+  const { Slider } = require('../src/components/Slider');
+  const SliderScreen = () => <Slider label="X" accessibilityLabel="X" value={0} min={0} max={10} step={1} onChange={() => {}} format={() => null} />;
+  const view = await renderRouter(
+    { '(tabs)/_layout': TabLayout, '(tabs)/index': SliderScreen, '(tabs)/spending': () => null, '(tabs)/projections': () => null, '(tabs)/more': () => null },
+    { initialUrl: '/' },
+  );
+  await view.findAllByLabelText(/, tab, \d+ of \d+$/);
+  // The tab pager is the only element here with scrollEnabled set.
+  const tabPagerScroll = () => {
+    const walk = (n: unknown): boolean | undefined => {
+      if (!n || typeof n !== 'object') return undefined;
+      if (Array.isArray(n)) return n.map(walk).find(v => v !== undefined);
+      const node = n as { props?: { scrollEnabled?: boolean }; children?: unknown };
+      return node.props?.scrollEnabled ?? walk(node.children);
+    };
+    return walk(view.toJSON());
+  };
+  expect(tabPagerScroll()).toBe(true);
+  const track = view.getByLabelText('X');
+  await fireEvent(track, 'touchStart');
+  expect(tabPagerScroll()).toBe(false);
+  await fireEvent(track, 'touchEnd');
+  expect(tabPagerScroll()).toBe(true);
+}, 60_000);
