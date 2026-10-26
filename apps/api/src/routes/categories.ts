@@ -31,5 +31,16 @@ export function categoryRoutes(deps: Deps) {
     return c.json(created, 201);
   });
 
+  r.put('/categories/order', async (c) => {
+    const body = await readJson(c);
+    if (body === undefined) return c.json({ error: 'bad_json' }, 400);
+    const ids = isObject(body) ? body.ids : undefined;
+    if (!Array.isArray(ids) || ids.length === 0 || !ids.every((n) => Number.isInteger(n) && n > 0 && n <= 2147483647)) {
+      return c.json({ error: 'bad_order' }, 400);
+    }
+    if (!(await repo.setCategoryOrder(ids as number[]))) return c.json({ error: 'bad_order' }, 400);
+    return c.json({ ok: true });
+  });
+
   return r;
 }

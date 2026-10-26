@@ -13,12 +13,53 @@ const cats: Category[] = [
   { id: 3, name: 'Transport', emoji: '🚗', color: 'yellow', kind: 'spending', sort: 3 },
 ];
 const mutateAsync = jest.fn();
+const reorder = jest.fn();
 
 beforeEach(() => {
   jest.clearAllMocks();
   pickSpy.mockClear();
   mutateAsync.mockResolvedValue({ id: 9, name: 'Pets', emoji: '🐶', color: 'line', kind: 'spending', sort: 9 });
   (hooks.useCreateCategory as jest.Mock).mockReturnValue({ mutateAsync, isPending: false });
+  (hooks.useReorderCategories as jest.Mock).mockReturnValue({ mutate: reorder });
+});
+
+describe('reorder', () => {
+  it('moves a category with the arrows and saves the new order on Done', async () => {
+    await open();
+    await fireEvent.press(screen.getByText('Reorder'));
+    expect(screen.queryByLabelText('Search categories')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Move Transport up'));
+    await fireEvent.press(screen.getByLabelText('Move Groceries down'));
+    expect(reorder).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByText('Done'));
+    expect(reorder).toHaveBeenCalledWith([3, 1, 2]);
+    expect(screen.getByLabelText('Search categories')).toBeTruthy();
+  });
+
+  it('has no up arrow on the first row and no down arrow on the last', async () => {
+    await open();
+    await fireEvent.press(screen.getByText('Reorder'));
+    expect(screen.queryByLabelText('Move Groceries up')).toBeNull();
+    expect(screen.queryByLabelText('Move Transport down')).toBeNull();
+  });
+
+  it('saves nothing when the order did not change or on Cancel', async () => {
+    await open();
+    await fireEvent.press(screen.getByText('Reorder'));
+    await fireEvent.press(screen.getByText('Done'));
+    await fireEvent.press(screen.getByText('Reorder'));
+    await fireEvent.press(screen.getByLabelText('Move Coffee up'));
+    await fireEvent.press(screen.getByText('Cancel'));
+    expect(reorder).not.toHaveBeenCalled();
+    expect(screen.getAllByText(/Groceries|Coffee|Transport/).map(n => n.props.children)).toEqual(['Groceries', 'Coffee', 'Transport']);
+  });
+
+  it('does not pick a category while reordering', async () => {
+    await open();
+    await fireEvent.press(screen.getByText('Reorder'));
+    await fireEvent.press(screen.getByText('Coffee'));
+    expect(pickSpy).not.toHaveBeenCalled();
+  });
 });
 
 const pickSpy = jest.fn();

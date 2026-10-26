@@ -192,6 +192,8 @@ export interface Repo {
   lastOkSync(): Promise<{ startedAt: Date; more: boolean } | null>;
   lastSyncStatus(): Promise<'ok' | 'failed' | 'running' | null>;
   listCategories(): Promise<CategoryDto[]>;
+  /** Renumbers sort 1..n with `ids` first and the rest after in their old order; false (nothing written) if an id is unknown or repeated. */
+  setCategoryOrder(ids: number[]): Promise<boolean>;
   listRules(): Promise<Rule[]>;
   /** merchant -> category of the latest row the owner categorised. */
   pastByMerchant(): Promise<Map<string, number>>;
@@ -866,6 +868,20 @@ export function makeRepo(db: Db): Repo {
     async listCategories() {
       const rows = await db.query<CategoryDto>('select id, name, emoji, color, kind, sort from category order by sort, id');
       return rows.map((r) => ({ ...r, id: Number(r.id), sort: Number(r.sort) }));
+    },
+
+    async setCategoryOrder(ids) {
+      if (new Set(ids).size !== ids.length) return false;
+      const found = await db.query<{ n: string | number }>('select count(*) as n from category where id = any($1::int[])', [ids]);
+      if (Number(found[0]!.n) !== ids.length) return false;
+      await db.query(
+        `update category c set sort = o.ord
+         from (select category.id, row_number() over (order by u.pos nulls last, category.sort, category.id) as ord
+               from category left join unnest($1::int[]) with ordinality as u(id, pos) on u.id = category.id) o
+         where c.id = o.id`,
+        [ids],
+      );
+      return true;
     },
 
     async listRules() {

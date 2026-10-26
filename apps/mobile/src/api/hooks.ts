@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey 
 import { useCallback, useEffect } from 'react';
 import { ApiError, apiFetch } from './client';
 import { clearConnection, loadConnection, saveConnection } from './connection';
+import { slotOrder } from '../lib/slotOrder';
 import { registerForPush } from '../notifications/register';
 import { useConnectionStore } from './connectionStore';
 import type {
@@ -226,6 +227,32 @@ export function useCreateCategory() {
   return useMutation({
     mutationFn: (body: NewCategory) =>
       apiFetch<Category>(conn, '/categories', { method: 'POST', body: JSON.stringify(body) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['categories'] }),
+  });
+}
+
+/** Saves a new category order. `ids` may be a subset (a filtered picker); the other categories keep their places. */
+export function useReorderCategories() {
+  const conn = useConn();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) => {
+      const full = qc.getQueryData<Category[]>(['categories'])?.map(c => c.id) ?? [];
+      return apiFetch<unknown>(conn, '/categories/order', { method: 'PUT', body: JSON.stringify({ ids: slotOrder(full, ids) }) });
+    },
+    onMutate: async ids => {
+      await qc.cancelQueries({ queryKey: ['categories'] });
+      const prev = qc.getQueryData<Category[]>(['categories']);
+      if (prev) {
+        const byId = new Map(prev.map(c => [c.id, c]));
+        const order = slotOrder(prev.map(c => c.id), ids);
+        qc.setQueryData<Category[]>(['categories'], order.flatMap(id => (byId.has(id) ? [byId.get(id)!] : [])));
+      }
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['categories'], ctx.prev);
+    },
     onSettled: () => qc.invalidateQueries({ queryKey: ['categories'] }),
   });
 }

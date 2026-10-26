@@ -59,6 +59,31 @@ describe('categories', () => {
       expect(await r.json()).toEqual({ error: 'bad_category' });
     }
   });
+
+  it('PUT /categories/order reorders; unlisted categories keep their order after the listed ones', async () => {
+    const { call } = await setup();
+    const ids = async () => ((await (await call('GET', '/categories')).json()) as { categories: { id: number; sort: number }[] }).categories;
+    const before = await ids();
+    const [a, b, ...rest] = before.map((c) => c.id);
+    const res = await call('PUT', '/categories/order', { ids: [b, a] });
+    expect(res.status).toBe(200);
+    const after = await ids();
+    expect(after.map((c) => c.id)).toEqual([b, a, ...rest]);
+    expect(after.map((c) => c.sort)).toEqual(after.map((_, i) => i + 1));
+    expect((await (await call('POST', '/categories', { name: 'Dates', emoji: '💕', color: 'pink', kind: 'spending' })).json()) as { sort: number })
+      .toMatchObject({ sort: after.length + 1 });
+  });
+
+  it('PUT /categories/order 400s on bad shapes, duplicates and unknown ids, and 401s without a token', async () => {
+    const { call, app } = await setup();
+    const first = ((await (await call('GET', '/categories')).json()) as { categories: { id: number }[] }).categories[0]!.id;
+    for (const body of [{ ids: [first, first] }, { ids: [first, 99999] }, { ids: [1.5] }, { ids: [0] }, { ids: ['1'] }, { ids: [] }, { ids: 'x' }, {}, []]) {
+      const r = await call('PUT', '/categories/order', body);
+      expect(r.status).toBe(400);
+      expect(await r.json()).toEqual({ error: 'bad_order' });
+    }
+    expect((await app.request('/categories/order', { method: 'PUT', body: '{"ids":[1]}' })).status).toBe(401);
+  });
 });
 
 describe('GET /transactions', () => {
