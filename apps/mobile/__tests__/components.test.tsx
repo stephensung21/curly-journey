@@ -67,6 +67,11 @@ describe('AccountRow', () => {
     expect(row).toHaveStyle({ minHeight: 64, paddingVertical: 14, borderRadius: 12, overflow: 'hidden' });
   });
 
+  it('pads the pressed highlight sideways while keeping content in line with the card', async () => {
+    await render(<AccountRow account={account as any} lastSuccessAt={null} />);
+    expect(screen.getByLabelText('Daily')).toHaveStyle({ paddingHorizontal: 8, marginHorizontal: -8 });
+  });
+
   it('changes background while pressed', async () => {
     await render(<AccountRow account={account as any} lastSuccessAt={null} />);
     const idle = StyleSheet.flatten(screen.getByLabelText('Daily').props.style).backgroundColor;

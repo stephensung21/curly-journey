@@ -40,6 +40,9 @@ export function AccountRow({ account, lastSuccessAt }: { account: Account; lastS
         gap: 10,
         minHeight: 64,
         paddingVertical: 14,
+        // The highlight reaches past the content; the negative margin keeps the content in line with the bank header.
+        paddingHorizontal: 8,
+        marginHorizontal: -8,
         borderRadius: 12,
         overflow: 'hidden',
         backgroundColor: pressed ? t.line + '80' : 'transparent',
