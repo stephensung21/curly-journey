@@ -9,6 +9,7 @@ import { makeRepo } from './db/repo';
 import { accountRoutes } from './routes/accounts';
 import { categoryRoutes } from './routes/categories';
 import { eventRoutes } from './routes/events';
+import { goalRoutes } from './routes/goals';
 import { holdingsRoutes } from './routes/holdings';
 import { importRoutes } from './routes/imports';
 import { limitRoutes } from './routes/limits';
@@ -39,5 +40,6 @@ export function createApp(deps: Deps) {
   app.route('/', notifyRoutes(deps));
   app.route('/', netWorthRoutes(deps));
   app.route('/', projectionRoutes(deps));
+  app.route('/', goalRoutes(deps));
   return app;
 }

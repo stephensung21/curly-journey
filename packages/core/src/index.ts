@@ -22,6 +22,7 @@ export * from './notify/plan';
 export * from './holdings/commsec';
 export * from './holdings/holdings';
 export * from './holdings/dividends';
+export * from './goals/goals';
 export * from './networth/history';
 export * from './networth/networth';
 export * from './projections/etf';
