@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useSettings } from '../src/settings/store';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { useAddTrade, useCommsec, useCommsecImport, useDeleteTrade, useDismissHint, useNetWorth } from '../src/api/hooks';
@@ -56,10 +57,15 @@ it('delete trade and dismiss hint hit the right routes', async () => {
   expectInvalidated(spy);
 });
 
-it('useNetWorth requests the range', async () => {
+it('useNetWorth requests the range, leaving the home loan out unless the setting is on', async () => {
   const { result } = await renderHook(() => useNetWorth('1Y'), { wrapper });
   await waitFor(() => expect(result.current.data).toBeTruthy());
-  expect((globalThis.fetch as jest.Mock).mock.calls[0][0]).toBe('http://x/networth?range=1Y');
+  expect((globalThis.fetch as jest.Mock).mock.calls[0][0]).toBe('http://x/networth?range=1Y&loans=0');
+  useSettings.setState({ netWorthIncludesLoans: true });
+  const again = await renderHook(() => useNetWorth('6M'), { wrapper });
+  await waitFor(() => expect(again.result.current.data).toBeTruthy());
+  expect((globalThis.fetch as jest.Mock).mock.calls.at(-1)[0]).toBe('http://x/networth?range=6M&loans=1');
+  useSettings.setState({ netWorthIncludesLoans: false });
 });
 
 it('useCommsec uses the commsec key and /holdings', async () => {

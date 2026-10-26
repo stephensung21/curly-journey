@@ -2,6 +2,7 @@ import { fireEvent, screen } from '@testing-library/react-native';
 import { renderScreen } from '../test-utils/renderScreen';
 import MoreScreen from '../app/(tabs)/more';
 import * as hooks from '../src/api/hooks';
+import { useSettings } from '../src/settings/store';
 
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
@@ -39,6 +40,18 @@ it('shows grouped rows with sublines', async () => {
   expect(screen.getByText('CommBank or Amex CSV')).toBeTruthy();
   expect(screen.getByText('Monthly + 3 categories')).toBeTruthy();
   expect(screen.getByText('93% auto-sorted')).toBeTruthy();
+});
+
+it('has switches for what the totals count, both off by default', async () => {
+  useSettings.setState({ spendingIncludesPayments: false, netWorthIncludesLoans: false });
+  await renderScreen(<MoreScreen />);
+  const spend = screen.getByLabelText('Spending includes mortgage and Amex payments');
+  const nw = screen.getByLabelText('Net worth includes the home loan');
+  expect(spend.props.value).toBe(false);
+  expect(nw.props.value).toBe(false);
+  await fireEvent(spend, 'valueChange', true);
+  await fireEvent(nw, 'valueChange', true);
+  expect(useSettings.getState()).toMatchObject({ spendingIncludesPayments: true, netWorthIncludesLoans: true });
 });
 
 it('navigates each row to its route', async () => {

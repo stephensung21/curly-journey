@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AppState, StyleSheet, View } from 'react-native';
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
-import { SunDoodle } from '../components/doodles/SunDoodle';
+import { BirdLogo } from '../components/BirdLogo';
 import { Screen } from '../components/Screen';
 import { useTheme } from '../theme/useTheme';
 import { shouldLock } from './shouldLock';
@@ -78,7 +78,7 @@ export function LockGate({ children }: { children: ReactNode }) {
       {locked && (
         <View style={StyleSheet.absoluteFill}>
           <Screen style={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 16 }}>
-            <SunDoodle size={64} />
+            <BirdLogo size={84} />
             <AppText variant="title">Curly Journey</AppText>
             {state === 'noScreenLock' ? (
               <AppText tone="muted" style={{ textAlign: 'center' }}>
@@ -94,7 +94,7 @@ export function LockGate({ children }: { children: ReactNode }) {
       )}
       {!locked && covered && (
         <View testID="privacy-cover" style={[StyleSheet.absoluteFill, { backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' }]}>
-          <SunDoodle size={64} />
+          <BirdLogo size={84} />
         </View>
       )}
     </View>

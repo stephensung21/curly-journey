@@ -12,8 +12,8 @@ import { CategoryBar } from '../../src/components/CategoryBar';
 import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
 import { MoreLessNote } from '../../src/components/MoreLessNote';
 import { MonthSwitcher } from '../../src/components/MonthSwitcher';
+import { PageTitle } from '../../src/components/PageTitle';
 import { Screen } from '../../src/components/Screen';
-import { Toggle } from '../../src/components/Toggle';
 import { TransactionList } from '../../src/components/TransactionList';
 import { sydneyDate } from '../../src/lib/days';
 import { now } from '../../src/lib/now';
@@ -92,7 +92,6 @@ export default function SpendingScreen() {
 
   const s = spendingQ.data;
   const includePayments = useSettings(st => st.spendingIncludesPayments);
-  const setIncludePayments = useSettings(st => st.setSpendingIncludesPayments);
   // Mortgage repayments and Amex statement payments are left out of spending unless the toggle adds them back.
   const mortgage = s?.mortgageCents ?? 0;
   const card = s?.cardPaymentCents ?? 0;
@@ -121,7 +120,7 @@ export default function SpendingScreen() {
 
   return (
     <Screen testID="spending-scroll" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-      <AppText variant="title">Spending</AppText>
+      <PageTitle>Spending</PageTitle>
       <MonthSwitcher value={month} onChange={setMonth} />
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         <Chip label="All" selected={!institution} onPress={() => setInstitution(undefined)} />
@@ -153,20 +152,17 @@ export default function SpendingScreen() {
                 <Amount cents={card} decimals="never" inline />.
               </>
             ) : (
-              'Mortgage and Amex payments not included.'
+              'Mortgage and Amex payments not included (change in More).'
             )}
           </AppText>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-            <AppText>Include mortgage and Amex payments</AppText>
-            <Toggle accessibilityLabel="Include mortgage and Amex payments" value={includePayments} onChange={setIncludePayments} />
-          </View>
         </View>
       ) : null}
 
       <View style={{ flexDirection: 'row', gap: 20 }}>
         {PAGES.map((label, i) => (
           <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: page === i }} onPress={() => goTo(i)}>
-            <AppText variant={page === i ? 'bodyStrong' : 'body'} tone={page === i ? 'ink' : 'muted'}>
+            {/* Same weight on both: a bold selected label is wider and made the row shift while swiping. */}
+            <AppText variant="bodyStrong" tone={page === i ? 'ink' : 'muted'}>
               {label}
             </AppText>
             {page === i ? <CrayonUnderline width={label.length * 9} color={accents.lime} seed={i + 3} /> : <View style={{ height: 14 }} />}

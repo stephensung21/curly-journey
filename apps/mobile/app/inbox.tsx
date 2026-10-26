@@ -8,7 +8,7 @@ import { AppText } from '../src/components/AppText';
 import { Button } from '../src/components/Button';
 import { Card } from '../src/components/Card';
 import { CategoryPicker } from '../src/components/CategoryPicker';
-import { SunDoodle } from '../src/components/doodles/SunDoodle';
+import { BirdLogo } from '../src/components/BirdLogo';
 import { Screen } from '../src/components/Screen';
 import { SwipeCard } from '../src/components/SwipeCard';
 import { fullDay } from '../src/lib/days';
@@ -85,7 +85,7 @@ export default function InboxScreen() {
 
       {queue !== null && queue.length === 0 ? (
         <View style={{ alignItems: 'center', gap: 12, paddingTop: 48 }}>
-          <SunDoodle size={96} />
+          <BirdLogo size={110} />
           <AppText variant="title">All sorted!</AppText>
           {stats?.autoPercent != null ? <AppText tone="muted">{`${stats.autoPercent}% sorted automatically this month`}</AppText> : null}
         </View>

@@ -11,6 +11,7 @@ import { Disclaimer } from '../../src/components/Disclaimer';
 import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
 import { HandNote } from '../../src/components/doodles/HandNote';
 import { ProjectionChart } from '../../src/components/ProjectionChart';
+import { PageTitle } from '../../src/components/PageTitle';
 import { Screen } from '../../src/components/Screen';
 import { Segmented } from '../../src/components/Segmented';
 import { Slider } from '../../src/components/Slider';
@@ -176,7 +177,7 @@ export default function ProjectionsScreen() {
 
   return (
     <Screen>
-      <AppText variant="title">Projections</AppText>
+      <PageTitle>Projections</PageTitle>
       {q.isError ? <AppText tone="muted">Couldn't load projections. Try again later.</AppText> : null}
       {data ? <Loaded profile={data.profile} prefill={data.prefill} /> : null}
       <Disclaimer />

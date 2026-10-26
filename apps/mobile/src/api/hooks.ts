@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { useSettings } from '../settings/store';
 import { useCallback, useEffect } from 'react';
 import { ApiError, apiFetch } from './client';
 import { clearConnection, loadConnection, saveConnection } from './connection';
@@ -624,10 +625,11 @@ export function useCommsec() {
 
 export function useNetWorth(range: NwRange) {
   const conn = useConn();
+  const loans = useSettings(s => s.netWorthIncludesLoans) ? '1' : '0';
   return useQuery({
-    queryKey: ['networth', range],
+    queryKey: ['networth', range, loans],
     enabled: !!conn.url,
-    queryFn: () => apiFetch<NetWorthResponse>(conn, `/networth${qs({ range })}`),
+    queryFn: () => apiFetch<NetWorthResponse>(conn, `/networth${qs({ range, loans })}`),
   });
 }
 

@@ -11,7 +11,7 @@ import { AppText } from '../../src/components/AppText';
 import { Card } from '../../src/components/Card';
 import { Chip } from '../../src/components/Chip';
 import { CrayonUnderline } from '../../src/components/doodles/CrayonUnderline';
-import { SunDoodle } from '../../src/components/doodles/SunDoodle';
+import { BirdLogo } from '../../src/components/BirdLogo';
 import { HeroCard } from '../../src/components/HeroCard';
 import { InOutChart } from '../../src/components/InOutChart';
 import { NetWorthRow } from '../../src/components/NetWorthRow';
@@ -179,7 +179,7 @@ export default function AccountsScreen() {
           </Pressable>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <SunDoodle />
+          <BirdLogo />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Refresh"

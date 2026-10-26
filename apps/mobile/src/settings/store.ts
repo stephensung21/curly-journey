@@ -13,11 +13,14 @@ type SettingsState = {
   bankOrder: string[];
   /** Spending total also counts mortgage repayments and Amex statement payments. */
   spendingIncludesPayments: boolean;
+  /** Net worth also counts the home loan. Off: the loan is left out. */
+  netWorthIncludesLoans: boolean;
   setThemeMode: (mode: 'system' | Mode) => void;
   setHideBalances: (hidden: boolean) => void;
   setHomeChart: (chart: HomeChart) => void;
   setBankOrder: (order: string[]) => void;
   setSpendingIncludesPayments: (on: boolean) => void;
+  setNetWorthIncludesLoans: (on: boolean) => void;
 };
 
 export const useSettings = create<SettingsState>()(
@@ -28,11 +31,13 @@ export const useSettings = create<SettingsState>()(
       homeChart: 'sixMonths',
       bankOrder: [],
       spendingIncludesPayments: false,
+      netWorthIncludesLoans: false,
       setThemeMode: themeMode => set({ themeMode }),
       setHideBalances: hideBalances => set({ hideBalances }),
       setHomeChart: homeChart => set({ homeChart }),
       setBankOrder: bankOrder => set({ bankOrder }),
       setSpendingIncludesPayments: spendingIncludesPayments => set({ spendingIncludesPayments }),
+      setNetWorthIncludesLoans: netWorthIncludesLoans => set({ netWorthIncludesLoans }),
     }),
     { name: 'curly-settings', storage: createJSONStorage(() => AsyncStorage) },
   ),

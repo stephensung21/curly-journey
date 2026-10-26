@@ -21,6 +21,8 @@ async function drawing(size, fill) {
   await sharp({ create: { width: 512, height: 512, channels: 4, background: PAPER } }).png().toFile(out + '/android-icon-background.png');
   await sharp(await drawing(1024, 0.6)).png().toFile(out + '/splash-icon.png');
   await sharp(await drawing(48, 0.9)).flatten({ background: PAPER }).png().toFile(out + '/favicon.png');
+  // In-app logo (header and empty states): the drawing alone on transparent.
+  await sharp(dir + '/lorikeet.svg', { density: 300 }).trim().resize(240, 240, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toFile(out + '/lorikeet.png');
   // Monochrome: only the graphite line, as alpha.
   const { data, info } = await sharp(await drawing(432, 0.58)).raw().ensureAlpha().toBuffer({ resolveWithObject: true });
   for (let i = 0; i < data.length; i += 4) {
