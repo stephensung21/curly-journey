@@ -133,6 +133,16 @@ describe('CoinSpot detail', () => {
     useSettings.setState({ hideBalances: false });
   });
 
+  it('lists coins from highest value to lowest', async () => {
+    account = coinspot;
+    (mocked.useHoldings as jest.Mock).mockReturnValue({
+      data: { holdings: [{ symbol: 'ADA', units: '10', audCents: 5000 }, { symbol: 'BTC', units: '0.0412', audCents: 900000 }, { symbol: 'ETH', units: '1.5', audCents: 400000 }] },
+    });
+    await renderScreen(<AccountDetail />);
+    const order = screen.getAllByText(/^(ADA|BTC|ETH)$/).map(n => n.props.children);
+    expect(order).toEqual(['BTC', 'ETH', 'ADA']);
+  });
+
   it('lists holdings with units and AUD value', async () => {
     account = coinspot;
     await renderScreen(<AccountDetail />);

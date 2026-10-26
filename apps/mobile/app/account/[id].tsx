@@ -127,7 +127,8 @@ function ManualDetail({ account }: { account: Account }) {
 }
 
 function CoinSpotDetail({ account }: { account: Account }) {
-  const holdings = useHoldings(account.id).data?.holdings ?? [];
+  // Highest value first, whatever order the server sends.
+  const holdings = [...(useHoldings(account.id).data?.holdings ?? [])].sort((a, b) => b.audCents - a.audCents);
   const hidden = useSettings(s => s.hideBalances);
   return (
     <Screen>
