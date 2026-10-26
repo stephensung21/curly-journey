@@ -70,6 +70,20 @@ describe('GET /accounts stale and needsUpdate', () => {
 });
 
 describe('PATCH /accounts/:id', () => {
+  it('hides and unhides an account; new accounts are shown, and a sync keeps the choice', async () => {
+    const { app, auth, ps, repo } = await setup();
+    const list = async () => ((await (await app.request('/accounts', { headers: auth })).json()) as { accounts: (Acct & { hidden: boolean })[] }).accounts;
+    expect((await list()).find((a) => a.id === ps)!.hidden).toBe(false);
+    const res = await patch(app, auth, ps, { hidden: true });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { hidden: boolean }).hidden).toBe(true);
+    await repo.upsertAccount({ source: 'pocketsmith', externalId: '1', institution: 'CBA', name: 'Everyday', kind: 'transaction', balanceCents: 9, balanceDate: '2026-10-23' });
+    expect((await list()).find((a) => a.id === ps)!.hidden).toBe(true);
+    await patch(app, auth, ps, { hidden: false });
+    expect((await list()).find((a) => a.id === ps)!.hidden).toBe(false);
+    expect((await patch(app, auth, ps, { hidden: 'yes' })).status).toBe(400);
+  });
+
   it('persists isOffset', async () => {
     const { app, auth, ps } = await setup();
     const res = await patch(app, auth, ps, { isOffset: true });

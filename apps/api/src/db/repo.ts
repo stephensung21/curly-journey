@@ -34,6 +34,8 @@ export type AccountDto = {
   sortOrder: number | null;
   /** Yearly growth in basis points shown on a manual account's value; null for none. */
   growthBps: number | null;
+  /** Left off the Accounts page; nothing else changes. */
+  hidden: boolean;
   /** ISO 8601 UTC: when a CoinSpot account last synced; null for other sources. */
   syncedAt: string | null;
 };
@@ -103,7 +105,7 @@ export type CategorisationUpdate = {
 };
 
 export type AccountSettingsPatch = Partial<
-  Pick<AccountDto, 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'displayName' | 'icon' | 'growthBps'>
+  Pick<AccountDto, 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'displayName' | 'icon' | 'growthBps' | 'hidden'>
 >;
 
 export type HistoryState = {
@@ -236,7 +238,7 @@ const BULK_CHUNK = 1000;
 
 // Dates are cast to text in SQL and bigints to numbers here, so PGlite and Neon return identical shapes.
 export const ACCOUNT_COLS = `id, source, institution, name, display_name, kind, balance_cents::text as balance_cents,
-  to_char(balance_date, 'YYYY-MM-DD') as balance_date, counts_spending, counts_net_worth, projections, is_offset, icon, sort_order, growth_bps,
+  to_char(balance_date, 'YYYY-MM-DD') as balance_date, counts_spending, counts_net_worth, projections, is_offset, icon, sort_order, growth_bps, hidden,
   to_char(synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as synced_at`;
 
 export type AccountSql = {
@@ -255,6 +257,7 @@ export type AccountSql = {
   icon: string | null;
   sort_order: number | null;
   growth_bps: number | null;
+  hidden: boolean;
   synced_at: string | null;
 };
 
@@ -274,6 +277,7 @@ export const toAccountDto = (r: AccountSql): AccountDto => ({
   icon: r.icon,
   sortOrder: r.sort_order === null ? null : Number(r.sort_order),
   growthBps: r.growth_bps === null ? null : Number(r.growth_bps),
+  hidden: r.hidden,
   syncedAt: r.synced_at,
 });
 
@@ -565,6 +569,7 @@ export function makeRepo(db: Db): Repo {
         displayName: 'display_name',
         icon: 'icon',
         growthBps: 'growth_bps',
+        hidden: 'hidden',
       };
       const sets: string[] = [];
       const params: unknown[] = [id];

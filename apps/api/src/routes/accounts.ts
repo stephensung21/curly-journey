@@ -5,7 +5,7 @@ import { makeManualRepo } from '../db/manual';
 import { makeRepo, type AccountSettingsPatch } from '../db/repo';
 import { isObject, parseId, readJson } from './http';
 
-const BOOLS = ['countsSpending', 'countsNetWorth', 'isOffset'] as const;
+const BOOLS = ['countsSpending', 'countsNetWorth', 'isOffset', 'hidden'] as const;
 const PROJECTIONS = ['off', 'etf', 'mortgage'];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;

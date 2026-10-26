@@ -97,6 +97,7 @@ export default function AccountsScreen() {
   const reorder = useReorderAccounts();
   // Reorder mode: the groups in display order, edited locally until Done.
   const [draft, setDraft] = useState<[string, Account[]][] | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const running = useRef(false);
   const [error, setError] = useState(false);
@@ -141,7 +142,10 @@ export default function AccountsScreen() {
       (warned.length > 1 ? ` · +${warned.length - 1} more` : '')
     : null;
 
-  const shown = draft ?? groupAccounts(accounts, bankOrder);
+  // Editing the order shows every account, so hidden ones keep their place.
+  const hiddenCount = accounts.filter(a => a.hidden).length;
+  const listed = showHidden ? accounts : accounts.filter(a => !a.hidden);
+  const shown = draft ?? groupAccounts(listed, bankOrder);
   const idsOf = (groups: [string, Account[]][]) => groups.flatMap(([, rows]) => rows.map(a => a.id));
   const startEditing = () => setDraft(groupAccounts(accounts, bankOrder));
   const finishEditing = () => {
@@ -260,6 +264,13 @@ export default function AccountsScreen() {
           )}
         </Card>
       ))}
+      {draft || hiddenCount === 0 ? null : (
+        <Pressable accessibilityRole="button" hitSlop={6} onPress={() => setShowHidden(v => !v)} style={{ alignSelf: 'center' }}>
+          <AppText variant="label" tone="muted">
+            {showHidden ? 'Hide hidden accounts' : `Show ${hiddenCount} hidden ${hiddenCount === 1 ? 'account' : 'accounts'}`}
+          </AppText>
+        </Pressable>
+      )}
       {draft ? null : (
         <Pressable
           accessibilityRole="button"

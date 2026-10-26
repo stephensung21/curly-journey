@@ -109,11 +109,11 @@ Phone checks after you deploy:
 - Moving the extra-repayment slider moves the mortgage-free date earlier.
 - Hide balances masks every figure on the Projections tab.
 
-## Category editing setup (once)
+## Updates after Plan 6 (once)
 
-Do this after the Plan 6 setup. It adds renaming, merging and reordering of categories, and categorising by name.
+Do this after the Plan 6 setup. It adds renaming, merging and reordering of categories, categorising by name, and hiding accounts.
 
-1. **Migrate.** From the repo root, load the connection string for this window only: `$env:DATABASE_URL = Read-Host "Neon connection string"`. Then from `apps/api` run `node scripts/migrate.mjs`. Expect `applied 0008_category_aliases.sql`. Then `Remove-Item Env:DATABASE_URL`.
+1. **Migrate.** From the repo root, load the connection string for this window only: `$env:DATABASE_URL = Read-Host "Neon connection string"`. Then from `apps/api` run `node scripts/migrate.mjs`. Expect `applied 0008_category_aliases.sql` and `applied 0009_account_hidden.sql`. Then `Remove-Item Env:DATABASE_URL`.
 2. **Deploy the Worker.** From `apps/api`, run `npx wrangler deploy`.
 3. **New APK.** From `apps/mobile`, run `npx eas-cli build -p android --profile preview`.
 
@@ -121,4 +121,5 @@ Phone checks after you deploy:
 
 - Open a category from Spending, tap **Edit**, rename it. New transactions that used to land in it still do.
 - **Move everything to another category** moves its transactions, rules and limit, then the old category is gone.
+- In an account's settings, switch off **Show on Accounts page**. It leaves the list, and "Show 1 hidden account" at the bottom brings it back. Totals don't change.
 - Search Transactions for `beem`, tap **Categorise everything named "beem"**, pick a category. The count matches, and later Beem transactions go there too.

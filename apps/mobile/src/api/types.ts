@@ -34,6 +34,8 @@ export type Account = {
   needsUpdate: boolean;
   /** Yearly growth in basis points, manual accounts only. */
   growthBps: number | null;
+  /** Left off the Accounts page. Missing from a server older than this field. */
+  hidden?: boolean;
 };
 
 export type AccountValue = { asOf: string; valueCents: number };
@@ -42,7 +44,7 @@ export type Holding = { symbol: string; units: string; audCents: number };
 export type AccountsResponse = { accounts: Account[]; lastSuccessAt: string | null };
 
 export type AccountSettings = Partial<
-  Pick<Account, 'displayName' | 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'icon' | 'growthBps'>
+  Pick<Account, 'displayName' | 'countsSpending' | 'countsNetWorth' | 'projections' | 'isOffset' | 'icon' | 'growthBps' | 'hidden'>
 >;
 
 export type Flow = CoreFlow;

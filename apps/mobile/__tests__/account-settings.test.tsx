@@ -191,3 +191,9 @@ describe('growth field', () => {
     expect(mutate).toHaveBeenCalledWith({ id: 7, settings: { growthBps: null } });
   });
 });
+
+it('hides the account from the Accounts page', async () => {
+  await renderScreen(<AccountSettings />);
+  await fireEvent(screen.getByLabelText('Show on Accounts page'), 'valueChange', false);
+  expect(mutate).toHaveBeenCalledWith({ id: 7, settings: { hidden: true } });
+});

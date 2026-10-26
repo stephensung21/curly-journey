@@ -317,3 +317,20 @@ describe('bank data line', () => {
     expect(screen.queryByText(/^Bank data:/)).toBeNull();
   });
 });
+
+describe('hidden accounts', () => {
+  it('leaves hidden accounts off the list until "Show hidden" is tapped', async () => {
+    accounts = [acct(1, 'Up'), acct(2, 'CommBank', { hidden: true, displayName: 'Old savings' })];
+    await renderScreen(<AccountsScreen />);
+    expect(screen.queryByText('Old savings')).toBeNull();
+    await fireEvent.press(screen.getByText('Show 1 hidden account'));
+    expect(screen.getByText('Old savings')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Hide hidden accounts'));
+    expect(screen.queryByText('Old savings')).toBeNull();
+  });
+
+  it('says nothing when no account is hidden', async () => {
+    await renderScreen(<AccountsScreen />);
+    expect(screen.queryByText(/hidden account/)).toBeNull();
+  });
+});

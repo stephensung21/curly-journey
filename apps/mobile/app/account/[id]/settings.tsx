@@ -76,6 +76,7 @@ function Form({ account }: { account: Account }) {
         <ToggleRow label="Spending" value={account.countsSpending} onChange={v => save({ countsSpending: v })} />
         <ToggleRow label="Net worth" value={account.countsNetWorth} onChange={v => save({ countsNetWorth: v })} />
         <ToggleRow label="Offset for home loan" value={account.isOffset} onChange={v => save({ isOffset: v })} />
+        <ToggleRow label="Show on Accounts page" value={!account.hidden} onChange={v => save({ hidden: !v })} />
         {account.kind === 'manual_asset' ? <HandNote>super stays out of your spending, promise</HandNote> : null}
       </Card>
 
