@@ -57,6 +57,15 @@ export default function SpendingScreen() {
   const accounts = useAccounts().data?.accounts;
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
+  // A horizontal ScrollView is as tall as its tallest page, which let the short page scroll into blank space.
+  // So the pager takes the height of the page on screen, and the taller one only while swiping between them.
+  const [heights, setHeights] = useState<[number, number]>([0, 0]);
+  const [swiping, setSwiping] = useState(false);
+  const measurePage = (i: 0 | 1) => (e: LayoutChangeEvent) => {
+    const h = e.nativeEvent.layout.height;
+    setHeights(prev => (prev[i] === h ? prev : i === 0 ? [h, prev[1]] : [prev[0], h]));
+  };
+  const pagerHeight = swiping ? Math.max(...heights) : heights[page];
   const [width, setWidth] = useState(() => Dimensions.get('window').width - 32);
   const pager = useRef<ScrollViewInstance>(null);
   const limitsQ = useLimits(month);
@@ -139,9 +148,14 @@ export default function SpendingScreen() {
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          onMomentumScrollEnd={e => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
+          style={pagerHeight ? { height: pagerHeight } : undefined}
+          onScrollBeginDrag={() => setSwiping(true)}
+          onMomentumScrollEnd={e => {
+            setPage(Math.round(e.nativeEvent.contentOffset.x / width));
+            setSwiping(false);
+          }}
         >
-          <View style={{ width, gap: 14 }}>
+          <View testID="spending-page-0" onLayout={measurePage(0)} style={{ width, gap: 14, alignSelf: 'flex-start' }}>
             {s ? (
               <>
                 {warnings.map(l => (
@@ -213,7 +227,7 @@ export default function SpendingScreen() {
               </>
             ) : null}
           </View>
-          <View style={{ width, gap: 10 }}>
+          <View testID="spending-page-1" onLayout={measurePage(1)} style={{ width, gap: 10, alignSelf: 'flex-start' }}>
             <TextInput
               accessibilityLabel="Search transactions"
               placeholder="Search merchant, category, note or amount"

@@ -1,4 +1,5 @@
 import { fireEvent, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { renderScreen } from '../test-utils/renderScreen';
 import SpendingScreen from '../app/(tabs)/spending';
 import * as hooks from '../src/api/hooks';
@@ -214,5 +215,29 @@ describe('Transactions page', () => {
     (mocked.useTransactionsQuery as jest.Mock).mockImplementation(() => ({ data: undefined, isLoading: false, isError: true }));
     await renderScreen(<SpendingScreen />);
     expect(screen.getByText("Couldn't load transactions. Pull to try again.")).toBeTruthy();
+  });
+});
+
+describe('pager height', () => {
+  const layout = (height: number) => ({ nativeEvent: { layout: { x: 0, y: 0, width: 358, height } } });
+  const pagerHeight = () => StyleSheet.flatten(screen.getByTestId('spending-pager').props.style)?.height;
+
+  it('is as tall as the page on screen, not the taller one beside it', async () => {
+    await renderScreen(<SpendingScreen />);
+    await fireEvent(screen.getByTestId('spending-page-0'), 'layout', layout(400));
+    await fireEvent(screen.getByTestId('spending-page-1'), 'layout', layout(2000));
+    expect(pagerHeight()).toBe(400);
+    await fireEvent.press(screen.getByText('Transactions'));
+    expect(pagerHeight()).toBe(2000);
+  });
+
+  it('lets both pages show while swiping, then fits the page it lands on', async () => {
+    await renderScreen(<SpendingScreen />);
+    await fireEvent(screen.getByTestId('spending-page-0'), 'layout', layout(400));
+    await fireEvent(screen.getByTestId('spending-page-1'), 'layout', layout(2000));
+    await fireEvent(screen.getByTestId('spending-pager'), 'scrollBeginDrag');
+    expect(pagerHeight()).toBe(2000);
+    await fireEvent(screen.getByTestId('spending-pager'), 'momentumScrollEnd', { nativeEvent: { contentOffset: { x: 0, y: 0 } } });
+    expect(pagerHeight()).toBe(400);
   });
 });
