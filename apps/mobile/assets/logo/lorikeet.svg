@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 420" role="img" aria-label="Loose one-line pencil lorikeet with colour scribbles">
+  <defs>
+    <filter id="wob" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="t"/>
+      <feDisplacementMap in="SourceGraphic" in2="t" scale="2.6" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="grain" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="12" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2 1.5" result="a"/>
+      <feComposite in="SourceGraphic" in2="a" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- colour scribbles, slightly off the line like a quick sketch -->
+  <g filter="url(#grain)" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="7" stroke-opacity="0.85">
+    <path d="M118,96 L176,72 L112,118 L198,84 L120,140 L206,104 L140,156 L204,128 L170,154" stroke="#3653b5"/>
+    <path d="M82,122 L104,112 L84,140 L104,132" stroke="#e2452f"/>
+    <path d="M190,150 L214,160 L196,168" stroke="#bccf2c"/>
+    <path d="M114,170 L172,176 L110,196 L186,196 L112,220 L190,218 L126,242 L192,238 L150,260" stroke="#f39a24"/>
+    <path d="M152,262 L196,264 L160,282 L198,282" stroke="#2f4f9e"/>
+    <path d="M206,158 L250,190 L210,190 L262,226 L214,224 L262,262 L220,262 L250,296 L224,300 L300,368 L276,350 L330,396" stroke="#3f9b46"/>
+  </g>
+
+  <!-- one confident graphite contour -->
+  <g filter="url(#wob)" fill="none" stroke="#2e2b28" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M116,134 C112,96 136,70 168,72 C200,74 216,100 210,130 C228,140 262,176 266,230 C268,274 250,300 222,310 C254,336 290,366 330,400 M222,310 C214,294 210,272 204,250 C186,268 152,266 134,248 C110,222 108,184 122,156 C116,150 113,142 116,134"/>
+    <path d="M114,108 C98,104 84,114 84,130 C84,144 92,152 100,150 C97,142 100,134 108,133 L116,136"/>
+    <path d="M30,304 C130,294 240,302 382,290"/>
+    <path d="M172,288 c-5,8 -12,12 -20,13 M186,292 c1,7 -3,12 -9,14"/>
+  </g>
+  <circle cx="140" cy="106" r="5" fill="#1d1b19"/>
+</svg>
