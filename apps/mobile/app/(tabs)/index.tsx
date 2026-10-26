@@ -22,6 +22,7 @@ import { SortableList } from '../../src/components/SortableList';
 import { SyncBanner } from '../../src/components/SyncBanner';
 import { UpcomingEvents } from '../../src/components/UpcomingEvents';
 import { moveItem } from '../../src/lib/moveItem';
+import { bankDataLine } from '../../src/lib/bankDataLine';
 import { now } from '../../src/lib/now';
 import { useSettings } from '../../src/settings/store';
 import { useTheme } from '../../src/theme/useTheme';
@@ -122,6 +123,8 @@ export default function AccountsScreen() {
   const accounts = accountsQ.data?.accounts ?? [];
   const lastSuccessAt = statusQ.data?.lastSuccessAt ?? accountsQ.data?.lastSuccessAt ?? null;
   const firstStale = accounts.find(a => a.stale && a.countsSpending);
+  // When the banks last delivered to PocketSmith, not when we last pulled from it.
+  const bankLine = bankDataLine(statusQ.data?.bankData ?? [], now());
   const bannerText =
     statusQ.data?.lastStatus === 'failed'
       ? 'Sync failed ·'
@@ -185,6 +188,11 @@ export default function AccountsScreen() {
           </Pressable>
         </View>
       </View>
+      {bankLine ? (
+        <AppText variant="label" tone="muted">
+          {bankLine}
+        </AppText>
+      ) : null}
       {refreshing ? <AppText tone="muted">Syncing…</AppText> : null}
       {bannerText ? <SyncBanner text={bannerText} /> : null}
       {error ? <AppText tone="muted">Sync failed. Try again soon.</AppText> : null}

@@ -191,6 +191,8 @@ export interface Repo {
   /** Start of the last successful sync, and whether it left history still to fetch. */
   lastOkSync(): Promise<{ startedAt: Date; more: boolean } | null>;
   lastSyncStatus(): Promise<'ok' | 'failed' | 'running' | null>;
+  /** Per PocketSmith institution, the newest time PocketSmith received a transaction from the bank; newest first. */
+  bankDataTimes(): Promise<{ institution: string; at: string }[]>;
   listCategories(): Promise<CategoryDto[]>;
   /** Renumbers sort 1..n with `ids` first and the rest after in their old order; false (nothing written) if an id is unknown or repeated. */
   setCategoryOrder(ids: number[]): Promise<boolean>;
@@ -863,6 +865,16 @@ export function makeRepo(db: Db): Repo {
         'select status from sync_log order by started_at desc, id desc limit 1',
       );
       return rows[0]?.status ?? null;
+    },
+
+    async bankDataTimes() {
+      return db.query<{ institution: string; at: string }>(
+        `select a.institution, to_char(max(t.feed_created_at) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at
+         from transaction t join account a on a.id = t.account_id
+         where a.source = 'pocketsmith' and t.feed_created_at is not null
+         group by a.institution
+         order by max(t.feed_created_at) desc`,
+      );
     },
 
     async listCategories() {

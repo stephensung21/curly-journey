@@ -120,7 +120,15 @@ export type SyncResult = {
   error?: 'sync_in_progress' | 'sync_failed';
 };
 
-export type SyncStatus = { lastSuccessAt: string | null; lastStatus: 'ok' | 'failed' | 'running' | null; stale: boolean };
+/** When PocketSmith last received a transaction from this bank (an ISO instant). */
+export type BankDataTime = { institution: string; at: string };
+export type SyncStatus = {
+  lastSuccessAt: string | null;
+  lastStatus: 'ok' | 'failed' | 'running' | null;
+  stale: boolean;
+  /** Newest first. Missing from a server older than this field. */
+  bankData?: BankDataTime[];
+};
 
 export type ImportFormat = 'commbank' | 'amex';
 export type ImportBody = { accountId: number; format: ImportFormat; csv: string };

@@ -379,12 +379,30 @@ describe('runSync', () => {
   it('status stale when never synced, fresh after', async () => {
     const { app, auth } = await setup();
     const s = await (await app.request('/sync/status', { headers: auth })).json();
-    expect(s).toEqual({ lastSuccessAt: null, lastStatus: null, stale: true });
+    expect(s).toEqual({ lastSuccessAt: null, lastStatus: null, stale: true, bankData: [] });
     await app.request('/sync', { method: 'POST', headers: auth });
     const s2 = (await (await app.request('/sync/status', { headers: auth })).json()) as { stale: boolean; lastStatus: string; lastSuccessAt: string };
     expect(s2.stale).toBe(false);
     expect(s2.lastStatus).toBe('ok');
     expect(s2.lastSuccessAt).toBe(T0.toISOString());
+  });
+
+  it('status gives, per bank, when PocketSmith last received a transaction (not when we synced)', async () => {
+    const amex = { ...acct(2, 20), institution: { id: 2, title: 'American Express' } };
+    const ps = fakePocketSmith({
+      accounts: [acct(1, 10), amex],
+      transactions: {
+        1: [tx(1, 1, '2026-10-20', { created_at: '2026-10-21T20:41:00Z' }), tx(2, 1, '2026-10-19', { created_at: '2026-10-19T03:00:00Z' })],
+        2: [tx(3, 2, '2026-10-18', { created_at: '2026-10-18T09:02:00Z' })],
+      },
+    });
+    const { app, auth } = await setup(ps);
+    await app.request('/sync', { method: 'POST', headers: auth });
+    const s = (await (await app.request('/sync/status', { headers: auth })).json()) as { bankData: { institution: string; at: string }[] };
+    expect(s.bankData).toEqual([
+      { institution: 'Bank', at: '2026-10-21T20:41:00.000Z' },
+      { institution: 'American Express', at: '2026-10-18T09:02:00.000Z' },
+    ]);
   });
 
   describe('CoinSpot feed', () => {

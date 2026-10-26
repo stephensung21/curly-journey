@@ -303,3 +303,17 @@ it('shows a bank logo in the CommBank header', async () => {
   walk(screen.toJSON());
   expect(found).toHaveLength(1);
 });
+
+describe('bank data line', () => {
+  it('shows when PocketSmith last got each bank’s data under the title', async () => {
+    // now() is 22 Oct, 1pm Sydney.
+    status = { ...status, bankData: [{ institution: 'CommBank', at: '2026-10-21T20:41:00Z' }, { institution: 'Amex', at: '2026-10-21T10:02:00Z' }] };
+    await renderScreen(<AccountsScreen />);
+    expect(screen.getByText('Bank data: CommBank today 7:41am · Amex yesterday 9:02pm')).toBeTruthy();
+  });
+
+  it('shows nothing before any bank data or from an older server', async () => {
+    await renderScreen(<AccountsScreen />);
+    expect(screen.queryByText(/^Bank data:/)).toBeNull();
+  });
+});

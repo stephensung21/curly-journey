@@ -21,6 +21,8 @@ export function syncRoutes(deps: Deps) {
       lastSuccessAt: last ? last.finishedAt.toISOString() : null,
       lastStatus,
       stale: isStale(last?.finishedAt ?? null, deps.now()),
+      // When the banks last delivered data to PocketSmith, which can lag our own sync by a day.
+      bankData: await makeRepo(deps.db).bankDataTimes(),
     });
   });
 
