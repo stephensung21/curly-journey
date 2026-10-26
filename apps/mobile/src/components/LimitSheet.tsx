@@ -1,9 +1,10 @@
 import { parseDecimalToCents } from '@curly/core';
 import { useEffect, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Alert, Pressable, TextInput, View } from 'react-native';
 import { ApiError } from '../api/client';
 import { useCreateLimit, useDeleteLimit, useUpdateLimit } from '../api/hooks';
 import type { Category, Limit } from '../api/types';
+import { useSettings } from '../settings/store';
 import { useTheme } from '../theme/useTheme';
 import { AppText, fonts } from './AppText';
 import { Button } from './Button';
@@ -44,17 +45,20 @@ export function LimitSheet({
   const [amount, setAmount] = useState('');
   const [warn, setWarn] = useState('80');
   const [error, setError] = useState<string | null>(null);
+  // With hide balances on, an existing limit's amount isn't shown; an empty field keeps it.
+  const hidden = useSettings(st => st.hideBalances);
+  const keepHidden = !!editing && hidden;
 
   useEffect(() => {
     if (!visible) return;
     setCategoryId(null);
     setPicking(false);
     setError(null);
-    setAmount(editing ? String(editing.amountCents / 100) : '');
+    setAmount(editing && !hidden ? String(editing.amountCents / 100) : '');
     setWarn(editing ? String(editing.warnPercent) : '80');
   // Keyed on the id so a background refetch does not wipe what is being typed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, editing?.id]);
+  }, [visible, editing?.id, hidden]);
 
   const chosen = freeCategories.find(c => c.id === categoryId);
   const needsCategory = !editing && !wholeMonth;
@@ -62,7 +66,7 @@ export function LimitSheet({
   async function save() {
     let amountCents = 0;
     try {
-      amountCents = parseDecimalToCents(amount);
+      amountCents = keepHidden && amount.trim() === '' ? editing.amountCents : parseDecimalToCents(amount);
     } catch {
       // Falls through to the message below.
     }
@@ -85,15 +89,18 @@ export function LimitSheet({
     onClose();
   }
 
-  async function remove() {
+  function remove() {
     if (!editing) return;
-    try {
-      await del.mutateAsync(editing.id);
-    } catch {
-      setError("Couldn't delete the limit. Try again.");
-      return;
-    }
-    onClose();
+    Alert.alert('Delete this limit?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          del.mutateAsync(editing.id).then(onClose, () => setError("Couldn't delete the limit. Try again."));
+        },
+      },
+    ]);
   }
 
   return (
@@ -115,7 +122,7 @@ export function LimitSheet({
           </AppText>
           <TextInput
             accessibilityLabel="Limit amount"
-            placeholder="0"
+            placeholder={keepHidden ? 'Hidden. Type to change' : '0'}
             placeholderTextColor={t.inkFaded}
             keyboardType="decimal-pad"
             value={amount}
@@ -142,7 +149,7 @@ export function LimitSheet({
         </View>
         {error ? <AppText>{error}</AppText> : null}
         <Button label="Save" onPress={() => void save()} disabled={create.isPending || update.isPending} />
-        {editing ? <Button kind="secondary" label="Delete limit" onPress={() => void remove()} disabled={del.isPending} /> : null}
+        {editing ? <Button kind="secondary" label="Delete limit" onPress={remove} disabled={del.isPending} /> : null}
       </Sheet>
       {needsCategory ? (
         <CategoryPicker

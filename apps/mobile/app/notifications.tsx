@@ -88,7 +88,13 @@ export default function NotificationsScreen() {
               {r.sub}
             </AppText>
           </View>
-          <Toggle accessibilityLabel={r.title} value={prefs?.[r.key] ?? true} onChange={v => setPrefs.mutate({ [r.key]: v })} />
+          {/* Off and locked until the saved settings arrive, so it never shows "on" when it might not be. */}
+          <Toggle
+            accessibilityLabel={r.title}
+            value={prefs?.[r.key] ?? false}
+            disabled={!prefs}
+            onChange={v => setPrefs.mutate({ [r.key]: v })}
+          />
         </Card>
       ))}
 

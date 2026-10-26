@@ -141,3 +141,14 @@ it('keeps the sheet open and says so when saving fails', async () => {
   expect(screen.getByText("Couldn't save. Try again.")).toBeTruthy();
   expect(screen.getByText('Did this get paid?')).toBeTruthy();
 });
+
+it('a quick double tap on Yes saves once', async () => {
+  // The save stays in flight: mutate never calls back.
+  setOcc.mockImplementation(() => {});
+  await renderScreen(<CalendarScreen />);
+  await fireEvent.press(screen.getByText('Rent'));
+  const yes = screen.getByText("Yes, it's paid");
+  await fireEvent.press(yes);
+  await fireEvent.press(yes);
+  expect(setOcc).toHaveBeenCalledTimes(1);
+});

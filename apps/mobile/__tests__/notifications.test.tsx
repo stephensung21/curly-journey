@@ -126,3 +126,11 @@ it('shows the CommSec hint switch and toggles it', async () => {
   await fireEvent(screen.getByLabelText('CommSec hint'), 'valueChange', false);
   expect(setPrefs).toHaveBeenCalledWith({ trade_hint: false });
 });
+
+it('switches stay off and locked until the saved settings load', async () => {
+  (mocked.useNotificationPrefs as jest.Mock).mockReturnValue({ data: undefined });
+  await renderScreen(<NotificationsScreen />);
+  const toggle = screen.getByLabelText('Bills & dates');
+  expect(toggle.props.value).toBe(false);
+  expect(toggle.props.disabled).toBe(true);
+});

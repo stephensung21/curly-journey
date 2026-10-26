@@ -3,6 +3,15 @@ import { renderScreen } from '../test-utils/renderScreen';
 import LimitsScreen from '../app/limits';
 import { ApiError } from '../src/api/client';
 import * as hooks from '../src/api/hooks';
+import { Alert } from 'react-native';
+import { useSettings } from '../src/settings/store';
+
+jest.spyOn(Alert, 'alert');
+/** Presses a button in the last alert shown. */
+const confirmLast = (text: string) => {
+  const buttons = (Alert.alert as jest.Mock).mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
+  buttons.find(b => b.text === text)!.onPress?.();
+};
 
 const mockBack = jest.fn();
 let mockNow = new Date('2026-10-24T02:00:00Z');
@@ -117,7 +126,29 @@ it('edits a limit without a category picker, and can delete it', async () => {
   expect(update).toHaveBeenCalledWith({ id: 2, amountCents: 90000, warnPercent: 90 });
   await fireEvent.press(screen.getByText('Dining out'));
   await fireEvent.press(screen.getByText('Delete limit'));
+  confirmLast('Delete');
   expect(del).toHaveBeenCalledWith(2);
+});
+
+it('asks before deleting a limit', async () => {
+  await renderScreen(<LimitsScreen />);
+  await fireEvent.press(screen.getByText('Dining out'));
+  await fireEvent.press(screen.getByText('Delete limit'));
+  expect(Alert.alert).toHaveBeenCalledWith('Delete this limit?', undefined, expect.any(Array));
+  confirmLast('Cancel');
+  expect(del).not.toHaveBeenCalled();
+});
+
+it('with hide balances on, the edit sheet hides the amount and keeps it unless retyped', async () => {
+  useSettings.setState({ hideBalances: true });
+  await renderScreen(<LimitsScreen />);
+  await fireEvent.press(screen.getByText('Dining out'));
+  expect(screen.getByLabelText('Limit amount').props.value).toBe('');
+  expect(screen.getByLabelText('Limit amount').props.placeholder).toBe('Hidden. Type to change');
+  await fireEvent.press(screen.getByText('90%'));
+  await fireEvent.press(screen.getByText('Save'));
+  expect(update).toHaveBeenCalledWith({ id: 2, amountCents: 80000, warnPercent: 90 });
+  useSettings.setState({ hideBalances: false });
 });
 
 it('sets a whole-month limit', async () => {
